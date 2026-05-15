@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>negativezero — design suggestions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #FAFAF7; --ink: #14140F; --muted: #76766D; --rule: #E5E4DC; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Geist', system-ui, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 64px 32px 96px; }
+  header.top { display: flex; justify-content: space-between; border-bottom: 1px solid var(--rule); padding-bottom: 12px; margin-bottom: 48px; font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--muted); }
+  h1 { font-weight: 400; font-size: 36px; letter-spacing: -0.02em; margin: 0 0 8px; }
+  p.lede { color: var(--muted); max-width: 60ch; margin: 0 0 48px; font-size: 16px; line-height: 1.6; }
+  .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 820px) { .options { grid-template-columns: 1fr; } }
+  a.opt {
+    display: block;
+    text-decoration: none;
+    color: var(--ink);
+    padding: 24px;
+    border: 1px solid var(--rule);
+    background: white;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  a.opt:hover { border-color: var(--ink); transform: translateY(-2px); }
+  a.opt .num { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.04em; }
+  a.opt h2 { font-weight: 400; font-size: 22px; letter-spacing: -0.01em; margin: 8px 0 12px; }
+  a.opt p { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--muted); line-height: 1.6; margin: 0 0 20px; min-height: 8em; }
+  a.opt .tags { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted); }
+  footer { margin-top: 64px; padding-top: 12px; border-top: 1px solid var(--rule); font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>−0 · negativezero / design exploration</div>
+    <div>three directions · all Geist</div>
+  </header>
+  <h1>Three directions for the main page.</h1>
+  <p class="lede">Each one is a self-contained sketch &mdash; same content, different posture. Open them, see which one sounds like you. We can keep one wholesale, or steal bits from each.</p>
+  <div class="options">
+    <a class="opt" href="01-footnote/">
+      <div class="num">01 / editorial minimal</div>
+      <h2>The Footnote</h2>
+      <p>Two-column editorial layout. Wide reading column on the left, marginalia on the right for paradox notes and definitions. Long-form, considered, magazine-like.</p>
+      <div class="tags">paper white · marginalia · long-form</div>
+    </a>
+    <a class="opt" href="02-index/">
+      <div class="num">02 / structured catalogue</div>
+      <h2>The Index</h2>
+      <p>Numbered, list-based, mono-heavy. Everything is an entry. Bio is three labelled lines. Projects are a table with IDs and tags. Personal cabinet of curiosities.</p>
+      <div class="tags">geist mono · numbered · dashed rules</div>
+    </a>
+    <a class="opt" href="03-paradox/">
+      <div class="num">03 / concept-driven (dark)</div>
+      <h2>The Paradox</h2>
+      <p>Hero is a huge pulsing &minus;0. Dark mode. Hover-defined maths terms. A "paradox of the week" section, project grid. Most identity-forward of the three.</p>
+      <div class="tags">dark · hover-defs · grid · pulse</div>
+    </a>
+  </div>
+  <footer>open each → pick the one that sounds like you → tell me which to refine.</footer>
+</div>
+</body>
+</html>
