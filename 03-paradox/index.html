@@ -34,7 +34,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 72px;
+    margin-bottom: 48px;
   }
   .mark, nav a {
     font-family: 'Geist Mono', monospace;
@@ -46,65 +46,34 @@
   nav a { margin-left: 20px; }
   nav a:hover { color: var(--ink); }
 
-  /* Hero: equation + chart */
-  .hero { margin-bottom: 80px; cursor: pointer; }
-  .eq {
-    font-family: 'Geist Mono', monospace;
-    font-size: 14px;
-    color: var(--muted);
-    letter-spacing: 0.01em;
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-    min-height: 22px;
+  .hero {
+    margin: 0 0 88px;
+    cursor: pointer;
+    user-select: none;
   }
-  .eq .big { font-size: 22px; color: var(--ink); line-height: 1; transform: translateY(2px); display: inline-block; }
-  .eq .sub { font-size: 9px; transform: translateY(4px); display: inline-block; color: var(--muted); }
-  .eq .sup { font-size: 9px; transform: translateY(-7px); display: inline-block; color: var(--muted); }
-  .eq .equals { color: var(--ink); margin: 0 8px; }
-  .eq .right, .eq .left {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 4px;
-    transition: opacity 0.5s ease;
-  }
-  .eq.settled .left { opacity: 0.35; }
-  .eq.settled .right { color: var(--ink); }
-
-  .chart-wrap {
-    position: relative;
+  .canvas-wrap {
     width: 100%;
-    aspect-ratio: 16 / 7;
-    max-height: 56vh;
+    aspect-ratio: 1 / 1;
+    max-width: 560px;
+    margin: 0 auto;
+    position: relative;
   }
-  .chart {
+  canvas {
     width: 100%;
     height: 100%;
     display: block;
-    overflow: visible;
   }
-  .axis { stroke: var(--rule); stroke-width: 1; }
-  .tick { stroke: var(--rule); stroke-width: 1; }
-  .tick-label { font-family: 'Geist Mono', monospace; font-size: 10px; fill: var(--muted); }
-  .bar { fill: rgba(228,176,90,0.10); stroke: var(--hi); stroke-width: 1; vector-effect: non-scaling-stroke; transition: opacity 0.4s ease; }
-  .area { fill: rgba(228,176,90,0.16); opacity: 0; transition: opacity 0.7s ease; }
-  .area.show { opacity: 1; }
-  .curve { stroke: var(--hi); stroke-width: 1.5; fill: none; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-
-  .readout {
-    display: flex;
-    gap: 36px;
-    margin-top: 22px;
+  .caption {
+    text-align: center;
+    margin-top: 24px;
     font-family: 'Geist Mono', monospace;
-    font-size: 13px;
+    font-size: 11px;
     color: var(--muted);
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transition: opacity 0.8s 0.6s ease;
   }
-  .readout .r { display: flex; gap: 10px; align-items: baseline; }
-  .readout .r .v { color: var(--ink); font-variant-numeric: tabular-nums; min-width: 7ch; }
-  .readout .hint { margin-left: auto; opacity: 0; transition: opacity 0.6s 0.4s ease; }
-  .readout.settled .hint { opacity: 0.6; }
+  .caption.show { opacity: 1; }
 
   .bio {
     font-size: 17px;
@@ -151,7 +120,6 @@
   }
   .elsewhere a { color: var(--ink); text-decoration: none; border-bottom: 1px solid transparent; }
   .elsewhere a:hover { border-bottom-color: var(--ink); }
-  .elsewhere .soon { color: var(--muted); }
 
   footer {
     margin-top: 80px;
@@ -162,11 +130,6 @@
     color: var(--muted);
     display: flex;
     justify-content: space-between;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .bar { display: none; }
-    .area { opacity: 1; }
   }
 </style>
 </head>
@@ -182,38 +145,10 @@
   </header>
 
   <div class="hero" id="hero" title="click to replay">
-    <div class="eq" id="eqLabel">
-      <span class="left">
-        <span class="big">lim</span><span class="sub">n&nbsp;→&nbsp;∞</span>
-        <span class="big" style="margin-left:6px">∑</span><span class="sub">i=1</span><span class="sup">n</span>
-        <span style="margin-left:6px">f(x<span class="sub" style="transform:translateY(2px)">i</span>) · Δx</span>
-      </span>
-      <span class="equals">=</span>
-      <span class="right">
-        <span class="big">∫</span><span class="sub">0</span><span class="sup">π</span>
-        <span style="margin-left:4px">sin(x) dx</span>
-      </span>
+    <div class="canvas-wrap">
+      <canvas id="cv"></canvas>
     </div>
-
-    <div class="chart-wrap">
-      <svg class="chart" id="chart" viewBox="0 0 600 240" preserveAspectRatio="xMidYMid meet">
-        <line class="axis" x1="40" y1="200" x2="580" y2="200"/>
-        <line class="axis" x1="40" y1="30" x2="40" y2="200"/>
-        <line class="tick" x1="40" y1="200" x2="40" y2="206"/>
-        <line class="tick" x1="580" y1="200" x2="580" y2="206"/>
-        <text class="tick-label" x="40" y="222" text-anchor="middle">0</text>
-        <text class="tick-label" x="580" y="222" text-anchor="middle">π</text>
-        <g class="bars" id="bars"></g>
-        <path class="area" id="area"/>
-        <path class="curve" id="curve" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="1"/>
-      </svg>
-    </div>
-
-    <div class="readout" id="readout">
-      <div class="r"><span>n</span><span class="v" id="nVal">—</span></div>
-      <div class="r"><span>S<span class="sub" style="font-size:9px">n</span></span><span class="v" id="sumVal">—</span></div>
-      <div class="hint">click to replay</div>
-    </div>
+    <div class="caption" id="caption">hypotrochoid &nbsp;·&nbsp; R = 7 &nbsp; r = 3 &nbsp; d = 5</div>
   </div>
 
   <p class="bio">
@@ -246,7 +181,7 @@
       <a href="mailto:hello@positiveinfinity.xyz">mail</a>
       <a href="#">github</a>
       <a href="#">rss</a>
-      <span class="soon">analysis &amp; consulting · soon</span>
+      <span style="color:var(--muted)">analysis &amp; consulting · soon</span>
     </div>
   </section>
 
@@ -255,141 +190,199 @@
     <div>+∞ is a limit, not a number</div>
   </footer>
 </div>
+
 <script>
 (function () {
-  const FN = Math.sin;
-  const A = 0, B = Math.PI;
-  const VB = { x0: 40, x1: 580, y0: 30, yBase: 200, yMax: 1.0 };
-  const PW = VB.x1 - VB.x0;
-  const PH = VB.yBase - VB.y0;
-
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const wrap = cv.parentElement;
+  const hero = document.getElementById('hero');
+  const cap = document.getElementById('caption');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const $ = id => document.getElementById(id);
-  const bars = $('bars');
-  const curve = $('curve');
-  const area = $('area');
-  const nVal = $('nVal');
-  const sumVal = $('sumVal');
-  const readout = $('readout');
-  const hero = $('hero');
-  const eqLabel = $('eqLabel');
+  // Hypotrochoid: small circle (radius r) rolling inside large circle (radius R),
+  // pen offset d from inner-circle center. Closes after t = 2π · r / gcd(R-r, r).
+  const R = 7, r = 3, d = 5;
+  // gcd(R-r, r) = gcd(4, 3) = 1 → period = 2π · r = 6π.
+  const PERIOD = 2 * Math.PI * r;
 
-  function xToPx(x) { return VB.x0 + (x - A) / (B - A) * PW; }
-  function yToPx(y) { return VB.yBase - (y / VB.yMax) * PH; }
+  let W = 0, H = 0, CX = 0, CY = 0, SCALE = 1, DPR = 1;
+  function sizeCanvas() {
+    DPR = window.devicePixelRatio || 1;
+    const rect = wrap.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CX = W / 2;
+    CY = H / 2;
+    // Outer circle should leave breathing room; max extent of pen is (R-r)+d = 4+5 = 9.
+    SCALE = Math.min(W, H) * 0.46 / Math.max(R, 9);
+  }
 
-  function buildCurvePath() {
-    let d = '';
-    const N = 240;
-    for (let i = 0; i <= N; i++) {
-      const x = A + (B - A) * i / N;
-      const y = FN(x);
-      d += (i === 0 ? 'M' : 'L') + xToPx(x).toFixed(2) + ',' + yToPx(y).toFixed(2);
+  function penAt(t) {
+    const a = R - r;
+    const k = a / r;
+    const x = a * Math.cos(t) + d * Math.cos(k * t);
+    const y = a * Math.sin(t) - d * Math.sin(k * t);
+    return {
+      x: CX + x * SCALE,
+      y: CY + y * SCALE,
+      ix: CX + a * SCALE * Math.cos(t),
+      iy: CY + a * SCALE * Math.sin(t),
+    };
+  }
+
+  // Pre-compute the full trail so we can render any prefix smoothly.
+  const STEPS = 1200;
+  const trail = [];
+  for (let i = 0; i <= STEPS; i++) {
+    const t = PERIOD * i / STEPS;
+    const p = penAt(t);
+    trail.push({ x: p.x, y: p.y });
+  }
+  // sizeCanvas needs to run first; re-prime trail after sizing.
+  function reprime() {
+    trail.length = 0;
+    for (let i = 0; i <= STEPS; i++) {
+      const t = PERIOD * i / STEPS;
+      const p = penAt(t);
+      trail.push({ x: p.x, y: p.y });
     }
-    return d;
   }
 
-  function buildAreaPath() {
-    return buildCurvePath()
-      + 'L' + xToPx(B).toFixed(2) + ',' + yToPx(0).toFixed(2)
-      + 'L' + xToPx(A).toFixed(2) + ',' + yToPx(0).toFixed(2) + 'Z';
+  const COL = {
+    outer:   'rgba(124, 123, 114, 0.22)',
+    inner:   'rgba(124, 123, 114, 0.35)',
+    arm:     'rgba(228, 176, 90, 0.55)',
+    trail:   'rgba(228, 176, 90, 1)',
+    trailGlow: 'rgba(228, 176, 90, 0.25)',
+    penFill: 'rgb(228, 176, 90)',
+  };
+
+  // animation state
+  let phase = 'idle';
+  let startTime = 0;
+  const ANIM_DRAW_MS = 5200;     // build the trail
+  const ANIM_FADE_MS = 900;      // fade out construction lines
+
+  function clear() { ctx.clearRect(0, 0, W, H); }
+
+  function drawTrail(upTo) {
+    const n = Math.max(2, Math.floor(upTo * trail.length));
+    // soft glow
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = COL.trailGlow;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x, trail[0].y);
+    for (let i = 1; i < n; i++) ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.stroke();
+    // crisp line
+    ctx.strokeStyle = COL.trail;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
   }
 
-  function renderBars(n) {
-    let html = '';
-    const dx = (B - A) / n;
-    let sum = 0;
-    for (let i = 0; i < n; i++) {
-      const xMid = A + (i + 0.5) * dx;
-      const h = FN(xMid);
-      sum += h * dx;
-      const x0 = xToPx(A + i * dx);
-      const x1 = xToPx(A + (i + 1) * dx);
-      const y0 = yToPx(h);
-      const y1 = yToPx(0);
-      html += '<rect class="bar" x="' + x0.toFixed(2) + '" y="' + y0.toFixed(2) + '" width="' + (x1 - x0).toFixed(2) + '" height="' + (y1 - y0).toFixed(2) + '"/>';
+  function drawConstruction(t, alpha) {
+    if (alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 1;
+    // outer
+    ctx.strokeStyle = COL.outer;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R * SCALE, 0, Math.PI * 2);
+    ctx.stroke();
+    // inner
+    const a = R - r;
+    const ix = CX + a * SCALE * Math.cos(t);
+    const iy = CY + a * SCALE * Math.sin(t);
+    ctx.strokeStyle = COL.inner;
+    ctx.beginPath();
+    ctx.arc(ix, iy, r * SCALE, 0, Math.PI * 2);
+    ctx.stroke();
+    // arm from inner center to pen
+    const p = penAt(t);
+    ctx.strokeStyle = COL.arm;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(ix, iy);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    // pen dot
+    ctx.fillStyle = COL.penFill;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // inner-center dot
+    ctx.fillStyle = 'rgba(124,123,114,0.7)';
+    ctx.beginPath();
+    ctx.arc(ix, iy, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function ease(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
+
+  function frame(now) {
+    const elapsed = now - startTime;
+    clear();
+
+    if (phase === 'draw') {
+      const t = Math.min(1, elapsed / ANIM_DRAW_MS);
+      const e = ease(t);
+      const tau = e * PERIOD;
+      drawTrail(e);
+      drawConstruction(tau, 1);
+      if (t < 1) requestAnimationFrame(frame);
+      else { phase = 'fade'; startTime = now; requestAnimationFrame(frame); }
+    } else if (phase === 'fade') {
+      const t = Math.min(1, elapsed / ANIM_FADE_MS);
+      drawTrail(1);
+      drawConstruction(PERIOD, 1 - t);
+      if (t < 1) requestAnimationFrame(frame);
+      else { phase = 'rest'; cap.classList.add('show'); }
     }
-    bars.innerHTML = html;
-    return sum;
+    // rest: nothing more to draw; trail stays on canvas.
+    if (phase === 'rest') drawTrail(1);
   }
 
-  curve.setAttribute('d', buildCurvePath());
-  area.setAttribute('d', buildAreaPath());
-
-  function ease(t) { return 1 - Math.pow(1 - t, 3); }
-
-  let running = false;
-
-  function drawCurve(ms) {
-    return new Promise(res => {
-      const start = performance.now();
-      function tick(now) {
-        const t = Math.min(1, (now - start) / ms);
-        curve.setAttribute('stroke-dashoffset', (1 - ease(t)).toFixed(4));
-        if (t < 1) requestAnimationFrame(tick);
-        else res();
-      }
-      requestAnimationFrame(tick);
-    });
-  }
-
-  function animateBars(ms) {
-    return new Promise(res => {
-      const start = performance.now();
-      function tick(now) {
-        const t = Math.min(1, (now - start) / ms);
-        const k = ease(t);
-        const n = Math.max(4, Math.round(4 * Math.pow(2, k * 6.5)));
-        const s = renderBars(n);
-        nVal.textContent = n;
-        sumVal.textContent = s.toFixed(4);
-        if (t < 1) requestAnimationFrame(tick);
-        else res();
-      }
-      requestAnimationFrame(tick);
-    });
-  }
-
-  async function run() {
-    if (running) return;
-    running = true;
-    eqLabel.classList.remove('settled');
-    readout.classList.remove('settled');
-    area.classList.remove('show');
-    bars.style.opacity = '1';
-    nVal.textContent = '—';
-    sumVal.textContent = '—';
-    curve.setAttribute('stroke-dashoffset', '1');
-
+  function run() {
+    if (phase === 'draw' || phase === 'fade') return;
+    cap.classList.remove('show');
+    sizeCanvas();
+    reprime();
+    clear();
     if (reduced) {
-      bars.innerHTML = '';
-      area.classList.add('show');
-      curve.setAttribute('stroke-dashoffset', '0');
-      nVal.textContent = '∞';
-      sumVal.textContent = '2.0000';
-      eqLabel.classList.add('settled');
-      readout.classList.add('settled');
-      running = false;
+      drawTrail(1);
+      cap.classList.add('show');
+      phase = 'rest';
       return;
     }
-
-    await drawCurve(700);
-    await animateBars(2000);
-    bars.style.opacity = '0';
-    area.classList.add('show');
-    nVal.textContent = '∞';
-    sumVal.textContent = '2.0000';
-    setTimeout(() => {
-      eqLabel.classList.add('settled');
-      readout.classList.add('settled');
-      running = false;
-    }, 500);
+    phase = 'draw';
+    startTime = performance.now();
+    requestAnimationFrame(frame);
   }
 
-  hero.addEventListener('click', e => {
-    if (!running) run();
+  // Re-render trail (settled) on resize.
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const wasRest = (phase === 'rest');
+      sizeCanvas();
+      reprime();
+      clear();
+      if (wasRest) drawTrail(1);
+    }, 120);
   });
 
+  hero.addEventListener('click', run);
+
+  // Kick off after first paint so layout has settled.
   requestAnimationFrame(() => requestAnimationFrame(run));
 })();
 </script>
