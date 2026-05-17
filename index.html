@@ -15,8 +15,9 @@
   header.top { display: flex; justify-content: space-between; border-bottom: 1px solid var(--rule); padding-bottom: 12px; margin-bottom: 48px; font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--muted); }
   h1 { font-weight: 400; font-size: 36px; letter-spacing: -0.02em; margin: 0 0 8px; }
   p.lede { color: var(--muted); max-width: 60ch; margin: 0 0 48px; font-size: 16px; line-height: 1.6; }
-  .options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-  @media (max-width: 820px) { .options { grid-template-columns: 1fr; } }
+  .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1000px) { .options { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px)  { .options { grid-template-columns: 1fr; } }
   a.opt {
     display: block;
     text-decoration: none;
@@ -38,9 +39,9 @@
 <div class="wrap">
   <header class="top">
     <div>+∞ · positiveinfinity / design exploration</div>
-    <div>four directions · all Geist</div>
+    <div>five directions · all Geist</div>
   </header>
-  <h1>Four directions for the main page.</h1>
+  <h1>Five directions for the main page.</h1>
   <p class="lede">Each one is a self-contained sketch &mdash; same content, different posture. Open them, see which one sounds like you. We can keep one wholesale, or steal bits from each.</p>
   <div class="options">
     <a class="opt" href="01-footnote/">
@@ -66,6 +67,12 @@
       <h2>The Snowflake</h2>
       <p>Same minimal shell, but the entrance morphs a triangle through Koch iterations n = 0 → 6, ending at n → ∞. Edges and perimeter diverge, area stays finite.</p>
       <div class="tags">dark · fractal · limit + ∞</div>
+    </a>
+    <a class="opt" href="05-taylor/">
+      <div class="num">05 / taylor series (dark)</div>
+      <h2>The Approximation</h2>
+      <p>Real KaTeX-typeset equation grows term by term while the polynomial approximation hugs sin(x) more tightly. Settles on the infinite-series form. The calculus-textbook one.</p>
+      <div class="tags">dark · KaTeX · convergence</div>
     </a>
   </div>
   <footer>open each → pick the one that sounds like you → tell me which to refine.</footer>
