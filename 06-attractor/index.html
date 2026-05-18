@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>positiveinfinity</title>
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<script defer src="../vendor/katex/katex.min.js"></script>
+<style>
+  @font-face { font-family: 'Geist'; src: url('../fonts/Geist-Variable.ttf') format('truetype-variations'); font-weight: 100 900; font-style: normal; font-display: swap; }
+  @font-face { font-family: 'Geist'; src: url('../fonts/Geist-Italic-Variable.ttf') format('truetype-variations'); font-weight: 100 900; font-style: italic; font-display: swap; }
+  @font-face { font-family: 'Geist Mono'; src: url('../fonts/GeistMono-Variable.ttf') format('truetype-variations'); font-weight: 100 900; font-style: normal; font-display: swap; }
+
+  :root {
+    --bg: #0B0B0A;
+    --ink: #F0EFE9;
+    --muted: #7C7B72;
+    --rule: #1F1E1B;
+    --hi: #E4B05A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Geist', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 28px 28px 80px;
+  }
+  header.top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 56px;
+  }
+  .mark, nav a {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+  }
+  nav a { margin-left: 20px; }
+  nav a:hover { color: var(--ink); }
+
+  .hero {
+    margin: 0 0 96px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .canvas-wrap {
+    width: 100%;
+    aspect-ratio: 16 / 11;
+    max-height: 60vh;
+    position: relative;
+    background: rgba(228, 176, 90, 0.010);
+    border: 1px solid var(--rule);
+    overflow: hidden;
+  }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .eq-wrap {
+    margin-top: 28px;
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 18px 28px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    padding: 0 12px;
+  }
+  .eq-wrap.show { opacity: 1; }
+  .eq-wrap .katex { color: var(--ink); font-size: 1.05em; }
+  .eq-wrap .katex .mfrac .frac-line { border-bottom-color: var(--ink); }
+
+  .params {
+    margin-top: 14px;
+    text-align: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    opacity: 0;
+    transition: opacity 0.8s 0.2s ease;
+  }
+  .params.show { opacity: 1; }
+  .params .v { color: var(--ink); }
+
+  .bio {
+    font-size: 17px;
+    font-weight: 300;
+    color: var(--ink);
+    max-width: 48ch;
+    margin: 0 0 96px;
+    letter-spacing: -0.005em;
+  }
+  .bio .muted { color: var(--muted); }
+
+  section { margin-bottom: 56px; }
+  h2 {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    font-weight: 400;
+    margin: 0 0 16px;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 10px;
+  }
+  ul.list { list-style: none; padding: 0; margin: 0; }
+  ul.list li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  ul.list a { color: var(--ink); text-decoration: none; border-bottom: 1px solid transparent; }
+  ul.list a:hover { border-bottom-color: var(--ink); }
+  ul.list .d { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--muted); }
+
+  .elsewhere {
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .elsewhere a { color: var(--ink); text-decoration: none; border-bottom: 1px solid transparent; }
+  .elsewhere a:hover { border-bottom-color: var(--ink); }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <div class="mark">+∞ · positiveinfinity.xyz</div>
+    <nav>
+      <a href="#work">work</a>
+      <a href="#writing">writing</a>
+      <a href="#contact">contact</a>
+    </nav>
+  </header>
+
+  <div class="hero" id="hero" title="click to replay">
+    <div class="canvas-wrap">
+      <canvas id="cv"></canvas>
+    </div>
+    <div class="eq-wrap" id="eqWrap"></div>
+    <div class="params" id="params">
+      <span>σ = <span class="v">10</span></span>
+      <span style="margin-left:18px">ρ = <span class="v">28</span></span>
+      <span style="margin-left:18px">β = <span class="v">8/3</span></span>
+      <span style="margin-left:24px">— after Lorenz, 1963</span>
+    </div>
+  </div>
+
+  <p class="bio">
+    A rogue mathematician. <span class="muted">Probability, paradox, data. Quietly uncertain.</span>
+  </p>
+
+  <section id="work">
+    <h2>work</h2>
+    <ul class="list">
+      <li><a href="#">sorites.tools</a><span class="d">2026</span></li>
+      <li><a href="#">newcomb.notebook</a><span class="d">2025</span></li>
+      <li><a href="#">tarski.viz</a><span class="d">2025</span></li>
+      <li><a href="#">small-lies</a><span class="d">2024</span></li>
+    </ul>
+  </section>
+
+  <section id="writing">
+    <h2>writing</h2>
+    <ul class="list">
+      <li><a href="#">On being slightly wrong, professionally</a><span class="d">2026.04</span></li>
+      <li><a href="#">Banach&ndash;Tarski for people who don't want more</a><span class="d">2026.03</span></li>
+      <li><a href="#">Thinking about a heap</a><span class="d">2026.02</span></li>
+      <li><a href="#">Counting things that don't want to be counted</a><span class="d">2026.01</span></li>
+    </ul>
+  </section>
+
+  <section id="contact">
+    <h2>elsewhere</h2>
+    <div class="elsewhere">
+      <a href="mailto:hello@positiveinfinity.xyz">mail</a>
+      <a href="#">github</a>
+      <a href="#">rss</a>
+      <span style="color:var(--muted)">analysis &amp; consulting · soon</span>
+    </div>
+  </section>
+
+  <footer>
+    <div>© positiveinfinity.xyz</div>
+    <div>deterministic · not predictable</div>
+  </footer>
+</div>
+
+<script>
+window.addEventListener('load', () => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const wrap = cv.parentElement;
+  const hero = document.getElementById('hero');
+  const eqWrap = document.getElementById('eqWrap');
+  const paramsEl = document.getElementById('params');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Lorenz parameters
+  const SIGMA = 10, RHO = 28, BETA = 8 / 3;
+
+  // Pre-compute a long trajectory with RK4 for stability
+  function lorenzStep(state, dt) {
+    const f = (s) => [
+      SIGMA * (s[1] - s[0]),
+      s[0] * (RHO - s[2]) - s[1],
+      s[0] * s[1] - BETA * s[2],
+    ];
+    const k1 = f(state);
+    const k2 = f([state[0] + k1[0]*dt/2, state[1] + k1[1]*dt/2, state[2] + k1[2]*dt/2]);
+    const k3 = f([state[0] + k2[0]*dt/2, state[1] + k2[1]*dt/2, state[2] + k2[2]*dt/2]);
+    const k4 = f([state[0] + k3[0]*dt,    state[1] + k3[1]*dt,    state[2] + k3[2]*dt]);
+    return [
+      state[0] + (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]) * dt / 6,
+      state[1] + (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) * dt / 6,
+      state[2] + (k1[2] + 2*k2[2] + 2*k3[2] + k4[2]) * dt / 6,
+    ];
+  }
+
+  const DT = 0.006;
+  const N_POINTS = 7200; // ~43 s of simulated time
+  let path = [];
+  function computePath() {
+    path = [];
+    let s = [0.1, 0, 0];
+    // skip initial transient
+    for (let i = 0; i < 400; i++) s = lorenzStep(s, DT);
+    for (let i = 0; i < N_POINTS; i++) {
+      s = lorenzStep(s, DT);
+      path.push([s[0], s[1], s[2]]);
+    }
+  }
+  computePath();
+
+  // Compute bounds for x-z projection
+  let XMIN = Infinity, XMAX = -Infinity, ZMIN = Infinity, ZMAX = -Infinity;
+  for (const [x, _, z] of path) {
+    if (x < XMIN) XMIN = x;
+    if (x > XMAX) XMAX = x;
+    if (z < ZMIN) ZMIN = z;
+    if (z > ZMAX) ZMAX = z;
+  }
+  const XPAD = (XMAX - XMIN) * 0.06;
+  const ZPAD = (ZMAX - ZMIN) * 0.06;
+  XMIN -= XPAD; XMAX += XPAD;
+  ZMIN -= ZPAD; ZMAX += ZPAD;
+
+  let W = 0, H = 0, DPR = 1;
+  function sizeCanvas() {
+    DPR = window.devicePixelRatio || 1;
+    const rect = wrap.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function xToPx(x) { return (x - XMIN) / (XMAX - XMIN) * W; }
+  function zToPx(z) { return H - (z - ZMIN) / (ZMAX - ZMIN) * H; }
+
+  function drawAxes() {
+    // very subtle grid: vertical lines at -10, 0, 10 ; horizontal at z=10, 20, 30, 40
+    ctx.save();
+    ctx.strokeStyle = 'rgba(124, 123, 114, 0.06)';
+    ctx.lineWidth = 1;
+    for (const x of [-15, -10, -5, 0, 5, 10, 15]) {
+      const px = xToPx(x);
+      if (px > 0 && px < W) {
+        ctx.beginPath();
+        ctx.moveTo(px, 0); ctx.lineTo(px, H);
+        ctx.stroke();
+      }
+    }
+    for (const z of [10, 20, 30, 40]) {
+      const py = zToPx(z);
+      if (py > 0 && py < H) {
+        ctx.beginPath();
+        ctx.moveTo(0, py); ctx.lineTo(W, py);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawTrail(idx) {
+    ctx.clearRect(0, 0, W, H);
+    drawAxes();
+    // Soft glow underlayer
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(228, 176, 90, 0.10)';
+    ctx.lineWidth = 3.6;
+    ctx.beginPath();
+    for (let i = 0; i < idx; i++) {
+      const [x, _, z] = path[i];
+      const px = xToPx(x), py = zToPx(z);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    // Crisp trail
+    ctx.strokeStyle = 'rgba(228, 176, 90, 0.85)';
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    // Bright "head" — last ~120 points, drawn over
+    const headStart = Math.max(0, idx - 120);
+    if (idx - headStart > 1) {
+      ctx.strokeStyle = 'rgba(255, 225, 170, 1)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (let i = headStart; i < idx; i++) {
+        const [x, _, z] = path[i];
+        const px = xToPx(x), py = zToPx(z);
+        if (i === headStart) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    // Tip dot
+    if (idx > 0 && idx < path.length) {
+      const [x, _, z] = path[idx - 1];
+      const px = xToPx(x), py = zToPx(z);
+      ctx.fillStyle = 'rgb(255, 240, 200)';
+      ctx.beginPath();
+      ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawSettled() {
+    ctx.clearRect(0, 0, W, H);
+    drawAxes();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // glow
+    ctx.strokeStyle = 'rgba(228, 176, 90, 0.12)';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    for (let i = 0; i < path.length; i++) {
+      const [x, _, z] = path[i];
+      const px = xToPx(x), py = zToPx(z);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    // crisp
+    ctx.strokeStyle = 'rgba(228, 176, 90, 0.88)';
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+  }
+
+  // KaTeX equation
+  function renderEq() {
+    if (!window.katex) return;
+    const latex = '\\dot{x} = \\sigma(y - x) \\quad\\;\\; \\dot{y} = x(\\rho - z) - y \\quad\\;\\; \\dot{z} = xy - \\beta z';
+    katex.render(latex, eqWrap, { displayMode: false, throwOnError: false });
+  }
+
+  // Animation
+  let raf = 0;
+  let startT = 0;
+  const DUR_MS = 6800;
+  function easeOut(t) { return 1 - Math.pow(1 - t, 2.4); }
+
+  function frame(now) {
+    const t = Math.min(1, (now - startT) / DUR_MS);
+    const e = easeOut(t);
+    const idx = Math.floor(e * path.length);
+    drawTrail(idx);
+    if (t < 1) raf = requestAnimationFrame(frame);
+    else {
+      drawSettled();
+      eqWrap.classList.add('show');
+      paramsEl.classList.add('show');
+    }
+  }
+
+  function run() {
+    cancelAnimationFrame(raf);
+    sizeCanvas();
+    eqWrap.classList.remove('show');
+    paramsEl.classList.remove('show');
+    if (reduced) {
+      drawSettled();
+      eqWrap.classList.add('show');
+      paramsEl.classList.add('show');
+      return;
+    }
+    startT = performance.now();
+    raf = requestAnimationFrame(frame);
+  }
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      sizeCanvas();
+      drawSettled();
+    }, 120);
+  });
+
+  hero.addEventListener('click', run);
+
+  // wait for KaTeX
+  (function waitKatex() {
+    if (window.katex) {
+      renderEq();
+      run();
+    } else setTimeout(waitKatex, 50);
+  })();
+});
+</script>
+</body>
+</html>
