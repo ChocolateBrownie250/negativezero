@@ -1,0 +1,45 @@
+version: 2
+
+updates:
+  # Bookmark-manager (npm workspaces — root, server, client all share one lockfile)
+  - package-ecosystem: npm
+    directory: /apps/bookmark-manager
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 5
+    groups:
+      types:
+        # @types/* updates are noisy and almost always safe; batch them.
+        patterns:
+          - '@types/*'
+      dev-dependencies:
+        dependency-type: development
+      react:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+
+  # GitHub Actions versions used in workflows under .github/workflows/
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 3
+
+  # Base image bumps for the bookmark-manager Dockerfile
+  - package-ecosystem: docker
+    directory: /apps/bookmark-manager
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 2
