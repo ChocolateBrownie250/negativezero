@@ -147,7 +147,7 @@ This repo ships with `.github/workflows/deploy.yml`. Every push to `main` rsyncs
 2. **Add five GitHub Actions secrets** at `Settings → Secrets and variables → Actions`:
    - `SSH_HOST` — the VPS IP or hostname
    - `SSH_USER` — typically `root` (or a non-root user with sudo for `nginx -t` / Docker)
-   - `SSH_PRIVATE_KEY` — the private half of the deploy keypair (paste the full `-----BEGIN OPENSSH PRIVATE KEY----- … -----END OPENSSH PRIVATE KEY-----` block)
+   - `SSH_PRIVATE_KEY` — the private half of the deploy keypair (paste the full OpenSSH private-key block, including the BEGIN/END marker lines)
    - `DEPLOY_DOMAIN` — the subdomain (e.g. `bookmarks.example.com`)
    - `SETUP_CODE` — a long random string. Used **once** to register your first passkey. Choose something like `openssl rand -base64 24`.
 3. **Add a DNS A record** for `DEPLOY_DOMAIN` pointing to `SSH_HOST`.
