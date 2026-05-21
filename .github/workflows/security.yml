@@ -1,0 +1,82 @@
+name: security
+
+# Always-on security checks. Runs on every PR + push + weekly schedule so
+# new advisories against pinned versions surface without needing a code
+# change to trigger them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mondays at 06:00 UTC — early enough that any failures land in the
+    # week's first commit window.
+    - cron: '0 6 * * 1'
+
+jobs:
+  gitleaks:
+    # Scan the entire git history for secrets. Catches plaintext
+    # credentials, AWS keys, GitHub tokens, etc. Configured to fail the
+    # build on any finding so leaks can't slip through review.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trufflehog:
+    # Second secret scanner — TruffleHog catches some patterns gitleaks
+    # misses (and vice versa). Belt and suspenders, since we already
+    # ate one credential leak from a predecessor repo.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/bookmark-manager
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/bookmark-manager/package-lock.json
+      - run: npm ci
+      - name: audit (fail on high or critical)
+        # Production-only audit; dev deps are CI-only and out of the
+        # runtime image. --audit-level=high means low/moderate findings
+        # are reported but don't fail the build.
+        run: npm audit --omit=dev --audit-level=high
+
+  codeql:
+    # Static analysis for the bookmark-manager TypeScript. Catches
+    # injection patterns, prototype pollution, hard-coded credentials,
+    # unsafe deserialization, etc.
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'

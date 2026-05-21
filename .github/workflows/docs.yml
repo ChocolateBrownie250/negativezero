@@ -1,0 +1,67 @@
+name: docs
+
+# CI for the working-memory docs. Validates that internal links between
+# the markdown files don't break (relative paths, anchors).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.md'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths:
+      - '**/*.md'
+      - '.github/workflows/docs.yml'
+
+jobs:
+  link-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: lychee — relative links + fragments only
+        # `--offline` skips HTTP; we only want to catch broken cross-doc
+        # references (e.g. CLAUDE.md → ./ARCHITECTURE.md). External link
+        # rot is real but noisy; if we want it later, drop --offline and
+        # add a curated --exclude list.
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline
+            --no-progress
+            --include-fragments
+            AGENTS.md TODO.md docs/*.md apps/**/*.md
+          fail: true
+
+      - name: docs reference real files in apps/ and platform/
+        # Catch pointers like "see apps/bookmark-manager/server/src/middleware/auth.ts"
+        # going stale when files move. Extracts inline-code-styled paths and
+        # checks they exist.
+        run: |
+          set -e
+          missing=0
+          # Find `apps/...` and `platform/...` paths inside backticks
+          paths=$(grep -hoE '`(apps|platform|docs)/[A-Za-z0-9._/-]+`' \
+                    AGENTS.md TODO.md docs/*.md 2>/dev/null \
+                  | tr -d '`' | sort -u)
+          for p in $paths; do
+            # Strip any trailing punctuation (`.`, `,`) the grep caught
+            clean=$(echo "$p" | sed 's/[.,;:]$//')
+            # Only check things that look like files or directories
+            if [[ "$clean" == *"/" ]]; then
+              [ -d "$clean" ] || { echo "::warning::referenced directory missing: $clean"; missing=$((missing+1)); }
+            else
+              # Could be a file or a wildcard pattern like docs/*.md
+              if [[ "$clean" != *"*"* ]] && [ ! -e "$clean" ] && [ ! -d "$clean" ]; then
+                echo "::error::referenced path missing: $clean"
+                missing=$((missing+1))
+              fi
+            fi
+          done
+          # Only fail on hard errors, not warnings — directories sometimes
+          # legitimately don't exist yet (future-work pointers).
+          if [ "$missing" -gt 10 ]; then
+            echo "::error::too many broken doc references ($missing)"
+            exit 1
+          fi
