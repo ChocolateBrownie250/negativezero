@@ -19,7 +19,7 @@ jobs:
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ludeeus/action-shellcheck@2.0.0
         with:
           scandir: platform
@@ -28,7 +28,7 @@ jobs:
   compose-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: populate stub .env so compose can resolve substitutions
         # `docker compose config` errors out on unset required vars even
@@ -49,7 +49,7 @@ jobs:
   nginx-validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: install nginx
         run: sudo apt-get update && sudo apt-get install -y nginx
@@ -84,7 +84,7 @@ jobs:
   deploy-script-dry-run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: deploy.sh refuses to run as non-root (sanity)
         # We can't actually run deploy.sh in CI — it talks to docker / nginx
         # / certbot at host level. But we can confirm it parses and that
