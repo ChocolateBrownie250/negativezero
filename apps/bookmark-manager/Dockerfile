@@ -5,7 +5,7 @@
 # container crash-looped on @fastify/secure-session import. Debian-slim
 # matches the prebuild, no build-from-source needed. ~70 MB extra image
 # size, well worth the simplicity for a single-tenant deploy.
-FROM node:20-bookworm-slim AS deps
+FROM node:26-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 make g++ \
@@ -19,7 +19,7 @@ FROM deps AS build
 COPY . .
 RUN npm run build
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN groupadd -r app && useradd -r -g app app
