@@ -17,6 +17,10 @@ description = "False positives — test fixtures and CI smoke-test stubs"
 regexes = [
     '''\$2b\$12\$KIXxPfnK5DYZIyf68aVVoOJ\.aWdMRPYJM6Sl8u7lYZQTPbBlVm\.0G''',
     '''\$2b\$12\$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRS''',
+    # README.md format reference, not an actual key — the ellipsis "…"
+    # would never appear in a real key. Matches the literal docs string:
+    # `-----BEGIN OPENSSH PRIVATE KEY----- … -----END OPENSSH PRIVATE KEY-----`
+    '''-----BEGIN OPENSSH PRIVATE KEY----- … -----END OPENSSH PRIVATE KEY-----''',
 ]
 
 # package-lock.json's `integrity:` SHA hashes look secret-shaped to
