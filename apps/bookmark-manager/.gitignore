@@ -1,0 +1,20 @@
+node_modules
+dist
+build
+.env
+.env.local
+*.log
+*.tsbuildinfo
+
+# SQLite DB and backups
+server/data/*.db
+server/data/*.db-journal
+server/data/*.db-wal
+server/data/*.db-shm
+server/data/backup-*.db
+
+# Editor / OS
+.DS_Store
+.vscode
+.idea
+.cache

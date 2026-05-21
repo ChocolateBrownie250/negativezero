@@ -1,0 +1,21 @@
+{
+  "name": "url-vault",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Self-hosted bookmark manager",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm -w server run dev",
+    "dev:client": "npm -w client run dev",
+    "build": "npm -w client run build && npm -w server run build",
+    "start": "npm -w server run start",
+    "hash-password": "npm -w server run hash-password"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
