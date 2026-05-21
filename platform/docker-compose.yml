@@ -1,0 +1,86 @@
+# negativezero platform — full-stack docker-compose.
+#
+# Run on the VPS via platform/deploy.sh (handles .env, nginx, certbot).
+# Don't run by hand without .env populated.
+#
+# Conventions:
+# - All containers prefixed `negativezero-` so they're obvious in `docker ps`
+#   alongside unrelated tenants (wellfit, isgroup, amethyst) on the shared VPS.
+# - All services bind to 127.0.0.1 only; nginx is the public entrypoint.
+# - Postgres for Logto is hosted on Neon (external, managed) — DATABASE_URL
+#   in .env points at the Neon endpoint. No local postgres container.
+# - Per-service state (bookmark SQLite, future services) lives under
+#   ./data/<service>/, bind-mounted. Backup = snapshot a directory tree.
+
+services:
+  # ── landing ───────────────────────────────────────────────────
+  # Static site at negativezero.one/. Served by an nginx-alpine
+  # container so we don't have to manage filesystem permissions on
+  # the host nginx. The host nginx reverse-proxies / to this.
+  landing:
+    image: nginx:alpine
+    container_name: negativezero-landing
+    restart: unless-stopped
+    volumes:
+      - ../apps/landing:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:${LANDING_HOST_PORT:-3020}:80"
+    networks:
+      - internal
+
+  # ── bookmark-manager ──────────────────────────────────────────
+  # Self-hosted single-user bookmark service. Mounted at
+  # negativezero.one/services/bookmark-manager/.
+  # SQLite file is kept on the host bind-mount; nothing else persistent.
+  bookmark-manager:
+    build:
+      context: ../apps/bookmark-manager
+    container_name: negativezero-bookmark-manager
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SESSION_SECRET: ${BOOKMARK_SESSION_SECRET}
+      ENCRYPTION_KEY: ${BOOKMARK_ENCRYPTION_KEY}
+      SETUP_CODE_HASH: ${BOOKMARK_SETUP_CODE_HASH}
+      PUBLIC_URL: ${BOOKMARK_PUBLIC_URL}
+    volumes:
+      - ./data/bookmark-manager:/app/server/data
+    ports:
+      - "127.0.0.1:${BOOKMARK_HOST_PORT:-3021}:3000"
+    networks:
+      - internal
+
+  # ── logto (identity) ──────────────────────────────────────────
+  # OIDC provider at auth.negativezero.one. Postgres lives on Neon
+  # (see DATABASE_URL); the container only runs the stateless Logto
+  # process. On first run it seeds the Neon database (idempotent —
+  # no-op if already seeded) and applies pending alterations.
+  logto:
+    image: svhd/logto:${LOGTO_TAG:-latest}
+    container_name: negativezero-logto
+    restart: unless-stopped
+    entrypoint: ["sh", "-c", "npm run cli db seed && npm run cli db alteration deploy && npm start"]
+    environment:
+      # Neon connection string — sslmode=require is mandatory for Neon.
+      DB_URL: ${DATABASE_URL}
+
+      ENDPOINT: ${ENDPOINT}
+      ADMIN_ENDPOINT: ${ADMIN_ENDPOINT}
+
+      # nginx fronts us with HTTPS; trust X-Forwarded-* headers.
+      TRUST_PROXY_HEADER: "1"
+
+      # Internal listen ports — match the host-side mapping below.
+      PORT: "3001"
+      ADMIN_PORT: "3002"
+    ports:
+      - "127.0.0.1:${LOGTO_CORE_HOST_PORT:-3010}:3001"
+      - "127.0.0.1:${LOGTO_ADMIN_HOST_PORT:-3011}:3002"
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+    name: negativezero-internal

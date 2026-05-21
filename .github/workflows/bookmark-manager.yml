@@ -1,0 +1,83 @@
+name: bookmark-manager
+
+# CI for the bookmark-manager service. Runs typecheck + tests + build,
+# and validates the Dockerfile can produce a runnable image.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/bookmark-manager/**'
+      - '.github/workflows/bookmark-manager.yml'
+  pull_request:
+    paths:
+      - 'apps/bookmark-manager/**'
+      - '.github/workflows/bookmark-manager.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/bookmark-manager
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/bookmark-manager/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck + build (client + server)
+        run: npm run build
+
+      - name: server tests
+        run: npm -w server test
+
+      - name: fail if /bookmarks-pro/ reappears in source
+        # The rename to /services/bookmark-manager/ is load-bearing; CI guards
+        # against an accidental revert via merge or copy-paste.
+        run: |
+          if grep -rn "bookmarks-pro" --include="*.ts" --include="*.tsx" --include="*.js" .; then
+            echo "::error::found references to /bookmarks-pro/ — should be /services/bookmark-manager/"
+            exit 1
+          fi
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/bookmark-manager
+          push: false
+          load: true
+          tags: negativezero-bookmark-manager:ci
+          cache-from: type=gha,scope=bookmark-manager
+          cache-to: type=gha,scope=bookmark-manager,mode=max
+
+      - name: smoke-test image starts
+        # Boot the container with stub secrets and check it doesn't crash on
+        # config validation. We don't run a full health probe — that needs a
+        # working secret session + valid PUBLIC_URL — but startup catching is
+        # enough to spot regressions in the runtime image layout.
+        run: |
+          docker run --rm --name bm-smoke -d \
+            -e SESSION_SECRET=$(openssl rand -hex 32) \
+            -e ENCRYPTION_KEY=$(openssl rand -hex 32) \
+            -e SETUP_CODE_HASH='$2b$12$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRS' \
+            -e PUBLIC_URL=http://localhost:3000 \
+            -p 3000:3000 \
+            negativezero-bookmark-manager:ci
+          sleep 5
+          docker logs bm-smoke
+          docker ps --filter name=bm-smoke --filter status=running --format '{{.Names}}' | grep -q bm-smoke
+          docker stop bm-smoke

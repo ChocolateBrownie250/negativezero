@@ -1,0 +1,96 @@
+name: platform
+
+# CI for platform infra: deploy script, docker-compose, nginx configs.
+# Validates each piece in isolation — full end-to-end deploy needs a real
+# VPS + Neon + DNS and can't run in CI.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'platform/**'
+      - '.github/workflows/platform.yml'
+  pull_request:
+    paths:
+      - 'platform/**'
+      - '.github/workflows/platform.yml'
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: platform
+          severity: warning
+
+  compose-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: populate stub .env so compose can resolve substitutions
+        # `docker compose config` errors out on unset required vars even
+        # when only validating. We fill them with throwaway values — they
+        # never run, this is syntax-only.
+        working-directory: platform
+        run: |
+          cp .env.template .env
+          sed -i 's|^DATABASE_URL=$|DATABASE_URL=postgres://x:x@x/x?sslmode=require|' .env
+          sed -i 's|^BOOKMARK_SESSION_SECRET=$|BOOKMARK_SESSION_SECRET=00|' .env
+          sed -i 's|^BOOKMARK_ENCRYPTION_KEY=$|BOOKMARK_ENCRYPTION_KEY=00|' .env
+          sed -i 's|^BOOKMARK_SETUP_CODE_HASH=$|BOOKMARK_SETUP_CODE_HASH=stub|' .env
+
+      - name: validate docker-compose.yml
+        working-directory: platform
+        run: docker compose --env-file .env -f docker-compose.yml config >/dev/null
+
+  nginx-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install nginx
+        run: sudo apt-get update && sudo apt-get install -y nginx
+
+      - name: validate nginx site configs
+        # deploy.sh substitutes __FOO__ placeholders + writes the
+        # connection_upgrade map at http{} scope. Recreate the same shape
+        # here so nginx -t actually exercises our site files.
+        run: |
+          set -e
+          tmp=$(mktemp -d)
+
+          # Substitute placeholders just like deploy.sh does
+          sed -e 's|__LANDING_HOST_PORT__|3020|g' \
+              -e 's|__BOOKMARK_HOST_PORT__|3021|g' \
+              platform/nginx/negativezero.one.conf > "$tmp/negativezero.one.conf"
+          cp platform/nginx/auth.negativezero.one.conf "$tmp/"
+          cp platform/nginx/negativezero-connection-upgrade.conf "$tmp/"
+
+          # Minimal nginx.conf that includes our pieces in the right scopes.
+          cat > "$tmp/nginx.conf" <<EOF
+          events { worker_connections 1024; }
+          http {
+            include $tmp/negativezero-connection-upgrade.conf;
+            include $tmp/negativezero.one.conf;
+            include $tmp/auth.negativezero.one.conf;
+          }
+          EOF
+
+          sudo nginx -t -c "$tmp/nginx.conf"
+
+  deploy-script-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: deploy.sh refuses to run as non-root (sanity)
+        # We can't actually run deploy.sh in CI — it talks to docker / nginx
+        # / certbot at host level. But we can confirm it parses and that
+        # the root-only guard fires correctly.
+        run: |
+          out=$(bash platform/deploy.sh 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q "Run as root" \
+            || { echo "::error::deploy.sh did not enforce root check"; exit 1; }

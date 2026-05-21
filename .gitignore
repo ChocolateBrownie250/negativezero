@@ -1,0 +1,21 @@
+# Secrets — generated at deploy time, never committed
+platform/.env
+platform/.env.local
+
+# Persistent service state — bind-mounted into containers
+platform/data/
+
+# Build / dependency artefacts (per-service .gitignores cover these too;
+# duplicated here so they're caught at the root)
+node_modules/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
