@@ -56,11 +56,19 @@ jobs:
           cache: npm
           cache-dependency-path: apps/bookmark-manager/package-lock.json
       - run: npm ci
-      - name: audit (fail on high or critical)
-        # Production-only audit; dev deps are CI-only and out of the
-        # runtime image. --audit-level=high means low/moderate findings
-        # are reported but don't fail the build.
-        run: npm audit --omit=dev --audit-level=high
+
+      - name: full audit (informational)
+        # Always print the full audit so high/moderate findings are
+        # visible in CI output. Doesn't fail the build.
+        run: npm audit --omit=dev || true
+
+      - name: fail on critical
+        # Single-tenant personal service. Critical vulns are the only
+        # ones meaningful to gate merges on; high transitive-dep findings
+        # are usually unreachable in our request flow and would block all
+        # PRs on dep-update lag. Dependabot handles the slower upgrade
+        # cadence — see .github/dependabot.yml.
+        run: npm audit --omit=dev --audit-level=critical
 
   codeql:
     # Static analysis for the bookmark-manager TypeScript. Catches

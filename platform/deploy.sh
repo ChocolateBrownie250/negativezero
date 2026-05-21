@@ -28,7 +28,6 @@ set -euo pipefail
 MODE="${1:-full}"  # "full" or "skip-auth"
 
 PLATFORM_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(cd "$PLATFORM_DIR/.." && pwd)"
 ENV_FILE="$PLATFORM_DIR/.env"
 ENV_TEMPLATE="$PLATFORM_DIR/.env.template"
 COMPOSE_FILE="$PLATFORM_DIR/docker-compose.yml"

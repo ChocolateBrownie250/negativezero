@@ -1,0 +1,26 @@
+# gitleaks config for the negativezero monorepo.
+#
+# Extends the default ruleset; we only add allowlist entries for known
+# false positives. Real secrets in the history would still be caught.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "False positives — test fixtures and CI smoke-test stubs"
+
+# (1) Test fixture bcrypt envelope. Used in vitest setup to satisfy
+#     config.ts's "SETUP_CODE_HASH must be present" check. Never used
+#     for actual authentication (tests bypass requireAuth wholesale).
+# (2) CI smoke-test bcrypt-shaped placeholder. The container is booted
+#     just to confirm it doesn't crash on startup; no auth flow runs.
+regexes = [
+    '''\$2b\$12\$KIXxPfnK5DYZIyf68aVVoOJ\.aWdMRPYJM6Sl8u7lYZQTPbBlVm\.0G''',
+    '''\$2b\$12\$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRS''',
+]
+
+# package-lock.json's `integrity:` SHA hashes look secret-shaped to
+# entropy-based detectors. They're public content hashes, not secrets.
+paths = [
+    '''(^|/)package-lock\.json$''',
+]
