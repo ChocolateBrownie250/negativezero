@@ -51,6 +51,28 @@ services:
     networks:
       - internal
 
+  # ── admin ─────────────────────────────────────────────────────
+  # Platform-level admin tool at negativezero.one/services/admin/.
+  # Passkey-auth'd UI for generating registration codes for other
+  # services. Owns its own tiny SQLite (admin passkeys + audit log).
+  admin:
+    build:
+      context: ../apps/admin
+    container_name: negativezero-admin
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      SETUP_CODE_HASH: ${ADMIN_SETUP_CODE_HASH}
+      PUBLIC_URL: ${ADMIN_PUBLIC_URL}
+    volumes:
+      - ./data/admin:/app/server/data
+    ports:
+      - "127.0.0.1:${ADMIN_HOST_PORT:-3022}:3000"
+    networks:
+      - internal
+
   # ── logto (identity) ──────────────────────────────────────────
   # OIDC provider at auth.negativezero.one. Postgres lives on Neon
   # (see DATABASE_URL); the container only runs the stateless Logto
