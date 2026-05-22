@@ -55,6 +55,11 @@ command -v certbot >/dev/null || { log "Installing certbot"; apt-get install -y 
 
 mkdir -p "$PLATFORM_DIR/data/bookmark-manager"
 mkdir -p "$PLATFORM_DIR/data/admin"
+# Container processes run as UID 999 (the `app` system user from the
+# bookworm-slim Dockerfiles). Bind-mounts inherit host ownership, so the
+# host dirs must be writable by 999, otherwise better-sqlite3 fails with
+# SQLITE_CANTOPEN on first start. Idempotent re-chown is cheap.
+chown -R 999:999 "$PLATFORM_DIR/data/bookmark-manager" "$PLATFORM_DIR/data/admin"
 
 # ────────────────────────────────────────────────────────────────────────
 # 2. Pick free loopback ports
@@ -85,20 +90,32 @@ if [ ! -f "$ENV_FILE" ]; then
     BOOKMARK_SESSION_SECRET=$(openssl rand -hex 32)
     BOOKMARK_ENCRYPTION_KEY=$(openssl rand -hex 32)
     BOOKMARK_SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
+    # bcryptjs (pure JS) instead of bcrypt: avoids native compilation in
+    # node:20-alpine, and installing into /tmp/ sidesteps the idealTree npm
+    # bug that fires when running `npm i` in /. Hashes are bit-for-bit
+    # compatible with native bcrypt — both implement the same algorithm.
     BOOKMARK_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
-        "npm i bcrypt --silent >/dev/null 2>&1 && node -e 'require(\"bcrypt\").hash(process.argv[1],12).then(h=>console.log(h))' '$BOOKMARK_SETUP_CODE'")
+        "cd /tmp && npm i bcryptjs --silent >/dev/null 2>&1 && node -e 'require(\"bcryptjs\").hash(process.argv[1],12).then(h=>console.log(h))' '$BOOKMARK_SETUP_CODE'")
 
     # admin secrets
     ADMIN_SESSION_SECRET=$(openssl rand -hex 32)
     ADMIN_SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
     ADMIN_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
-        "npm i bcrypt --silent >/dev/null 2>&1 && node -e 'require(\"bcrypt\").hash(process.argv[1],12).then(h=>console.log(h))' '$ADMIN_SETUP_CODE'")
+        "cd /tmp && npm i bcryptjs --silent >/dev/null 2>&1 && node -e 'require(\"bcryptjs\").hash(process.argv[1],12).then(h=>console.log(h))' '$ADMIN_SETUP_CODE'")
+
+    # Bcrypt hashes contain `$` separators ($2b$12$...salt...hash). Docker
+    # Compose interpolates values from --env-file *again* when resolving
+    # ${VAR} in the YAML, which chops anything that looks like a $variable
+    # reference. Escape every `$` to `$$` in the bcrypt hashes so compose's
+    # second-pass interpolation collapses them back to literal `$`.
+    BOOKMARK_SETUP_CODE_HASH_ESCAPED=${BOOKMARK_SETUP_CODE_HASH//\$/\$\$}
+    ADMIN_SETUP_CODE_HASH_ESCAPED=${ADMIN_SETUP_CODE_HASH//\$/\$\$}
 
     sed -i "s|^BOOKMARK_SESSION_SECRET=.*|BOOKMARK_SESSION_SECRET=$BOOKMARK_SESSION_SECRET|" "$ENV_FILE"
     sed -i "s|^BOOKMARK_ENCRYPTION_KEY=.*|BOOKMARK_ENCRYPTION_KEY=$BOOKMARK_ENCRYPTION_KEY|" "$ENV_FILE"
-    sed -i "s|^BOOKMARK_SETUP_CODE_HASH=.*|BOOKMARK_SETUP_CODE_HASH=$BOOKMARK_SETUP_CODE_HASH|" "$ENV_FILE"
+    sed -i "s|^BOOKMARK_SETUP_CODE_HASH=.*|BOOKMARK_SETUP_CODE_HASH=$BOOKMARK_SETUP_CODE_HASH_ESCAPED|" "$ENV_FILE"
     sed -i "s|^ADMIN_SESSION_SECRET=.*|ADMIN_SESSION_SECRET=$ADMIN_SESSION_SECRET|" "$ENV_FILE"
-    sed -i "s|^ADMIN_SETUP_CODE_HASH=.*|ADMIN_SETUP_CODE_HASH=$ADMIN_SETUP_CODE_HASH|" "$ENV_FILE"
+    sed -i "s|^ADMIN_SETUP_CODE_HASH=.*|ADMIN_SETUP_CODE_HASH=$ADMIN_SETUP_CODE_HASH_ESCAPED|" "$ENV_FILE"
     chmod 600 "$ENV_FILE"
 
     echo
