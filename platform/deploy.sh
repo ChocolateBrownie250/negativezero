@@ -54,6 +54,7 @@ command -v nginx >/dev/null || die "nginx not installed"
 command -v certbot >/dev/null || { log "Installing certbot"; apt-get install -y certbot python3-certbot-nginx; }
 
 mkdir -p "$PLATFORM_DIR/data/bookmark-manager"
+mkdir -p "$PLATFORM_DIR/data/admin"
 
 # ────────────────────────────────────────────────────────────────────────
 # 2. Pick free loopback ports
@@ -67,9 +68,10 @@ next_free() {
 
 LANDING_PORT=$(next_free 3020)
 BOOKMARK_PORT=$(next_free $((LANDING_PORT+1)))
+ADMIN_APP_PORT=$(next_free $((BOOKMARK_PORT+1)))
 CORE_PORT=$(next_free 3010)
 ADMIN_PORT=$(next_free $((CORE_PORT+1)))
-log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, logto-core=$CORE_PORT, logto-admin=$ADMIN_PORT"
+log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, logto-core=$CORE_PORT, logto-admin=$ADMIN_PORT"
 
 # ────────────────────────────────────────────────────────────────────────
 # 3. .env (first run generates secrets; re-runs preserve them)
@@ -79,20 +81,30 @@ if [ ! -f "$ENV_FILE" ]; then
     [ -f "$ENV_TEMPLATE" ] || die "Missing $ENV_TEMPLATE"
     cp "$ENV_TEMPLATE" "$ENV_FILE"
 
-    SESSION_SECRET=$(openssl rand -hex 32)
-    ENCRYPTION_KEY=$(openssl rand -hex 32)
-    SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
-    SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
-        "npm i bcrypt --silent >/dev/null 2>&1 && node -e 'require(\"bcrypt\").hash(process.argv[1],12).then(h=>console.log(h))' '$SETUP_CODE'")
+    # bookmark-manager secrets
+    BOOKMARK_SESSION_SECRET=$(openssl rand -hex 32)
+    BOOKMARK_ENCRYPTION_KEY=$(openssl rand -hex 32)
+    BOOKMARK_SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
+    BOOKMARK_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
+        "npm i bcrypt --silent >/dev/null 2>&1 && node -e 'require(\"bcrypt\").hash(process.argv[1],12).then(h=>console.log(h))' '$BOOKMARK_SETUP_CODE'")
 
-    sed -i "s|^BOOKMARK_SESSION_SECRET=.*|BOOKMARK_SESSION_SECRET=$SESSION_SECRET|" "$ENV_FILE"
-    sed -i "s|^BOOKMARK_ENCRYPTION_KEY=.*|BOOKMARK_ENCRYPTION_KEY=$ENCRYPTION_KEY|" "$ENV_FILE"
-    sed -i "s|^BOOKMARK_SETUP_CODE_HASH=.*|BOOKMARK_SETUP_CODE_HASH=$SETUP_CODE_HASH|" "$ENV_FILE"
+    # admin secrets
+    ADMIN_SESSION_SECRET=$(openssl rand -hex 32)
+    ADMIN_SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
+    ADMIN_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
+        "npm i bcrypt --silent >/dev/null 2>&1 && node -e 'require(\"bcrypt\").hash(process.argv[1],12).then(h=>console.log(h))' '$ADMIN_SETUP_CODE'")
+
+    sed -i "s|^BOOKMARK_SESSION_SECRET=.*|BOOKMARK_SESSION_SECRET=$BOOKMARK_SESSION_SECRET|" "$ENV_FILE"
+    sed -i "s|^BOOKMARK_ENCRYPTION_KEY=.*|BOOKMARK_ENCRYPTION_KEY=$BOOKMARK_ENCRYPTION_KEY|" "$ENV_FILE"
+    sed -i "s|^BOOKMARK_SETUP_CODE_HASH=.*|BOOKMARK_SETUP_CODE_HASH=$BOOKMARK_SETUP_CODE_HASH|" "$ENV_FILE"
+    sed -i "s|^ADMIN_SESSION_SECRET=.*|ADMIN_SESSION_SECRET=$ADMIN_SESSION_SECRET|" "$ENV_FILE"
+    sed -i "s|^ADMIN_SETUP_CODE_HASH=.*|ADMIN_SETUP_CODE_HASH=$ADMIN_SETUP_CODE_HASH|" "$ENV_FILE"
     chmod 600 "$ENV_FILE"
 
     echo
-    warn "Bookmark-manager setup code (save this — it won't be shown again):"
-    echo "  $SETUP_CODE"
+    warn "Setup codes (save these — they won't be shown again):"
+    echo "  bookmark-manager:  $BOOKMARK_SETUP_CODE"
+    echo "  admin:             $ADMIN_SETUP_CODE"
     echo
 fi
 
@@ -112,6 +124,7 @@ fi
 # Update derived values on every run (ports + endpoints).
 sed -i "s|^LANDING_HOST_PORT=.*|LANDING_HOST_PORT=$LANDING_PORT|"           "$ENV_FILE"
 sed -i "s|^BOOKMARK_HOST_PORT=.*|BOOKMARK_HOST_PORT=$BOOKMARK_PORT|"        "$ENV_FILE"
+sed -i "s|^ADMIN_HOST_PORT=.*|ADMIN_HOST_PORT=$ADMIN_APP_PORT|"             "$ENV_FILE"
 sed -i "s|^LOGTO_CORE_HOST_PORT=.*|LOGTO_CORE_HOST_PORT=$CORE_PORT|"        "$ENV_FILE"
 sed -i "s|^LOGTO_ADMIN_HOST_PORT=.*|LOGTO_ADMIN_HOST_PORT=$ADMIN_PORT|"     "$ENV_FILE"
 sed -i "s|^ENDPOINT=.*|ENDPOINT=https://$AUTH_DOMAIN|"                      "$ENV_FILE"
@@ -122,7 +135,11 @@ sed -i "s|^ADMIN_ENDPOINT=.*|ADMIN_ENDPOINT=https://$AUTH_DOMAIN/admin|"    "$EN
 # ────────────────────────────────────────────────────────────────────────
 log "Building + starting containers"
 if [ "$MODE" = "skip-auth" ]; then
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans landing bookmark-manager
+    # skip-auth deploys apex services only (landing, bookmark-manager, admin).
+    # `--remove-orphans` would tear down the running logto container, so it's
+    # *deliberately omitted* here — we want to leave any externally-managed
+    # Logto deploy untouched.
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin
 else
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull logto >/dev/null 2>&1 || true
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
@@ -131,6 +148,12 @@ fi
 log "Waiting for bookmark-manager on 127.0.0.1:$BOOKMARK_PORT"
 for _ in $(seq 1 30); do
     curl -sf "http://127.0.0.1:$BOOKMARK_PORT/api/health" >/dev/null 2>&1 && { log "bookmark-manager up"; break; }
+    sleep 2
+done
+
+log "Waiting for admin on 127.0.0.1:$ADMIN_APP_PORT"
+for _ in $(seq 1 30); do
+    curl -sf "http://127.0.0.1:$ADMIN_APP_PORT/api/health" >/dev/null 2>&1 && { log "admin up"; break; }
     sleep 2
 done
 
@@ -151,9 +174,10 @@ install_site() {
     log "Installing nginx site: $dst"
     cp "$src" "$dst"
 
-    # Substitute placeholders (apex site uses __LANDING_HOST_PORT__ + __BOOKMARK_HOST_PORT__).
-    sed -i "s|__LANDING_HOST_PORT__|$LANDING_PORT|g"   "$dst"
-    sed -i "s|__BOOKMARK_HOST_PORT__|$BOOKMARK_PORT|g" "$dst"
+    # Substitute placeholders (apex site uses LANDING/BOOKMARK/ADMIN host ports).
+    sed -i "s|__LANDING_HOST_PORT__|$LANDING_PORT|g"     "$dst"
+    sed -i "s|__BOOKMARK_HOST_PORT__|$BOOKMARK_PORT|g"   "$dst"
+    sed -i "s|__ADMIN_HOST_PORT__|$ADMIN_APP_PORT|g"     "$dst"
     # Auth site uses 3010/3011 in source — replace with actual ports.
     sed -i "s|127\.0\.0\.1:3010|127.0.0.1:$CORE_PORT|g"  "$dst"
     sed -i "s|127\.0\.0\.1:3011|127.0.0.1:$ADMIN_PORT|g" "$dst"
@@ -221,6 +245,7 @@ echo
 log "Deploy complete"
 echo "  Landing:          https://$APEX_DOMAIN/"
 echo "  Bookmark manager: https://$APEX_DOMAIN/services/bookmark-manager/"
+echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
 [ "$MODE" != "skip-auth" ] && echo "  Logto (sign-in):  https://$AUTH_DOMAIN/"
 [ "$MODE" != "skip-auth" ] && echo "  Logto Admin:      https://$AUTH_DOMAIN/admin/"
 echo "  Status:           docker compose -f $COMPOSE_FILE ps"
