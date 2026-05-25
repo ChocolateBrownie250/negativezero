@@ -1,16 +1,20 @@
 # negativezero
 
 Self-hosted services platform for the `negativezero.one` apex. Monorepo
-holding the landing page, the bookmark manager, and the platform
-infrastructure (Logto identity, nginx site configs, deploy script).
-Hosted on a single Vultr VPS alongside unrelated tenants (wellfit,
-isgroup-one, amethyst). Postgres for Logto is hosted on Neon (external,
-managed).
+holding the landing page, the bookmark manager, the admin tool, and the
+platform infrastructure (Logto identity, nginx site configs, deploy
+script). Hosted on a single Vultr VPS alongside unrelated tenants
+(wellfit, isgroup-one, amethyst). Postgres for Logto runs as a local
+container on the VPS for now; migration to Neon (per DECISIONS.md) is
+deferred until Phase 2 (Logto integration into the apex services).
+For the live deployed state, ops procedures, and known issues, read
+`HANDOVER.md` at the repo root.
 
-**Stack:** Logto (Go, MPL-2.0) for identity, backed by Neon Postgres;
-Node 20 + Fastify + TypeScript + better-sqlite3 + React 18 (Vite,
-Tailwind) for the bookmark manager; static HTML for the landing; nginx
-on apex; Docker Compose + Let's Encrypt; deployed to a shared Ubuntu VPS.
+**Stack:** Logto (Go, MPL-2.0) for identity, backed by Postgres (local
+container today, Neon planned); Node 20 + Fastify + TypeScript +
+better-sqlite3 + React 18 (Vite, Tailwind) for the bookmark manager
+and admin; static HTML for the landing; nginx on apex; Docker Compose
++ Let's Encrypt; deployed to a shared Ubuntu VPS.
 
 ## Repository layout
 
@@ -18,8 +22,9 @@ on apex; Docker Compose + Let's Encrypt; deployed to a shared Ubuntu VPS.
 apps/
   landing/              static landing page (negativezero.one/)
   bookmark-manager/     bookmark service (negativezero.one/services/bookmark-manager/)
+  admin/                registration-code generator (negativezero.one/services/admin/)
 platform/
-  docker-compose.yml    orchestrates landing + bookmark-manager + logto
+  docker-compose.yml    orchestrates landing + bookmark-manager + admin + logto
   deploy.sh             idempotent deployer for the VPS
   nginx/                site configs for negativezero.one + auth.negativezero.one
   .env.template
@@ -28,6 +33,7 @@ docs/
   ARCHITECTURE.md       how the platform is built
   PLAN.md               active to-do + execution log
   DECISIONS.md          append-only architectural decisions
+HANDOVER.md             current deployed state + ops procedures (no secrets)
 ```
 
 Add new services as `apps/<name>/` + a service block in
