@@ -45,6 +45,12 @@ One file, vanilla HTML/CSS/JS, no build.
 TypeScript (`server/`); client is React + Vite + Tailwind (`client/`).
 Dev: `cd apps/bookmark-manager && npm install && npm run dev`.
 
+**"I need to change the admin"** → `apps/admin/`. Same structure as
+bookmark-manager (Fastify + better-sqlite3 + WebAuthn on the server,
+React + Vite + Tailwind on the client). Today it's just a
+passkey-protected registration-code generator; the service whitelist
+lives in `server/src/routes/codes.ts`.
+
 **"I need to add a new service"** → see *Adding a service* below.
 
 **"I need to change how things deploy"** →
@@ -98,8 +104,13 @@ without side effects.
 
 - Generated at first deploy by `platform/deploy.sh`:
   `BOOKMARK_SESSION_SECRET`, `BOOKMARK_ENCRYPTION_KEY`,
-  `BOOKMARK_SETUP_CODE_HASH`.
-- Must be supplied by operator: `DATABASE_URL` (Neon).
+  `BOOKMARK_SETUP_CODE_HASH`, `ADMIN_SESSION_SECRET`,
+  `ADMIN_SETUP_CODE_HASH`.
+- Bcrypt hashes get `$` → `$$` escaped before being written to `.env`
+  because docker compose re-interpolates env-file values when
+  resolving `${VAR}` in the YAML.
+- Must be supplied by operator (when Logto migrates to Neon):
+  `DATABASE_URL`.
 - Never paste secrets into chat. Never commit them. If they leak into
   conversation, advise the operator to rotate.
 
