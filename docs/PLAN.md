@@ -17,13 +17,18 @@ repo root. This file holds the strategic phased view.
 
 ## Current focus
 
-**Phase 0 — Monorepo merge.** Done 2026-05-21. Three predecessor
-repos (`negativezero`, `url-vault`, `negativezero-services`) collapsed
-into this monorepo with `apps/` + `platform/` + `docs/` layout. Local
-postgres dropped in favour of Neon for Logto's identity DB. Landing
-design 03 (spirograph) selected; the other five sketches discarded.
+**Phase 1 — first deploy.** Done 2026-05-22. Landing +
+bookmark-manager + admin reachable on the VPS at
+`https://negativezero.one/`, `/services/bookmark-manager/`,
+`/services/admin/`. TLS active on both apex domains. Amethyst's
+`/vtt-transcriber/` block preserved through the new apex nginx file.
+Logto NOT redeployed from this monorepo on first cut — kept the
+running `negativezero-logto` + local `negativezero-postgres` from the
+predecessor `/srv/negativezero-services/` setup (zero users, zero
+data loss to defer this). See HANDOVER.md.
 
-**Next:** Phase 1 (first deploy of the merged stack to the VPS).
+**Next:** Phase 2 (Logto integration into bookmark-manager + admin,
+bundled with the Postgres → Neon migration).
 
 ---
 
@@ -54,24 +59,47 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
       bookmark-manager at /services/bookmark-manager/)
 - [x] Docs updated: CLAUDE.md, ARCHITECTURE.md, PLAN.md, DECISIONS.md
 
-### Phase 1 — First deploy of the merged stack
+### Phase 1 — First deploy of the merged stack (DONE 2026-05-22)
 
-- [ ] Create Neon project: region close to Vultr region, Postgres 16
-- [ ] Create database `logto` in the Neon project; copy connection
-      string (must contain `sslmode=require`)
-- [ ] DNS on GoDaddy:
-      - [ ] A record `negativezero.one` → `<VPS_IP>`
-      - [ ] A record `auth.negativezero.one` → `<VPS_IP>`
-- [ ] On the VPS: clone this repo to `/srv/negativezero/`
-- [ ] `bash platform/deploy.sh` (will prompt for `DATABASE_URL` to
-      paste into `.env` on first run)
-- [ ] Verify:
-      - [ ] `https://negativezero.one/` renders the landing
-      - [ ] `https://negativezero.one/services/bookmark-manager/` reaches
-            the bookmark UI (first-time setup screen)
-      - [ ] `https://auth.negativezero.one/` reaches Logto sign-in
-- [ ] Save the bookmark-manager setup code (printed once during deploy)
-- [ ] First-time bookmark registration via passkey
+- [x] DNS on GoDaddy: A records for `negativezero.one` and
+      `auth.negativezero.one` were already pointing at the VPS from
+      the predecessor deploy
+- [x] On the VPS: `/srv/negativezero/` synced to monorepo state
+- [x] `platform/.env` regenerated via `deploy.sh skip-auth`
+      (existing pre-merge `.env` discarded — bookmark-manager had
+      never been deployed, no real secrets in play)
+- [x] **New: `apps/admin/` built and deployed.** Passkey-protected
+      registration-code generator at `/services/admin/`. Stack
+      mirrors bookmark-manager (Fastify + better-sqlite3 + WebAuthn
+      backend, React + Vite + Tailwind frontend).
+- [x] **Four deploy.sh / nginx bugs fixed during first real run**:
+      bcrypt-via-docker idealTree bug (switch to bcryptjs in /tmp);
+      bind-mount permission (chown host dirs to UID 999); bcrypt-hash
+      values being chopped by compose's second-pass interpolation
+      (escape `$` → `$$`); nginx `proxy_pass` missing trailing slash
+      on `/services/*` (source comment was wrong, ARCHITECTURE.md
+      was right). See PR #18 for the patch set.
+- [x] Verify:
+      - [x] `https://negativezero.one/` renders the landing
+      - [x] `https://negativezero.one/services/bookmark-manager/`
+            reaches the bookmark UI (first-time setup screen)
+      - [x] `https://negativezero.one/services/admin/` reaches the
+            admin UI (first-time setup screen)
+      - [x] `https://negativezero.one/vtt-transcriber/` still 200
+            (Amethyst tenant preserved through the apex rewrite)
+      - [x] `https://auth.negativezero.one/` still 200 (existing
+            Logto untouched by `skip-auth` mode)
+- [x] Setup codes captured from deploy output (in `/tmp/deploy*.log`
+      on the VPS until the next reboot)
+- [ ] First-time bookmark + admin passkey registration via browser
+      (operator step — not done in this session)
+
+**Deferred** (intentional, not blocking):
+
+- [ ] Create Neon project + copy `DATABASE_URL` for Logto
+- [ ] Migrate Logto's local `negativezero-postgres` data to Neon —
+      no data to migrate today (0 users, 4 Logto-default app rows),
+      bundle with Phase 2
 
 ### Phase 2 — Logto integration (replace url-vault's own WebAuthn)
 

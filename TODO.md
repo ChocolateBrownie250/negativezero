@@ -28,20 +28,26 @@ operator has to do them in a browser / VPS console.
 - [ ] On GoDaddy: A record `negativezero.one` → `<VPS_IP>`
 - [ ] On GoDaddy: A record `auth.negativezero.one` → `<VPS_IP>`
 
-## First deploy (on the VPS)
+## First deploy — DONE 2026-05-22
 
-- [ ] `git clone` this repo to `/srv/negativezero/`
-- [ ] `cd /srv/negativezero && bash platform/deploy.sh`
-- [ ] When prompted, paste the Neon `DATABASE_URL` into
-      `platform/.env`, then re-run `bash platform/deploy.sh`
-- [ ] Save the bookmark-manager setup code from the deploy output
-      (printed once, won't be shown again)
-- [ ] Verify `https://negativezero.one/` renders the landing
-- [ ] Verify `https://negativezero.one/services/bookmark-manager/`
-      shows the bookmark-manager first-run screen
-- [ ] Register the first bookmark-manager passkey with the setup code
-- [ ] Verify `https://auth.negativezero.one/admin/` loads the Logto
-      Admin Console welcome page; create the single Console admin
+apex stack (landing + bookmark-manager + admin) deployed via
+`platform/deploy.sh skip-auth`. Logto kept on its existing
+`/srv/negativezero-services/` deployment (local Postgres, zero
+users) — not redeployed from the new monorepo on first cut. See
+`HANDOVER.md` for the full state and ops procedures.
+
+Remaining one-time browser steps for the operator:
+
+- [ ] Register a passkey at
+      `https://negativezero.one/services/bookmark-manager/` using the
+      bookmark-manager setup code from `/tmp/deploy4.log` on the VPS
+      (or re-derive via the "regenerate everything" procedure in
+      HANDOVER.md — only safe if no passkey is registered yet)
+- [ ] Register a passkey at `https://negativezero.one/services/admin/`
+      using the admin setup code (same source as above)
+- [ ] Optional: visit `https://auth.negativezero.one/admin/` and create
+      the Logto Console admin (the username/password is hard-limited
+      to one account; store in 1Password)
 
 ## Logto integration (Phase 2 — agent-friendly chunks)
 
@@ -87,6 +93,20 @@ work.
 
 ## Done
 
+- [x] **2026-05-22** First deploy of merged stack on
+      `45.76.88.245` — landing + bookmark-manager + admin reachable
+      via `https://negativezero.one/{,services/bookmark-manager/,
+      services/admin/}`. Amethyst `/vtt-transcriber/` preserved.
+- [x] **2026-05-22** New `apps/admin/` service: passkey-protected
+      registration-code generator. Same auth flow + Apple HIG
+      look-and-feel as bookmark-manager. (PR #17)
+- [x] **2026-05-22** Four `platform/` bugs found during first real
+      deploy and fixed: bcrypt-via-docker → bcryptjs; chown bind-mount
+      data dirs to UID 999; `$` → `$$` escape in bcrypt hashes;
+      nginx `proxy_pass` trailing slash on `/services/*`. (PR #18)
+- [x] **2026-05-22** `HANDOVER.md` written at repo root — captures
+      deployed state, ops procedures, known issues, future work
+      pointers; zero secrets by design.
 - [x] **2026-05-21** Repos merged: `negativezero` + `url-vault` +
       `negativezero-services` → this monorepo (`apps/` + `platform/` +
       `docs/`)
@@ -95,7 +115,8 @@ work.
 - [x] **2026-05-21** Bookmark-manager base path rewired from
       `/bookmarks-pro/` to `/services/bookmark-manager/`
 - [x] **2026-05-21** Local Postgres dropped in favour of Neon
-      (managed external)
+      (managed external) — *intent*; actual migration deferred,
+      Logto still on local Postgres on 2026-05-22
 - [x] **2026-05-21** `platform/deploy.sh` rewritten for multi-domain
       + per-service secret generation + Neon validation
 - [x] **2026-05-21** Docs updated to reflect merged platform shape
