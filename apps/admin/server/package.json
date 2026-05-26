@@ -16,7 +16,7 @@
     "@simplewebauthn/server": "^11.0.0",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^11.3.0",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.4.2",
     "fastify": "^4.28.1"
   },
   "devDependencies": {
