@@ -28,10 +28,10 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.11",
-    "@types/node": "^20.14.10",
+    "@types/node": "^25.9.1",
     "@types/uuid": "^10.0.0",
-    "tsx": "^4.16.2",
-    "typescript": "^5.5.3",
-    "vitest": "^2.1.9"
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }
