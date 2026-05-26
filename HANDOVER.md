@@ -262,34 +262,30 @@ calls over a unix socket. Defer until there's a concrete need.
 
 ## Known things to be aware of
 
-- **CI `nginx-validate`** in `.github/workflows/platform.yml` is missing
-  the `__ADMIN_HOST_PORT__` substitution that `deploy.sh` does. Push to
-  main fails that one check; the others pass. The patch is one line in
-  the workflow file but pushing changes to `.github/workflows/*` from
-  this account needs an OAuth token with `workflow` scope, which the
-  current `gh` auth lacks. Either refresh the token
-  (`gh auth refresh -s workflow`) or edit the workflow via the GitHub
-  web UI.
+- **Dependabot PRs blocked by major-version migrations.** Two of the
+  open `dependabot/*` branches need code work, not just merge:
+  - `undici 6 → 8` (PR #19): the `maxRedirections` option moved out of
+    `request()` options into a dispatcher interceptor in undici 7+.
+    [`apps/bookmark-manager/server/src/lib/fetcher.ts`](apps/bookmark-manager/server/src/lib/fetcher.ts)
+    (line 66) passes it inline → typecheck fails. Either rewrite `fetcher.ts` to
+    use `interceptors.redirect({ maxRedirections })` on a Dispatcher,
+    or stay on undici 6 and ignore the bump in `.github/dependabot.yml`.
+  - `tailwindcss 4` (inside PR #14's dev-dependencies group): Tailwind 4
+    moved its PostCSS plugin into a separate `@tailwindcss/postcss`
+    package and changed the `postcss.config.js` shape. The other 8
+    packages in the group can merge cleanly, but dependabot bundled
+    them so the whole group is red. Either split the group via
+    `.github/dependabot.yml` `groups.dev-dependencies.exclude:
+    [tailwindcss]` and let the rest land, or do the Tailwind 4
+    migration in a dedicated PR.
 
-- **`.github/workflows/admin.yml`** was authored locally but not pushed
-  for the same `workflow`-scope reason. The file is reproducible from
-  `.github/workflows/bookmark-manager.yml` (it's the same shape — `npm
-  install`, `npm run build`, Docker smoke-test). Add it via the UI or a
-  scope-refreshed `gh push`.
-
-- **Some `dependabot/*` branches** are open on the remote for routine
-  npm/Docker bumps. Review and merge as they land; none are critical.
+  The remaining dependabot PRs (#12 setup-node 4→6, #13 react group,
+  #15 @simplewebauthn/server 11→13, #16 node-html-parser 6→7) are
+  green and safe to merge.
 
 - **Container uptime clock** on the VPS is reported by Docker against
   the host clock — if the host clock drifts the container "Up X days"
   numbers won't match wall-clock. Not a real issue, just confusing.
-
-- **bookmark-manager's `apps/bookmark-manager/README.md`** is stale —
-  references `ADMIN_PASSWORD_HASH` (now `SETUP_CODE_HASH`), the old
-  `bookmarks.example.com` single-domain layout, and a `scripts/deploy.sh`
-  path that doesn't exist in the monorepo (deploy moved to
-  `platform/deploy.sh`). Working code is the source of truth; the README
-  is a documentation update someone should pick up.
 
 ---
 

@@ -1,0 +1,71 @@
+name: admin
+
+# CI for the admin service. Runs typecheck + build, and validates the
+# Dockerfile can produce a runnable image. Mirrors bookmark-manager.yml.
+# No `server tests` step yet — admin has no tests today; add one here when
+# the first test file lands.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/admin/**'
+      - '.github/workflows/admin.yml'
+  pull_request:
+    paths:
+      - 'apps/admin/**'
+      - '.github/workflows/admin.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/admin/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck + build (client + server)
+        run: npm run build
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/admin
+          push: false
+          load: true
+          tags: negativezero-admin:ci
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,scope=admin,mode=max
+
+      - name: smoke-test image starts
+        # Boot the container with stub secrets and check it doesn't crash on
+        # config validation. Startup catching is enough to spot regressions
+        # in the runtime image layout; we don't run a full health probe.
+        run: |
+          docker run --rm --name admin-smoke -d \
+            -e SESSION_SECRET=$(openssl rand -hex 32) \
+            -e SETUP_CODE_HASH='$2b$12$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRS' \
+            -e PUBLIC_URL=http://localhost:3000 \
+            -p 3000:3000 \
+            negativezero-admin:ci
+          sleep 5
+          docker logs admin-smoke
+          docker ps --filter name=admin-smoke --filter status=running --format '{{.Names}}' | grep -q admin-smoke
+          docker stop admin-smoke

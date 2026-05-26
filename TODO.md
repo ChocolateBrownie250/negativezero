@@ -89,6 +89,19 @@ work.
       to purge bookmarks when a Logto user is deleted
 - [ ] Empty-state UX for first-time users post-Logto migration
 
+## Dependency upgrades blocked by major-version migrations
+
+- [ ] `undici 6 → 8` ([PR #19](https://github.com/ChocolateBrownie250/negativezero/pull/19)):
+      rewrite [`apps/bookmark-manager/server/src/lib/fetcher.ts`](apps/bookmark-manager/server/src/lib/fetcher.ts)
+      (line 66) to pass `maxRedirections` via a Dispatcher interceptor instead of
+      inline `request()` options. Or stay on undici 6 and ignore the
+      bump in `.github/dependabot.yml`.
+- [ ] `tailwindcss 4` (inside [PR #14](https://github.com/ChocolateBrownie250/negativezero/pull/14)'s
+      dev-dependencies group): install `@tailwindcss/postcss`, update
+      `apps/bookmark-manager/client/postcss.config.js` shape, smoke-test
+      styles. Or split tailwind out of the dependabot group so the
+      other 8 dev-dep bumps can land.
+
 ---
 
 ## Done
