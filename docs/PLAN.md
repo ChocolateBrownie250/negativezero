@@ -121,12 +121,16 @@ JWTs issued by Logto so the same identity covers all future services.
 
 ### Phase 3 — Polish
 
-- [ ] Backup story: nightly snapshot of `apps/bookmark-manager/data/`
-      → off-host (S3 or rsync). Neon handles its own backups
+- [~] Backup story: nightly snapshot of `apps/bookmark-manager/data/`
+      → off-host (S3 or rsync). Script written
+      (`platform/backup.sh`); operator wires
+      `/etc/negativezero-backup.env` + cron (see RUNBOOK.md). Neon
+      handles its own backups for Logto's identity DB once that
+      migration lands in Phase 2.
 - [ ] Logto webhooks for user lifecycle (delete bookmarks when user
       is deleted)
-- [ ] Operator runbook (`docs/RUNBOOK.md`): how to invite a user,
-      rotate a passkey, recover a stuck deploy
+- [x] Operator runbook (`docs/RUNBOOK.md`): how to invite a user,
+      rotate a passkey, recover a stuck deploy. Done 2026-05-26.
 
 ---
 
