@@ -92,8 +92,8 @@ work.
 ## Dependency upgrades blocked by major-version migrations
 
 - [ ] `undici 6 → 8` ([PR #19](https://github.com/ChocolateBrownie250/negativezero/pull/19)):
-      rewrite [`apps/bookmark-manager/server/src/lib/fetcher.ts:66`](apps/bookmark-manager/server/src/lib/fetcher.ts:66)
-      to pass `maxRedirections` via a Dispatcher interceptor instead of
+      rewrite [`apps/bookmark-manager/server/src/lib/fetcher.ts`](apps/bookmark-manager/server/src/lib/fetcher.ts)
+      (line 66) to pass `maxRedirections` via a Dispatcher interceptor instead of
       inline `request()` options. Or stay on undici 6 and ignore the
       bump in `.github/dependabot.yml`.
 - [ ] `tailwindcss 4` (inside [PR #14](https://github.com/ChocolateBrownie250/negativezero/pull/14)'s

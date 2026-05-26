@@ -266,8 +266,8 @@ calls over a unix socket. Defer until there's a concrete need.
   open `dependabot/*` branches need code work, not just merge:
   - `undici 6 → 8` (PR #19): the `maxRedirections` option moved out of
     `request()` options into a dispatcher interceptor in undici 7+.
-    [`apps/bookmark-manager/server/src/lib/fetcher.ts:66`](apps/bookmark-manager/server/src/lib/fetcher.ts:66)
-    passes it inline → typecheck fails. Either rewrite `fetcher.ts` to
+    [`apps/bookmark-manager/server/src/lib/fetcher.ts`](apps/bookmark-manager/server/src/lib/fetcher.ts)
+    (line 66) passes it inline → typecheck fails. Either rewrite `fetcher.ts` to
     use `interceptors.redirect({ maxRedirections })` on a Dispatcher,
     or stay on undici 6 and ignore the bump in `.github/dependabot.yml`.
   - `tailwindcss 4` (inside PR #14's dev-dependencies group): Tailwind 4
