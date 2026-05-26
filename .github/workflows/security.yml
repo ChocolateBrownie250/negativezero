@@ -38,6 +38,13 @@ jobs:
     # Second secret scanner — TruffleHog catches some patterns gitleaks
     # misses (and vice versa). Belt and suspenders, since we already
     # ate one credential leak from a predecessor repo.
+    #
+    # Diff-mode (base..head) only — on push-to-main and on the weekly
+    # schedule, base == head == main so the diff is empty and the action
+    # exits with an error. gitleaks above already does a full-history
+    # scan on every run, which covers the "did anything sneak in" case.
+    # So restrict trufflehog to PR runs where the base..head diff is real.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
