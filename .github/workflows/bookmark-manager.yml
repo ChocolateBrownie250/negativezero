@@ -25,7 +25,9 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          # Node 22, not 20 — undici 8.x needs webidl.util.markAsUncloneable
+          # which landed in Node 22.5+. Keep in lockstep with the Dockerfile.
+          node-version: '22'
           cache: npm
           cache-dependency-path: apps/bookmark-manager/package-lock.json
 

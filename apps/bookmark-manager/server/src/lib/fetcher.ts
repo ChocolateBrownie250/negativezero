@@ -51,47 +51,67 @@ function normalizeUrl(input: string): string {
 }
 
 async function fetchOnce(urlStr: string): Promise<{ body: string; finalUrl: string }> {
-  const u = new URL(urlStr);
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-    throw new BlockedTargetError();
-  }
-  await assertPublicTarget(u.hostname);
-
-  const res = await request(urlStr, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; BookmarkManager/1.0)',
-      Accept: 'text/html,application/xhtml+xml',
-    },
-    maxRedirections: MAX_REDIRECTS,
-    bodyTimeout: BODY_TIMEOUT,
-    headersTimeout: HEADERS_TIMEOUT,
-  });
-
-  const finalUrl = (res.context as { history?: URL[] })?.history?.slice(-1)[0]?.toString() ?? urlStr;
-  const finalHost = new URL(finalUrl).hostname;
-  if (finalHost && finalHost !== u.hostname) {
-    await assertPublicTarget(finalHost);
-  }
-
-  let received = 0;
-  const chunks: Buffer[] = [];
-  for await (const chunk of res.body) {
-    const buf = chunk as Buffer;
-    received += buf.length;
-    if (received > MAX_BYTES) {
-      chunks.push(buf.subarray(0, Math.max(0, MAX_BYTES - (received - buf.length))));
-      try {
-        res.body.destroy();
-      } catch {
-        // ignore
-      }
-      break;
+  // Manual redirect handling — keeps the SSRF guard honest per hop (every
+  // intermediate Location: target gets DNS-resolved and rejected if it
+  // points at private/loopback space) and removes the dependency on
+  // undici's internal `res.context.history` shape, which went private
+  // when the redirect interceptor landed in undici 7+.
+  let current = urlStr;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const u = new URL(current);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new BlockedTargetError();
     }
-    chunks.push(buf);
+    await assertPublicTarget(u.hostname);
+
+    const res = await request(current, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; BookmarkManager/1.0)',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+      bodyTimeout: BODY_TIMEOUT,
+      headersTimeout: HEADERS_TIMEOUT,
+    });
+
+    if (res.statusCode >= 300 && res.statusCode < 400) {
+      const location = res.headers['location'];
+      const locStr = Array.isArray(location) ? location[0] : location;
+      if (!locStr) {
+        // 3xx with no Location → treat as terminal, fall through to body read
+      } else {
+        // Drain so the connection returns to the pool.
+        res.body.resume();
+        if (hop === MAX_REDIRECTS) {
+          throw new Error('too_many_redirects');
+        }
+        current = new URL(locStr, current).toString();
+        continue;
+      }
+    }
+
+    let received = 0;
+    const chunks: Buffer[] = [];
+    for await (const chunk of res.body) {
+      const buf = chunk as Buffer;
+      received += buf.length;
+      if (received > MAX_BYTES) {
+        chunks.push(buf.subarray(0, Math.max(0, MAX_BYTES - (received - buf.length))));
+        try {
+          res.body.destroy();
+        } catch {
+          // ignore
+        }
+        break;
+      }
+      chunks.push(buf);
+    }
+    const body = Buffer.concat(chunks).toString('utf8');
+    return { body, finalUrl: current };
   }
-  const body = Buffer.concat(chunks).toString('utf8');
-  return { body, finalUrl };
+  // Loop exit only happens via return/throw above; this is unreachable but
+  // keeps the type checker happy without a non-null assertion.
+  throw new Error('too_many_redirects');
 }
 
 function extractTitle(html: string): string | null {
