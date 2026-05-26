@@ -4,7 +4,7 @@
 # @fastify/secure-session's transitive dep. Same trade-off the bookmark-manager
 # Dockerfile already makes; ~70 MB extra image size is fine for a single-tenant
 # personal platform.
-FROM node:22-bookworm-slim AS deps
+FROM node:26-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 make g++ \
@@ -19,7 +19,7 @@ WORKDIR /app
 COPY . .
 RUN npm run build
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN groupadd -r app && useradd -r -g app app
