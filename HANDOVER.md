@@ -225,10 +225,14 @@ The only persistent state on the VPS that's ours and that matters:
 /var/lib/docker/volumes/.../_data                   # logto's postgres data
 ```
 
-Today there is **no off-host backup**. PLAN.md Phase 3 lists nightly
-snapshots to S3 or rsync to a second host — not done.
+**Off-host backup script** lives at `platform/backup.sh` and ships an
+all-state tarball to either an S3 bucket or a remote rsync target.
+**Not scheduled yet** — operator wires `/etc/negativezero-backup.env`
+on the VPS with `BACKUP_S3_URI=…` or `BACKUP_RSYNC_DEST=…` and adds
+a cron entry. Full setup in `docs/RUNBOOK.md` → *Schedule automatic
+backups*.
 
-Quick manual snapshot to your laptop:
+Quick on-demand snapshot to your laptop (no setup required):
 
 ```bash
 rsync -av -e "ssh -i ~/.ssh/wellfit_prod_ed25519" \
