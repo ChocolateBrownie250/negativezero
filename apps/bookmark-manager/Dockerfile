@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1.6
-# Switched off node:20-alpine to node:20-bookworm-slim (Debian + glibc):
-# sodium-native@4.3.3 ships prebuilds for linux-x64 (glibc) but not for
-# linux-x64-musl, so on Alpine the addon couldn't be loaded and the
-# container crash-looped on @fastify/secure-session import. Debian-slim
-# matches the prebuild, no build-from-source needed. ~70 MB extra image
-# size, well worth the simplicity for a single-tenant deploy.
-FROM node:20-bookworm-slim AS deps
+# node:22-bookworm-slim (Debian + glibc):
+# - sodium-native@4.3.3 ships prebuilds for linux-x64 glibc but not musl,
+#   so on Alpine the addon couldn't be loaded and the container
+#   crash-looped on @fastify/secure-session import. Debian-slim matches
+#   the prebuild — no build-from-source needed. ~70 MB extra image size,
+#   worth it for a single-tenant deploy.
+# - Node 22 (not 20): undici 8.x uses webidl.util.markAsUncloneable
+#   which only landed in Node 22.5+. Keep this in lockstep with the
+#   `node-version` field in .github/workflows/bookmark-manager.yml.
+FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 make g++ \
@@ -19,7 +22,7 @@ FROM deps AS build
 COPY . .
 RUN npm run build
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN groupadd -r app && useradd -r -g app app
