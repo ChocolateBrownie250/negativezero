@@ -1,7 +1,19 @@
 version: 2
 
+# Dependabot policy:
+# - Group bumps to reduce PR noise — but only minor + patch updates.
+#   Major bumps go in their own PR because they often need code work
+#   (rewrites for renamed APIs, config reshapes, type changes, etc.)
+#   and bundling them with safe minor/patch bumps blocks the safe ones
+#   from landing. The `update-types` filter on each group enforces this.
+# - Track both apps (bookmark-manager + admin) for npm and docker.
+# - GitHub Actions versions are bumped repo-wide from .github/workflows/.
+
 updates:
-  # Bookmark-manager (npm workspaces — root, server, client all share one lockfile)
+
+  # ────────────────────────────────────────────────────────────────────
+  # bookmark-manager — npm (root, server, client share one lockfile)
+  # ────────────────────────────────────────────────────────────────────
   - package-ecosystem: npm
     directory: /apps/bookmark-manager
     schedule:
@@ -12,19 +24,70 @@ updates:
     open-pull-requests-limit: 5
     groups:
       types:
-        # @types/* updates are noisy and almost always safe; batch them.
+        # @types/* are pure type updates — batch even majors, they
+        # almost never break and a major bump is usually just a type
+        # tracking the runtime package's bump.
         patterns:
           - '@types/*'
+      react:
+        # React + react-dom always bump together; bundling avoids
+        # type/runtime mismatches in intermediate states.
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
       dev-dependencies:
         dependency-type: development
+        # Minors and patches only — major bumps to vitest, vite,
+        # typescript, tailwindcss, etc. land as separate PRs so each
+        # can be triaged independently (see DECISIONS.md / PR #14
+        # postmortem).
+        update-types:
+          - 'minor'
+          - 'patch'
+      prod-dependencies:
+        dependency-type: production
+        # Same rule: bundle minors and patches, isolate majors.
+        update-types:
+          - 'minor'
+          - 'patch'
+
+  # ────────────────────────────────────────────────────────────────────
+  # admin — npm (same workspaces shape as bookmark-manager)
+  # ────────────────────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /apps/admin
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 5
+    groups:
+      types:
+        patterns:
+          - '@types/*'
       react:
         patterns:
           - 'react'
           - 'react-dom'
           - '@types/react'
           - '@types/react-dom'
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - 'minor'
+          - 'patch'
+      prod-dependencies:
+        dependency-type: production
+        update-types:
+          - 'minor'
+          - 'patch'
 
-  # GitHub Actions versions used in workflows under .github/workflows/
+  # ────────────────────────────────────────────────────────────────────
+  # GitHub Actions versions across all .github/workflows/*.yml
+  # ────────────────────────────────────────────────────────────────────
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -34,9 +97,20 @@ updates:
       timezone: 'Etc/UTC'
     open-pull-requests-limit: 3
 
-  # Base image bumps for the bookmark-manager Dockerfile
+  # ────────────────────────────────────────────────────────────────────
+  # Docker base images — Dockerfile per app
+  # ────────────────────────────────────────────────────────────────────
   - package-ecosystem: docker
     directory: /apps/bookmark-manager
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: 'Etc/UTC'
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: docker
+    directory: /apps/admin
     schedule:
       interval: weekly
       day: monday
