@@ -92,18 +92,64 @@ work.
       to purge bookmarks when a Logto user is deleted
 - [ ] Empty-state UX for first-time users post-Logto migration
 
-## Dependency upgrades blocked by major-version migrations
+## Open dependabot PRs — major bumps awaiting individual triage
 
-- [ ] `undici 6 → 8` ([PR #19](https://github.com/ChocolateBrownie250/negativezero/pull/19)):
-      rewrite [`apps/bookmark-manager/server/src/lib/fetcher.ts`](apps/bookmark-manager/server/src/lib/fetcher.ts)
-      (line 66) to pass `maxRedirections` via a Dispatcher interceptor instead of
-      inline `request()` options. Or stay on undici 6 and ignore the
-      bump in `.github/dependabot.yml`.
-- [ ] `tailwindcss 4` (inside [PR #14](https://github.com/ChocolateBrownie250/negativezero/pull/14)'s
-      dev-dependencies group): install `@tailwindcss/postcss`, update
-      `apps/bookmark-manager/client/postcss.config.js` shape, smoke-test
-      styles. Or split tailwind out of the dependabot group so the
-      other 8 dev-dep bumps can land.
+After dependabot config update in #27, each major bump is its own PR
+instead of a 8-package bundle. CI build is green on most (TypeScript
+compiles), but runtime behaviour wasn't validated — every one of
+these is "merge if you trust the changelog + want to spot-test in
+prod" or "do a focused upgrade with manual smoke testing".
+
+Grouped by area to make it easier to do them in passes:
+
+### bookmark-manager — server
+
+- [ ] [#32](https://github.com/ChocolateBrownie250/negativezero/pull/32)
+      `fastify 4 → 5`. Major framework. Migration guide:
+      <https://fastify.dev/docs/v5.0.x/Guides/Migration-Guide-V5/>.
+      Likely touches plugin registration + error handler signatures.
+      Look for hidden runtime issues in route + plugin code.
+- [ ] [#37](https://github.com/ChocolateBrownie250/negativezero/pull/37)
+      `better-sqlite3 11 → 12`. SQLite driver. Usually safe but
+      verify WAL semantics didn't shift.
+- [ ] [#35](https://github.com/ChocolateBrownie250/negativezero/pull/35)
+      `uuid 10 → 14`. Multiple majors in one bump. API has been
+      stable through this range; mostly a node-version-floor update.
+
+### bookmark-manager — client
+
+- [ ] [#33](https://github.com/ChocolateBrownie250/negativezero/pull/33)
+      `@simplewebauthn/browser 11 → 13`. **CI build fails** —
+      breaking type changes between 11 and 13. Either fix client
+      code now, or defer until Phase 2 swaps WebAuthn for Logto
+      anyway (Phase 2 makes this PR obsolete).
+- [ ] [#34](https://github.com/ChocolateBrownie250/negativezero/pull/34)
+      `lucide-react 0 → 1`. Icon library. Some icon names may have
+      been renamed in the 1.0 release — visual smoke test recommended.
+
+### admin
+
+- [ ] [#36](https://github.com/ChocolateBrownie250/negativezero/pull/36)
+      `vite 5 → 8`. Three majors in one bump. Vite 6+ changed dev
+      server defaults; smoke-test `npm run dev` locally first.
+- [ ] [#39](https://github.com/ChocolateBrownie250/negativezero/pull/39)
+      `@fastify/secure-session 7 → 8`. Cookie/session library.
+      Migration guide:
+      <https://github.com/fastify/fastify-secure-session/releases>.
+      Changes to cookie defaults could lock existing sessions out.
+- [ ] [#38](https://github.com/ChocolateBrownie250/negativezero/pull/38)
+      `dotenv 16 → 17`. Config loader. v17 added schema validation
+      as opt-in; behaviour unchanged for callers that don't opt in.
+      Likely safe to merge.
+- [ ] [#40](https://github.com/ChocolateBrownie250/negativezero/pull/40)
+      `tailwindcss 3 → 4`. **CI build fails** — Tailwind 4 moved
+      its PostCSS plugin to `@tailwindcss/postcss` and changed the
+      config shape. Real migration work; do it as a dedicated PR
+      with visual review.
+
+The pattern: client-side breakages (#33, #40) need code + visual
+review, server-side bumps (#32, #37, #35, #39) need integration
+review, infra/tooling (#36, #38) are usually safe.
 
 ---
 
