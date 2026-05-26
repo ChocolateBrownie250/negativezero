@@ -82,9 +82,12 @@ work.
 
 ## Polish (Phase 3)
 
-- [ ] Nightly snapshot of `platform/data/bookmark-manager/` to S3
-      (or rsync to a second host)
-- [ ] Operator runbook: `docs/RUNBOOK.md`
+- [~] Nightly snapshot of `platform/data/bookmark-manager/` to S3
+      (or rsync to a second host) — `platform/backup.sh` written.
+      Operator wires up `/etc/negativezero-backup.env` with
+      `BACKUP_S3_URI` or `BACKUP_RSYNC_DEST` and adds a cron entry
+      (see `docs/RUNBOOK.md`).
+- [x] Operator runbook: `docs/RUNBOOK.md`
 - [ ] Logto webhooks → bookmark-manager `/api/_internal/user-deleted`
       to purge bookmarks when a Logto user is deleted
 - [ ] Empty-state UX for first-time users post-Logto migration
