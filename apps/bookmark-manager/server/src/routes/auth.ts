@@ -10,7 +10,7 @@ import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
   AuthenticatorTransportFuture,
-} from '@simplewebauthn/types';
+} from '@simplewebauthn/server';
 import { config } from '../config.js';
 import { db, type CredentialRow } from '../db.js';
 import { generateBackupCode, normalizeCode } from '../lib/codes.js';
