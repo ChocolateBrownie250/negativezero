@@ -1,6 +1,37 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --font-sf:
+    -apple-system, BlinkMacSystemFont, SF Pro Text, SF Pro Display,
+    Helvetica Neue, Helvetica, Arial, sans-serif;
+
+  --color-bg: #0a0a0d;
+  --color-card: #1c1c1e;
+  --color-surface: #2c2c2e;
+  --color-raised: #3a3a3c;
+  --color-raisedHover: #48484a;
+  --color-accent: #0a84ff;
+  --color-danger: #ff453a;
+  --color-success: #30d158;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 *,
 *::before,

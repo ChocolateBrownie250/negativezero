@@ -33,7 +33,7 @@ export default function SelectionToolbar({
 
   return (
     <div
-      className="sticky top-0 z-30 -mx-4 px-4 py-2 mb-3 backdrop-blur"
+      className="sticky top-0 z-30 -mx-4 px-4 py-2 mb-3 backdrop-blur-sm"
       style={{
         background: 'rgba(20,20,24,0.85)',
         boxShadow: `0 1px 0 ${RING_STRONG}`,
