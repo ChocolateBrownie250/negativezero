@@ -874,7 +874,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
                 ref={addBtnRef}
                 type="button"
                 onClick={() => setAddMenuAnchor(addBtnRef.current)}
-                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
                 aria-label="Add"
                 style={{
                   background: COLORS.blue,
@@ -953,7 +953,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
           {/* Marquee selection rectangle — drawn relative to the viewport. */}
           {marquee && (
             <div
-              className="fixed pointer-events-none rounded-sm"
+              className="fixed pointer-events-none rounded-xs"
               style={{
                 left: Math.min(marquee.startX, marquee.endX),
                 top: Math.min(marquee.startY, marquee.endY),

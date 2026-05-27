@@ -51,7 +51,7 @@ function Favicon({ url, alt }: { url: string | null; alt: string }) {
   const [errored, setErrored] = useState(false);
   return (
     <div
-      className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
+      className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden shrink-0"
       style={{
         background: '#ffffff',
         boxShadow: `inset 0 0 0 1px rgba(0,0,0,0.10)`,
@@ -85,7 +85,7 @@ function Favicon({ url, alt }: { url: string | null; alt: string }) {
 function SelectionDot({ selected }: { selected: boolean }) {
   return (
     <div
-      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors"
+      className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors"
       style={{
         background: selected ? COLORS.blue : COLORS.surface,
         boxShadow: selected
@@ -165,7 +165,7 @@ export default function ItemRow({
       <SelectionDot selected={selected} />
       {isFolder ? (
         <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
           style={{
             background: COLORS.surface,
             boxShadow: `inset 0 0 0 1px ${RING_SUBTLE}`,
@@ -200,7 +200,7 @@ export default function ItemRow({
             e.stopPropagation();
             onOpenFolder?.();
           }}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
           style={{ color: LABEL_TERTIARY }}
           aria-label="Open folder"
           title="Open folder"
@@ -214,7 +214,7 @@ export default function ItemRow({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
           style={{ color: LABEL_TERTIARY, textDecoration: 'none' }}
           aria-label="Open bookmark"
           title="Open in new tab"
@@ -230,7 +230,7 @@ export default function ItemRow({
         <span
           data-drag-handle="1"
           onClick={(e) => e.stopPropagation()}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
           style={{ color: LABEL_TERTIARY, cursor: 'grab' }}
           aria-label="Drag to reorder"
           title="Drag to reorder within this folder"
@@ -247,7 +247,7 @@ export default function ItemRow({
           e.stopPropagation();
           if (moreRef.current) onOpenActions(moreRef.current);
         }}
-        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
         style={{ color: LABEL_TERTIARY }}
         aria-label="Actions"
       >

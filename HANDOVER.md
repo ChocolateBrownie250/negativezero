@@ -266,26 +266,16 @@ calls over a unix socket. Defer until there's a concrete need.
 
 ## Known things to be aware of
 
-- **Dependabot PRs blocked by major-version migrations.** Two of the
-  open `dependabot/*` branches need code work, not just merge:
-  - `undici 6 → 8` (PR #19): the `maxRedirections` option moved out of
-    `request()` options into a dispatcher interceptor in undici 7+.
-    [`apps/bookmark-manager/server/src/lib/fetcher.ts`](apps/bookmark-manager/server/src/lib/fetcher.ts)
-    (line 66) passes it inline → typecheck fails. Either rewrite `fetcher.ts` to
-    use `interceptors.redirect({ maxRedirections })` on a Dispatcher,
-    or stay on undici 6 and ignore the bump in `.github/dependabot.yml`.
-  - `tailwindcss 4` (inside PR #14's dev-dependencies group): Tailwind 4
-    moved its PostCSS plugin into a separate `@tailwindcss/postcss`
-    package and changed the `postcss.config.js` shape. The other 8
-    packages in the group can merge cleanly, but dependabot bundled
-    them so the whole group is red. Either split the group via
-    `.github/dependabot.yml` `groups.dev-dependencies.exclude:
-    [tailwindcss]` and let the rest land, or do the Tailwind 4
-    migration in a dedicated PR.
-
-  The remaining dependabot PRs (#12 setup-node 4→6, #13 react group,
-  #15 @simplewebauthn/server 11→13, #16 node-html-parser 6→7) are
-  green and safe to merge.
+- **Dependabot major-bump backlog — cleared.** `undici 6 → 8` landed in
+  #24 (manual redirect handling in `fetcher.ts`). The nine remaining
+  major bumps (#32–#40: fastify 5, better-sqlite3 12, uuid 14, dotenv 17,
+  @simplewebauthn 13, lucide 1, vite 8, tailwindcss 4) were applied
+  directly on `claude/bookmarks-manager-status-93fgU` and verified
+  (build + server tests + runtime smoke). Those dependabot PRs are now
+  superseded — close them after that branch merges. One follow-up
+  remains: a **browser visual smoke test** of both SPAs (couldn't run
+  headless in the agent sandbox) to confirm Tailwind 4 preflight defaults
+  and the vite-8 admin dev server look right.
 
 - **Container uptime clock** on the VPS is reported by Docker against
   the host clock — if the host clock drifts the container "Up X days"

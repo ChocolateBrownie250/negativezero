@@ -137,7 +137,7 @@ export default function RegisterModal({ mode, onClose, onDone }: Props) {
             className="sr-only"
           />
           <span
-            className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors"
+            className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors"
             style={{
               background: acknowledged ? COLORS.blue : COLORS.surface,
               boxShadow: acknowledged

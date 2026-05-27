@@ -92,69 +92,48 @@ work.
       to purge bookmarks when a Logto user is deleted
 - [ ] Empty-state UX for first-time users post-Logto migration
 
-## Open dependabot PRs — major bumps awaiting individual triage
+## Open dependabot PRs — major bumps — DONE (superseded)
 
-After dependabot config update in #27, each major bump is its own PR
-instead of a 8-package bundle. CI build is green on most (TypeScript
-compiles), but runtime behaviour wasn't validated — every one of
-these is "merge if you trust the changelog + want to spot-test in
-prod" or "do a focused upgrade with manual smoke testing".
+All nine major bumps (#32–#40) were applied directly and verified on
+the `claude/bookmarks-manager-status-93fgU` branch rather than merging
+each dependabot PR individually. Once that branch lands, the nine
+dependabot PRs are redundant and should be closed.
 
-Grouped by area to make it easier to do them in passes:
+What shipped, both apps brought to parity:
 
-### bookmark-manager — server
+- **server (bookmark-manager + admin):** fastify 4→5 with its
+  fastify-5 plugin majors (@fastify/secure-session 7→8,
+  @fastify/rate-limit 9→10, @fastify/static 7→9), better-sqlite3 11→12,
+  uuid 10→14 (bookmark-manager), @simplewebauthn/server 11→13 (admin),
+  dotenv 16→17 (admin). The v13 type-only imports were repointed from
+  the removed `@simplewebauthn/types` to `@simplewebauthn/server`.
+- **client (bookmark-manager + admin):** @simplewebauthn/browser 11→13,
+  lucide-react 0→1, tailwindcss 3→4 (via the official codemod:
+  `@import "tailwindcss"`, `@tailwindcss/postcss`, border-color compat
+  shim, utility renames). admin also took vite 5→8 + @vitejs/plugin-react
+  4→6.
 
-- [ ] [#32](https://github.com/ChocolateBrownie250/negativezero/pull/32)
-      `fastify 4 → 5`. Major framework. Migration guide:
-      <https://fastify.dev/docs/v5.0.x/Guides/Migration-Guide-V5/>.
-      Likely touches plugin registration + error handler signatures.
-      Look for hidden runtime issues in route + plugin code.
-- [ ] [#37](https://github.com/ChocolateBrownie250/negativezero/pull/37)
-      `better-sqlite3 11 → 12`. SQLite driver. Usually safe but
-      verify WAL semantics didn't shift.
-- [ ] [#35](https://github.com/ChocolateBrownie250/negativezero/pull/35)
-      `uuid 10 → 14`. Multiple majors in one bump. API has been
-      stable through this range; mostly a node-version-floor update.
+Verified in-sandbox: both apps build clean (tsc + vite), the
+bookmark-manager server tests pass 15/15, and runtime smoke tests
+confirm secure-session cookies, rate-limit headers, WebAuthn options,
+and SPA static serving all work under fastify 5.
 
-### bookmark-manager — client
-
-- [ ] [#33](https://github.com/ChocolateBrownie250/negativezero/pull/33)
-      `@simplewebauthn/browser 11 → 13`. **CI build fails** —
-      breaking type changes between 11 and 13. Either fix client
-      code now, or defer until Phase 2 swaps WebAuthn for Logto
-      anyway (Phase 2 makes this PR obsolete).
-- [ ] [#34](https://github.com/ChocolateBrownie250/negativezero/pull/34)
-      `lucide-react 0 → 1`. Icon library. Some icon names may have
-      been renamed in the 1.0 release — visual smoke test recommended.
-
-### admin
-
-- [ ] [#36](https://github.com/ChocolateBrownie250/negativezero/pull/36)
-      `vite 5 → 8`. Three majors in one bump. Vite 6+ changed dev
-      server defaults; smoke-test `npm run dev` locally first.
-- [ ] [#39](https://github.com/ChocolateBrownie250/negativezero/pull/39)
-      `@fastify/secure-session 7 → 8`. Cookie/session library.
-      Migration guide:
-      <https://github.com/fastify/fastify-secure-session/releases>.
-      Changes to cookie defaults could lock existing sessions out.
-- [ ] [#38](https://github.com/ChocolateBrownie250/negativezero/pull/38)
-      `dotenv 16 → 17`. Config loader. v17 added schema validation
-      as opt-in; behaviour unchanged for callers that don't opt in.
-      Likely safe to merge.
-- [ ] [#40](https://github.com/ChocolateBrownie250/negativezero/pull/40)
-      `tailwindcss 3 → 4`. **CI build fails** — Tailwind 4 moved
-      its PostCSS plugin to `@tailwindcss/postcss` and changed the
-      config shape. Real migration work; do it as a dedicated PR
-      with visual review.
-
-The pattern: client-side breakages (#33, #40) need code + visual
-review, server-side bumps (#32, #37, #35, #39) need integration
-review, infra/tooling (#36, #38) are usually safe.
+- [ ] **Still wants a browser smoke test** (couldn't run headless here):
+      Tailwind 4 preflight cosmetic defaults (e.g. button cursor) and
+      the vite-8 admin dev server. Verify the two SPAs render correctly
+      before relying on the deploy.
 
 ---
 
 ## Done
 
+- [x] **2026-05-27** Cleared the dependabot major-bump backlog (#32–#40)
+      directly on `claude/bookmarks-manager-status-93fgU`: fastify 5 +
+      plugin majors, better-sqlite3 12, uuid 14, dotenv 17,
+      @simplewebauthn 13, lucide 1, vite 8 (admin), tailwindcss 4 (both
+      clients). Builds + server tests green; runtime smoke-tested.
+      Browser visual smoke test still pending. The nine dependabot PRs
+      are now superseded.
 - [x] **2026-05-22** First deploy of merged stack on
       `45.76.88.245` — landing + bookmark-manager + admin reachable
       via `https://negativezero.one/{,services/bookmark-manager/,
