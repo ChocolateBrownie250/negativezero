@@ -260,7 +260,7 @@ export default function Dashboard({ onUnauthorized }: Props) {
                   <button
                     type="button"
                     onClick={() => copy('hash', generated.hash)}
-                    className="rounded-lg px-2 py-1 text-[12px] flex items-center gap-1 flex-shrink-0"
+                    className="rounded-lg px-2 py-1 text-[12px] flex items-center gap-1 shrink-0"
                     style={{
                       background: COLORS.card,
                       color: LABEL_SECONDARY,
