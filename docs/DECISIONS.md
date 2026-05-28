@@ -12,6 +12,129 @@ but not when to revisit it.
 
 ---
 
+## 2026-05-28 — Logto removed from the platform; Neon dependency dropped
+
+This **reverses** the 2026-05-21 entries "Logto as identity provider"
+and "Logto lives on auth.negativezero.one subdomain" and **partially
+reverses** "Postgres on Neon, not self-hosted" (Neon is no longer
+needed for Logto; if a future component needs Postgres, the Neon
+preference still applies).
+
+**Alternatives considered:**
+- Re-deploy Logto from this monorepo's compose, then proceed with
+  Phase 2 (bookmark-manager → OIDC) — rejected: the live deployment
+  at /srv/negativezero-services/ was torn down 2026-05-28 (containers
+  stopped, nginx sites + TLS certs removed); rebuilding only to satisfy
+  a documented-but-unrealised future feature is overkill at single-user
+  scale.
+- Keep Logto in the monorepo as "future-ready" while leaving the apex
+  services on their own WebAuthn flow — rejected: documented surface
+  that doesn't exist invites the next agent session to try deploying
+  it. Better to remove and re-add later if/when actually needed.
+- Remove Logto from compose, nginx, env, deploy.sh, docs; drop Phase 2
+  from PLAN.md — **chosen**.
+
+**Why this was chosen:**
+The bookmark-manager and admin services use their own per-service
+WebAuthn + setup-code flow today, work for the single operator, and
+have zero practical need for a separate OIDC issuer. The whole point
+of Logto (one identity covers all services, magic-link invitations to
+add users) only earns its complexity when there are multiple users
+across multiple services — neither holds today. Carrying Logto in the
+codebase made next sessions try to deploy it; removing it makes the
+documented surface match the running surface.
+
+If multi-user does become a real need, the work is well-described in
+git history (this monorepo's prior Phase 2 + the archived
+ChocolateBrownie250/negativezero-services repo's `services/bookmark-
+manager/server/` which already had multi-user JWT validation with 26
+passing tests).
+
+**What would invalidate this:**
+- A second user (friend/family/team) needs access to a service —
+  re-introduce an identity layer. Don't have to use Logto; could be
+  Hanko, Kratos, Clerk, or a custom WebAuthn-per-tenant shim.
+- Compliance or audit need for SSO with an existing IdP — requires
+  OIDC client capability in the apex services.
+
+---
+
+## 2026-05-28 — Amethyst absorbed as apps/tts/ (was a separate tenant)
+
+**Alternatives considered:**
+- Leave Amethyst at /opt/amethyst/ with its own compose, install.sh,
+  and `/vtt-transcriber/` URL — was the status quo. Rejected: two
+  deploy models on the same VPS (this monorepo's platform/ vs.
+  Amethyst's standalone) is operational debt. Adding admin features
+  to Amethyst (configurable prompts) would require either teaching
+  admin to reach across the file system boundary or re-deploying
+  Amethyst from two places.
+- Rewrite Amethyst in TypeScript + Fastify to match the monorepo's
+  language convention — rejected: working Python/FastAPI service with
+  tests, swap-rewriting it is weeks of work for no functional gain.
+- Absorb the existing source unchanged into `apps/tts/`, accept a
+  Python exception to the TS+Fastify convention, wire into
+  platform/docker-compose.yml + nginx — **chosen**.
+
+**Why this was chosen:**
+The work to integrate is mechanical: copy the source tree (no edits
+beyond the Dockerfile, which we own), drop it into apps/tts/, add the
+compose service block, add the nginx location, generate a fresh API
+key in deploy.sh, set up the per-service data dir. The upside is that
+admin gets natural file-system access to the tts code/config (relevant
+for the upcoming "edit cleanup + proofread prompts from admin" task),
+backups become uniform (snapshot platform/data/), and the deploy story
+collapses to one `platform/deploy.sh` instead of two parallel setups.
+
+The legacy /vtt-transcriber/ URL is kept as a 301 redirect to
+/services/tts/ so existing iPhone Shortcuts and bookmarks keep working
+until they're updated client-side.
+
+**What would invalidate this:**
+- The Python toolchain (uv, the pinned deps) becomes a maintenance
+  drag (e.g., Groq SDK changes break the API and the upstream amethyst
+  repo stops getting updates) — at that point either fork into our
+  own maintained version or rewrite in TS.
+- A multi-tenant version needs to share auth state with admin or
+  bookmark-manager — would force either a shared auth layer (probably
+  re-introducing Logto) or rewriting tts in TS to share session-cookie
+  middleware.
+
+---
+
+## 2026-05-28 — Python + FastAPI exception to the "TS + Fastify only" convention
+
+**Alternatives considered:**
+- Strictly enforce "TS + Fastify everywhere" by rewriting tts —
+  rejected: see Amethyst-absorbed entry above; weeks of work for no
+  functional gain on a working service.
+- Drop the convention entirely, let each new service pick its own
+  stack — rejected: the convention exists because keeping one
+  language across services makes ops simpler (one runtime to update,
+  one dependency-pinning strategy, one set of debugging habits). Two
+  languages is sustainable; six wouldn't be.
+- Treat tts as a one-off Python exception, document it explicitly in
+  AGENTS.md, default new services back to TS + Fastify — **chosen**.
+
+**Why this was chosen:**
+The convention is a strong default, not a rule of nature. Imported
+services that are working and tested don't have to be rewritten to fit
+the default. Future net-new services still default to TS + Fastify;
+when someone proposes a new Python (or Go, Rust, etc.) service, the
+AGENTS.md exception note is the prompt to record *why* the deviation
+is worth it in DECISIONS.md before the work starts.
+
+**What would invalidate this:**
+- A third language enters the platform without recorded justification
+  — at that point the convention has degraded to a suggestion and
+  should be either re-asserted or formally dropped.
+- The Python container's operational overhead (image rebuilds,
+  dependency upgrades, security patches) becomes a meaningful share of
+  the maintenance budget — at that point rewriting tts in TS earns its
+  cost.
+
+---
+
 ## 2026-05-21 — Monorepo with `apps/` + `platform/` + `docs/` layout
 
 This **reverses** the 2026-05-21 entry "Fresh repo, not branch of

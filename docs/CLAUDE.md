@@ -1,44 +1,52 @@
 # negativezero
 
 Self-hosted services platform for the `negativezero.one` apex. Monorepo
-holding the landing page, the bookmark manager, the admin tool, and the
-platform infrastructure (Logto identity, nginx site configs, deploy
-script). Hosted on a single Vultr VPS alongside unrelated tenants
-(wellfit, isgroup-one, amethyst). Postgres for Logto runs as a local
-container on the VPS for now; migration to Neon (per DECISIONS.md) is
-deferred until Phase 2 (Logto integration into the apex services).
-For the live deployed state, ops procedures, and known issues, read
+holding the landing page, the bookmark manager, the admin tool, the
+tts (Whisper transcription + LLM cleanup) service, and the platform
+infrastructure (nginx site config, deploy script). Hosted on a single
+Vultr VPS alongside unrelated tenants (wellfit, isgroup-one). For the
+live deployed state, ops procedures, and known issues, read
 `HANDOVER.md` at the repo root.
 
-**Stack:** Logto (Go, MPL-2.0) for identity, backed by Postgres (local
-container today, Neon planned); Node 20 + Fastify + TypeScript +
-better-sqlite3 + React 18 (Vite, Tailwind) for the bookmark manager
-and admin; static HTML for the landing; nginx on apex; Docker Compose
-+ Let's Encrypt; deployed to a shared Ubuntu VPS.
+**Stack:** Node 22 + Fastify 5 + TypeScript + better-sqlite3 12 +
+React 18 (Vite 8, Tailwind 4) for the bookmark manager and admin;
+Python 3.12 + FastAPI + aiosqlite + Groq (Whisper + Llama) for tts;
+static HTML for the landing; nginx on apex; Docker Compose +
+Let's Encrypt; deployed to a shared Ubuntu VPS. Auth is per-service
+WebAuthn (passkey) with a one-time setup code; tts uses a Bearer API
+key. No central identity provider — earlier plans for Logto were
+reversed 2026-05-28 (see DECISIONS.md).
 
 ## Repository layout
 
 ```
 apps/
   landing/              static landing page (negativezero.one/)
-  bookmark-manager/     bookmark service (negativezero.one/services/bookmark-manager/)
+  bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
+  tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/tts/)
 platform/
-  docker-compose.yml    orchestrates landing + bookmark-manager + admin + logto
+  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts
   deploy.sh             idempotent deployer for the VPS
-  nginx/                site configs for negativezero.one + auth.negativezero.one
+  nginx/                apex site config + shared connection_upgrade map
   .env.template
 docs/
   CLAUDE.md             this file
   ARCHITECTURE.md       how the platform is built
   PLAN.md               active to-do + execution log
   DECISIONS.md          append-only architectural decisions
+  RUNBOOK.md            operator procedures (deploys, rotations, recovery)
+AGENTS.md               contract for LLM coding agents (Claude, Cursor, Aider)
 HANDOVER.md             current deployed state + ops procedures (no secrets)
+TODO.md                 granular session-actionable task list
 ```
 
 Add new services as `apps/<name>/` + a service block in
 `platform/docker-compose.yml` + an `nginx/` location block. The
 deploy script is structured to absorb new services without changes.
+The TS + Fastify stack is the default for new services; tts is the
+documented Python + FastAPI exception (see AGENTS.md + DECISIONS.md
+2026-05-28).
 
 ## Working-memory files
 
@@ -72,7 +80,14 @@ repositories under `chocolatebrownie250`:
   under `apps/bookmark-manager/` and rewired to mount at
   `/services/bookmark-manager/` instead of the old `/bookmarks-pro/`.
 - `negativezero-services` (commit `cdfd534`) — the platform shell
-  (Logto + infra). Brought in under `platform/` and `docs/`.
+  (originally Logto + infra). Brought in under `platform/` and
+  `docs/`. Logto was later removed (DECISIONS.md 2026-05-28); the
+  `negativezero-services` repo was archived and deleted.
+
+On 2026-05-28 the Amethyst transcription service (`/opt/amethyst/` on
+the VPS, previously at `/vtt-transcriber/`) was absorbed into the
+monorepo as `apps/tts/`. The legacy URL stays as a 301 redirect for
+existing iPhone Shortcuts.
 
 Git history of the three predecessor repos is preserved upstream; the
 merge here is a clean snapshot to avoid polluting the new repo with
