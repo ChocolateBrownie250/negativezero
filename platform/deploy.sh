@@ -3,29 +3,28 @@
 # Run as root on the Vultr VPS.
 #
 # Usage:
-#   bash platform/deploy.sh                        # deploys everything
-#   bash platform/deploy.sh skip-auth              # skip Logto bring-up (apex only)
+#   bash platform/deploy.sh
 #
 # What it does:
-#   1.  Verifies prereqs (docker, compose, nginx, certbot)
-#   2.  Generates .env on first run with random per-service secrets
-#       (BOOKMARK_*); prompts for DATABASE_URL (Neon) if missing
-#   3.  Picks free loopback ports for landing/bookmark/logto containers
-#   4.  Builds + starts all containers via docker compose
-#   5.  Installs nginx site files for negativezero.one + auth.negativezero.one
-#   6.  certbot --nginx for TLS on both domains (skipped if DNS not yet live)
-#   7.  Final smoke test
+#   1. Verifies prereqs (docker, compose, nginx, certbot)
+#   2. Generates .env on first run with random per-service secrets
+#      (BOOKMARK_*, ADMIN_*, TTS_API_KEY); operator pastes GROQ_API_KEY
+#   3. Picks free loopback ports for landing/bookmark/admin/tts
+#   4. Builds + starts all containers via docker compose. tts is skipped
+#      until GROQ_API_KEY is present so the apex deploys cleanly before
+#      the operator has wired up Groq.
+#   5. Installs nginx site file for negativezero.one + shared upgrade map
+#   6. certbot --nginx for TLS on negativezero.one (skipped if DNS not live)
+#   7. Final smoke test
 #
-# Designed to coexist with other tenants (wellfit, isg, amethyst) on
-# this shared VPS — only writes its own nginx files + own conf.d entry,
-# never touches existing tenant configs.
+# Designed to coexist with other tenants (wellfit, isg) on this shared
+# VPS — only writes its own nginx files + own conf.d entry, never
+# touches existing tenant configs.
 #
 # Re-runnable safely. Preserves .env secrets across re-runs; only ports
-# and ENDPOINT lines get re-derived.
+# get re-derived.
 
 set -euo pipefail
-
-MODE="${1:-full}"  # "full" or "skip-auth"
 
 PLATFORM_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$PLATFORM_DIR/.env"
@@ -34,13 +33,12 @@ COMPOSE_FILE="$PLATFORM_DIR/docker-compose.yml"
 NGINX_DIR="$PLATFORM_DIR/nginx"
 
 APEX_DOMAIN="negativezero.one"
-AUTH_DOMAIN="auth.negativezero.one"
 
 log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mxx  %s\033[0m\n' "$*"; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || die "Run as root (sudo bash platform/deploy.sh ...)"
+[ "$(id -u)" -eq 0 ] || die "Run as root (sudo bash platform/deploy.sh)"
 
 # ────────────────────────────────────────────────────────────────────────
 # 1. Prerequisites
@@ -55,11 +53,14 @@ command -v certbot >/dev/null || { log "Installing certbot"; apt-get install -y 
 
 mkdir -p "$PLATFORM_DIR/data/bookmark-manager"
 mkdir -p "$PLATFORM_DIR/data/admin"
-# Container processes run as UID 999 (the `app` system user from the
-# bookworm-slim Dockerfiles). Bind-mounts inherit host ownership, so the
-# host dirs must be writable by 999, otherwise better-sqlite3 fails with
-# SQLITE_CANTOPEN on first start. Idempotent re-chown is cheap.
-chown -R 999:999 "$PLATFORM_DIR/data/bookmark-manager" "$PLATFORM_DIR/data/admin"
+mkdir -p "$PLATFORM_DIR/data/tts"
+# Container processes run as UID 999 (the `app` user from each Dockerfile).
+# Bind-mounts inherit host ownership, so the host dirs must be writable by
+# 999, otherwise SQLite fails with SQLITE_CANTOPEN on first start.
+chown -R 999:999 \
+    "$PLATFORM_DIR/data/bookmark-manager" \
+    "$PLATFORM_DIR/data/admin" \
+    "$PLATFORM_DIR/data/tts"
 
 # ────────────────────────────────────────────────────────────────────────
 # 2. Pick free loopback ports
@@ -74,9 +75,8 @@ next_free() {
 LANDING_PORT=$(next_free 3020)
 BOOKMARK_PORT=$(next_free $((LANDING_PORT+1)))
 ADMIN_APP_PORT=$(next_free $((BOOKMARK_PORT+1)))
-CORE_PORT=$(next_free 3010)
-ADMIN_PORT=$(next_free $((CORE_PORT+1)))
-log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, logto-core=$CORE_PORT, logto-admin=$ADMIN_PORT"
+TTS_PORT=$(next_free $((ADMIN_APP_PORT+1)))
+log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT"
 
 # ────────────────────────────────────────────────────────────────────────
 # 3. .env (first run generates secrets; re-runs preserve them)
@@ -103,6 +103,9 @@ if [ ! -f "$ENV_FILE" ]; then
     ADMIN_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
         "cd /tmp && npm i bcryptjs --silent >/dev/null 2>&1 && node -e 'require(\"bcryptjs\").hash(process.argv[1],12).then(h=>console.log(h))' '$ADMIN_SETUP_CODE'")
 
+    # tts API key (GROQ_API_KEY is operator-supplied via the Groq console)
+    TTS_API_KEY=$(openssl rand -hex 32)
+
     # Bcrypt hashes contain `$` separators ($2b$12$...salt...hash). Docker
     # Compose interpolates values from --env-file *again* when resolving
     # ${VAR} in the YAML, which chops anything that looks like a $variable
@@ -116,50 +119,40 @@ if [ ! -f "$ENV_FILE" ]; then
     sed -i "s|^BOOKMARK_SETUP_CODE_HASH=.*|BOOKMARK_SETUP_CODE_HASH=$BOOKMARK_SETUP_CODE_HASH_ESCAPED|" "$ENV_FILE"
     sed -i "s|^ADMIN_SESSION_SECRET=.*|ADMIN_SESSION_SECRET=$ADMIN_SESSION_SECRET|" "$ENV_FILE"
     sed -i "s|^ADMIN_SETUP_CODE_HASH=.*|ADMIN_SETUP_CODE_HASH=$ADMIN_SETUP_CODE_HASH_ESCAPED|" "$ENV_FILE"
+    sed -i "s|^TTS_API_KEY=.*|TTS_API_KEY=$TTS_API_KEY|" "$ENV_FILE"
     chmod 600 "$ENV_FILE"
 
     echo
     warn "Setup codes (save these — they won't be shown again):"
     echo "  bookmark-manager:  $BOOKMARK_SETUP_CODE"
     echo "  admin:             $ADMIN_SETUP_CODE"
+    echo "  tts API key:       $TTS_API_KEY"
+    echo
+    warn "GROQ_API_KEY is still empty in $ENV_FILE."
+    warn "Get one from https://console.groq.com/keys, paste it in,"
+    warn "then re-run this script. tts will not start without it."
     echo
 fi
 
-# Validate DATABASE_URL is set (we cannot generate Neon credentials)
-if ! grep -Eq '^DATABASE_URL=postgres' "$ENV_FILE"; then
-    if [ "$MODE" != "skip-auth" ]; then
-        warn "DATABASE_URL is not set in $ENV_FILE."
-        warn "Logto needs a Neon Postgres connection string. Get one from the Neon console"
-        warn "(create a project + database, then copy the connection string with sslmode=require)."
-        warn "Paste it into $ENV_FILE and re-run, or pass MODE=skip-auth to deploy the apex only."
-        die "DATABASE_URL required"
-    else
-        log "MODE=skip-auth — proceeding without Logto"
-    fi
-fi
-
-# Update derived values on every run (ports + endpoints).
-sed -i "s|^LANDING_HOST_PORT=.*|LANDING_HOST_PORT=$LANDING_PORT|"           "$ENV_FILE"
-sed -i "s|^BOOKMARK_HOST_PORT=.*|BOOKMARK_HOST_PORT=$BOOKMARK_PORT|"        "$ENV_FILE"
-sed -i "s|^ADMIN_HOST_PORT=.*|ADMIN_HOST_PORT=$ADMIN_APP_PORT|"             "$ENV_FILE"
-sed -i "s|^LOGTO_CORE_HOST_PORT=.*|LOGTO_CORE_HOST_PORT=$CORE_PORT|"        "$ENV_FILE"
-sed -i "s|^LOGTO_ADMIN_HOST_PORT=.*|LOGTO_ADMIN_HOST_PORT=$ADMIN_PORT|"     "$ENV_FILE"
-sed -i "s|^ENDPOINT=.*|ENDPOINT=https://$AUTH_DOMAIN|"                      "$ENV_FILE"
-sed -i "s|^ADMIN_ENDPOINT=.*|ADMIN_ENDPOINT=https://$AUTH_DOMAIN/admin|"    "$ENV_FILE"
+# Update derived values on every run (ports).
+sed -i "s|^LANDING_HOST_PORT=.*|LANDING_HOST_PORT=$LANDING_PORT|"     "$ENV_FILE"
+sed -i "s|^BOOKMARK_HOST_PORT=.*|BOOKMARK_HOST_PORT=$BOOKMARK_PORT|"  "$ENV_FILE"
+sed -i "s|^ADMIN_HOST_PORT=.*|ADMIN_HOST_PORT=$ADMIN_APP_PORT|"       "$ENV_FILE"
+sed -i "s|^TTS_HOST_PORT=.*|TTS_HOST_PORT=$TTS_PORT|"                 "$ENV_FILE"
 
 # ────────────────────────────────────────────────────────────────────────
 # 4. Docker compose
 # ────────────────────────────────────────────────────────────────────────
+GROQ_PRESENT=0
+grep -Eq '^GROQ_API_KEY=gsk_' "$ENV_FILE" && GROQ_PRESENT=1
+
 log "Building + starting containers"
-if [ "$MODE" = "skip-auth" ]; then
-    # skip-auth deploys apex services only (landing, bookmark-manager, admin).
-    # `--remove-orphans` would tear down the running logto container, so it's
-    # *deliberately omitted* here — we want to leave any externally-managed
-    # Logto deploy untouched.
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin
-else
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull logto >/dev/null 2>&1 || true
+if [ "$GROQ_PRESENT" = "1" ]; then
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
+else
+    warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin only."
+    warn "Paste a Groq key into $ENV_FILE and re-run to start tts."
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin
 fi
 
 log "Waiting for bookmark-manager on 127.0.0.1:$BOOKMARK_PORT"
@@ -173,6 +166,14 @@ for _ in $(seq 1 30); do
     curl -sf "http://127.0.0.1:$ADMIN_APP_PORT/api/health" >/dev/null 2>&1 && { log "admin up"; break; }
     sleep 2
 done
+
+if [ "$GROQ_PRESENT" = "1" ]; then
+    log "Waiting for tts on 127.0.0.1:$TTS_PORT"
+    for _ in $(seq 1 30); do
+        curl -sf "http://127.0.0.1:$TTS_PORT/api/v1/health" >/dev/null 2>&1 && { log "tts up"; break; }
+        sleep 2
+    done
+fi
 
 # ────────────────────────────────────────────────────────────────────────
 # 5. nginx sites + connection-upgrade map
@@ -191,13 +192,10 @@ install_site() {
     log "Installing nginx site: $dst"
     cp "$src" "$dst"
 
-    # Substitute placeholders (apex site uses LANDING/BOOKMARK/ADMIN host ports).
-    sed -i "s|__LANDING_HOST_PORT__|$LANDING_PORT|g"     "$dst"
-    sed -i "s|__BOOKMARK_HOST_PORT__|$BOOKMARK_PORT|g"   "$dst"
-    sed -i "s|__ADMIN_HOST_PORT__|$ADMIN_APP_PORT|g"     "$dst"
-    # Auth site uses 3010/3011 in source — replace with actual ports.
-    sed -i "s|127\.0\.0\.1:3010|127.0.0.1:$CORE_PORT|g"  "$dst"
-    sed -i "s|127\.0\.0\.1:3011|127.0.0.1:$ADMIN_PORT|g" "$dst"
+    sed -i "s|__LANDING_HOST_PORT__|$LANDING_PORT|g"   "$dst"
+    sed -i "s|__BOOKMARK_HOST_PORT__|$BOOKMARK_PORT|g" "$dst"
+    sed -i "s|__ADMIN_HOST_PORT__|$ADMIN_APP_PORT|g"   "$dst"
+    sed -i "s|__TTS_HOST_PORT__|$TTS_PORT|g"           "$dst"
 
     [ "$SITES_AVAIL" != "$SITES_ENABLED" ] && ln -sf "$dst" "$SITES_ENABLED/$domain"
 
@@ -213,9 +211,6 @@ log "Installing shared connection_upgrade map"
 cp "$NGINX_DIR/negativezero-connection-upgrade.conf" "$UPGRADE_DEST"
 
 install_site "$APEX_DOMAIN" "$NGINX_DIR/$APEX_DOMAIN.conf"
-if [ "$MODE" != "skip-auth" ]; then
-    install_site "$AUTH_DOMAIN" "$NGINX_DIR/$AUTH_DOMAIN.conf"
-fi
 
 mkdir -p /var/www/html
 systemctl reload nginx
@@ -251,7 +246,6 @@ issue_tls() {
 }
 
 issue_tls "$APEX_DOMAIN"
-[ "$MODE" != "skip-auth" ] && issue_tls "$AUTH_DOMAIN"
 
 systemctl reload nginx || true
 
@@ -263,8 +257,7 @@ log "Deploy complete"
 echo "  Landing:          https://$APEX_DOMAIN/"
 echo "  Bookmark manager: https://$APEX_DOMAIN/services/bookmark-manager/"
 echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
-[ "$MODE" != "skip-auth" ] && echo "  Logto (sign-in):  https://$AUTH_DOMAIN/"
-[ "$MODE" != "skip-auth" ] && echo "  Logto Admin:      https://$AUTH_DOMAIN/admin/"
+[ "$GROQ_PRESENT" = "1" ] && echo "  TTS:              https://$APEX_DOMAIN/services/tts/"
 echo "  Status:           docker compose -f $COMPOSE_FILE ps"
 echo "  Logs:             docker compose -f $COMPOSE_FILE logs -f"
 echo "  Env file:         $ENV_FILE  (chmod 600)"

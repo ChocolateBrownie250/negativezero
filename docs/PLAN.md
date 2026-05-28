@@ -17,18 +17,31 @@ repo root. This file holds the strategic phased view.
 
 ## Current focus
 
-**Phase 1 — first deploy.** Done 2026-05-22. Landing +
-bookmark-manager + admin reachable on the VPS at
-`https://negativezero.one/`, `/services/bookmark-manager/`,
-`/services/admin/`. TLS active on both apex domains. Amethyst's
-`/vtt-transcriber/` block preserved through the new apex nginx file.
-Logto NOT redeployed from this monorepo on first cut — kept the
-running `negativezero-logto` + local `negativezero-postgres` from the
-predecessor `/srv/negativezero-services/` setup (zero users, zero
-data loss to defer this). See HANDOVER.md.
+**Phase 2 — tts absorbed into the platform.** In progress 2026-05-28.
+The Whisper transcription + LLM cleanup service that was previously
+deployed standalone at `/opt/amethyst/` (URL: `/vtt-transcriber/`) is
+being pulled into the monorepo as `apps/tts/`, reachable at
+`/services/tts/`. The legacy URL stays as a 301 redirect for old
+clients. Logto + Postgres on Neon (Phase 2 in the prior plan) was
+removed in favour of keeping the existing per-service WebAuthn flow.
+See `DECISIONS.md` 2026-05-28 for the rationale.
 
-**Next:** Phase 2 (Logto integration into bookmark-manager + admin,
-bundled with the Postgres → Neon migration).
+**Operator steps still pending** for the tts cutover:
+
+1. rsync `/opt/amethyst/data/` → `/srv/negativezero/platform/data/tts/`
+2. paste a Groq API key into `/srv/negativezero/platform/.env`
+   (`GROQ_API_KEY=gsk_...`)
+3. run `bash /srv/negativezero/platform/deploy.sh` to bring up the
+   tts container + install the updated apex nginx site
+4. verify `https://negativezero.one/services/tts/` reaches the PWA
+   and `https://negativezero.one/vtt-transcriber/` 301-redirects there
+5. stop the old `amethyst-app` container, `docker network rm
+   amethyst_default`, `rm -rf /opt/amethyst/`
+
+**Next:** Phase 3 — admin gains a "tts prompts" page for editing the
+cleanup and proofread system prompts that the tts service uses. Needs
+a small protocol between admin and tts (either a shared SQLite table
+or a tiny HTTP API on tts that admin calls).
 
 ---
 
@@ -51,86 +64,94 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [x] negativezero-services infra moved to `platform/`, docs to `docs/`
 - [x] HANDOVER.md (contained plaintext VPS root password + setup code)
       excluded from the merge. **Operator action: rotate both secrets.**
-- [x] Neon decision recorded (DECISIONS.md). Local postgres container
-      removed from docker-compose
-- [x] `platform/deploy.sh` rewritten for the merged stack (multi-domain
-      certbot, per-service secrets, Neon validation)
+- [x] `platform/deploy.sh` written for the merged stack
 - [x] `platform/nginx/negativezero.one.conf` written (landing at /,
       bookmark-manager at /services/bookmark-manager/)
 - [x] Docs updated: CLAUDE.md, ARCHITECTURE.md, PLAN.md, DECISIONS.md
 
 ### Phase 1 — First deploy of the merged stack (DONE 2026-05-22)
 
-- [x] DNS on GoDaddy: A records for `negativezero.one` and
-      `auth.negativezero.one` were already pointing at the VPS from
-      the predecessor deploy
+- [x] DNS on GoDaddy: A record for `negativezero.one` was already
+      pointing at the VPS from the predecessor deploy
 - [x] On the VPS: `/srv/negativezero/` synced to monorepo state
-- [x] `platform/.env` regenerated via `deploy.sh skip-auth`
-      (existing pre-merge `.env` discarded — bookmark-manager had
-      never been deployed, no real secrets in play)
+- [x] `platform/.env` regenerated via `deploy.sh`
 - [x] **New: `apps/admin/` built and deployed.** Passkey-protected
       registration-code generator at `/services/admin/`. Stack
-      mirrors bookmark-manager (Fastify + better-sqlite3 + WebAuthn
-      backend, React + Vite + Tailwind frontend).
+      mirrors bookmark-manager.
 - [x] **Four deploy.sh / nginx bugs fixed during first real run**:
       bcrypt-via-docker idealTree bug (switch to bcryptjs in /tmp);
       bind-mount permission (chown host dirs to UID 999); bcrypt-hash
       values being chopped by compose's second-pass interpolation
       (escape `$` → `$$`); nginx `proxy_pass` missing trailing slash
-      on `/services/*` (source comment was wrong, ARCHITECTURE.md
-      was right). See PR #18 for the patch set.
+      on `/services/*`. See PR #18.
 - [x] Verify:
       - [x] `https://negativezero.one/` renders the landing
       - [x] `https://negativezero.one/services/bookmark-manager/`
-            reaches the bookmark UI (first-time setup screen)
+            reaches the bookmark UI
       - [x] `https://negativezero.one/services/admin/` reaches the
-            admin UI (first-time setup screen)
+            admin UI
       - [x] `https://negativezero.one/vtt-transcriber/` still 200
-            (Amethyst tenant preserved through the apex rewrite)
-      - [x] `https://auth.negativezero.one/` still 200 (existing
-            Logto untouched by `skip-auth` mode)
-- [x] Setup codes captured from deploy output (in `/tmp/deploy*.log`
-      on the VPS until the next reboot)
+            (Amethyst standalone tenant preserved at the time —
+            superseded by Phase 2)
+- [x] Setup codes captured from deploy output
 - [ ] First-time bookmark + admin passkey registration via browser
-      (operator step — not done in this session)
+      (operator step — not done in that session)
 
-**Deferred** (intentional, not blocking):
+### Phase 2 — tts absorbed (IN PROGRESS 2026-05-28)
 
-- [ ] Create Neon project + copy `DATABASE_URL` for Logto
-- [ ] Migrate Logto's local `negativezero-postgres` data to Neon —
-      no data to migrate today (0 users, 4 Logto-default app rows),
-      bundle with Phase 2
+- [x] Pull `/opt/amethyst/` source into `apps/tts/` (backend, pwa,
+      tests, shortcuts, pyproject.toml, uv.lock, README, SECURITY_AUDIT.md)
+- [x] Adapt `apps/tts/Dockerfile`: PORT env, UID 999, /data ownership
+- [x] Wire into `platform/docker-compose.yml`: new `tts:` service block
+- [x] Wire into `platform/nginx/negativezero.one.conf`: new
+      `/services/tts/` location; old `/vtt-transcriber/` becomes a
+      301 redirect
+- [x] Wire into `platform/.env.template`: `GROQ_API_KEY`,
+      `TTS_API_KEY`, `TTS_HOST_PORT`
+- [x] Wire into `platform/deploy.sh`: generate `TTS_API_KEY` on first
+      run, chown `platform/data/tts/`, defer container start if
+      `GROQ_API_KEY` is missing
+- [x] Drop Logto + Neon refs from compose, env, deploy, nginx, docs
+- [ ] **Operator: rsync data from /opt/amethyst/data/ to platform/data/tts/**
+- [ ] **Operator: paste GROQ_API_KEY into platform/.env**
+- [ ] **Operator: run `bash platform/deploy.sh` on VPS**
+- [ ] **Operator: verify `/services/tts/` works + `/vtt-transcriber/` redirects**
+- [ ] **Operator: tear down old standalone amethyst (`docker compose
+      down -v` in /opt/amethyst/, rm -rf /opt/amethyst/, `docker
+      network rm amethyst_default`)**
 
-### Phase 2 — Logto integration (replace url-vault's own WebAuthn)
+### Phase 3 — Admin edits tts prompts
 
-This is the actual identity-unification step. Currently the bookmark-
-manager uses its own per-service WebAuthn flow; Phase 2 swaps that for
-JWTs issued by Logto so the same identity covers all future services.
+The tts service uses two LLM operations: a "cleanup" pass that fixes
+Whisper recognition errors using the glossary, and an optional
+"polish" pass that does proofreading-quality rewriting. Both have
+system prompts that are interesting to tune. Goal: edit them from
+the admin UI without touching the tts source.
 
-- [ ] Register `bookmark-manager` as OIDC app in Logto Admin Console;
-      record `client_id`, configure redirect/post-logout URIs
-- [ ] Add `@logto/react` to `apps/bookmark-manager/client/`
-- [ ] Replace `Login.tsx` and `RegisterModal.tsx` with Logto SDK
-      redirect + callback handler
-- [ ] Replace server-side WebAuthn middleware with JWKS-based JWT
-      validation (`apps/bookmark-manager/server/src/middleware/auth.ts`)
-- [ ] Add `user_id` column to `nodes` table; scope reads/writes by JWT
-      `sub`. Migrate existing single-user data
-- [ ] Tests: JWT validation (mock JWKS), multi-tenant scoping
-- [ ] Deploy + smoke test
+- [ ] Decide where prompts live: SQLite row in tts's
+      `amethyst.sqlite` (admin reads/writes via small HTTP API on
+      tts), or a shared SQLite at `platform/data/shared.sqlite`
+      that both services bind-mount. Trade-off: tts API is cleaner
+      ownership, shared SQLite is less code.
+- [ ] On the chosen path, expose read/write endpoints from tts
+      and a "Prompts" page in admin.
+- [ ] Defaults: ship the current hard-coded prompts from
+      `apps/tts/backend/app/groq_client.py` (and similar) as the
+      seed values when admin first touches the prompt store.
+- [ ] Audit-log every prompt change in admin (who, when, before/after).
+- [ ] Smoke test: change a prompt from admin, transcribe a clip,
+      verify the new prompt was used.
 
-### Phase 3 — Polish
+### Phase 4 — Polish
 
-- [~] Backup story: nightly snapshot of `apps/bookmark-manager/data/`
-      → off-host (S3 or rsync). Script written
-      (`platform/backup.sh`); operator wires
-      `/etc/negativezero-backup.env` + cron (see RUNBOOK.md). Neon
-      handles its own backups for Logto's identity DB once that
-      migration lands in Phase 2.
-- [ ] Logto webhooks for user lifecycle (delete bookmarks when user
-      is deleted)
+- [~] Backup story: nightly snapshot of `platform/data/` → off-host
+      (S3 or rsync). Script written (`platform/backup.sh`); operator
+      wires `/etc/negativezero-backup.env` + cron (see RUNBOOK.md).
 - [x] Operator runbook (`docs/RUNBOOK.md`): how to invite a user,
       rotate a passkey, recover a stuck deploy. Done 2026-05-26.
+- [ ] Bookmark-manager internal naming → Bismuth (rename folders,
+      packages, container, README, UI title; URL stays
+      `/services/bookmark-manager/` for client-side compatibility).
 
 ---
 
@@ -142,21 +163,29 @@ None at the moment.
 
 ## Notes / open questions
 
-- **Logto admin bootstrap.** First-run welcome page at
-  `auth.negativezero.one/admin/` will ask to create the single Console
-  admin via username/password. Per Logto OSS, this Console admin is
-  hard-limited to one account. Store the password in 1Password — losing
-  it = manual Postgres surgery to recover.
+- **tts service exposed by Bearer-only auth.** A single API key
+  protects all tts endpoints. Fine while it's just Igor's iPhone +
+  PWA + scripts. If a second user is added, either rotate to per-user
+  keys in the tts DB (simple) or re-introduce a real identity layer
+  (large).
 
-- **SMTP for invitations.** Logto sends invitation emails via configured
-  SMTP. Until SMTP is wired, admin must create users via Logto Admin API
-  directly. Pick a provider (Resend / Postmark) in Phase 2.
+- **GROQ_API_KEY rotation.** Stored in `platform/.env`. Rotation = edit
+  the file + `docker compose restart tts`. No tests for the rotation
+  path; the path is short enough that a runbook entry isn't earning
+  its keep yet.
 
-- **Admin Console under sub-path.** `auth.negativezero.one/admin/`
-  isn't documented as supported by Logto. If it breaks (broken assets,
-  loops, 404s) → fall back to `admin.negativezero.one` subdomain.
+- **Audio retention.** tts purges audio files older than
+  `AUDIO_RETENTION_DAYS` (default 90). Text transcripts are kept
+  forever. If audio retention is changed in `.env`, the change takes
+  effect on the next purge tick (hourly).
 
-- **Bookmark-manager auth migration.** During Phase 2, existing WebAuthn
-  credentials in the SQLite `passkeys` table need a migration plan: the
-  simplest is "delete + re-register through Logto", which is fine while
-  the service has one user. Document the procedure before Phase 2 runs.
+- **Backwards compatibility window.** The `/vtt-transcriber/` 301
+  redirect is kept indefinitely for old iPhone Shortcuts. No effort
+  spent forcing client updates; redirect is cheap and old clients
+  keep working.
+
+- **Per-service WebAuthn vs centralised identity.** Decided 2026-05-28
+  in favour of per-service WebAuthn for the current single-user scale.
+  If multi-user happens, the right move is to re-introduce an identity
+  layer (Logto, Hanko, Kratos, custom) — git history has the prior
+  Logto integration work as reference.

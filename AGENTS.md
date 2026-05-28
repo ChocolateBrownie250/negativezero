@@ -12,17 +12,25 @@ the more general agent contract.
 ## What this repo is
 
 A monorepo for the **negativezero** personal services platform.
-Self-hosted on a single Vultr VPS, with a static landing at
-`negativezero.one/`, a bookmark manager at
-`negativezero.one/services/bookmark-manager/`, and a Logto-based
-identity layer at `auth.negativezero.one/`. Postgres for Logto is
-managed by Neon (external).
+Self-hosted on a single Vultr VPS. Everything lives under the apex
+`negativezero.one/`:
+
+- `/` — static landing
+- `/services/bookmark-manager/` — bookmark manager (single-user, WebAuthn)
+- `/services/admin/` — platform admin (registration-code generator,
+  future per-service settings UI)
+- `/services/tts/` — Whisper transcription + LLM cleanup pipeline
+  (Bearer API key)
+- `/vtt-transcriber/` — 301 redirect to `/services/tts/` (legacy URL)
 
 The repo grew out of merging three predecessor repos under
-`chocolatebrownie250`: `negativezero` (design experiments),
-`url-vault` (bookmark v1), `negativezero-services` (platform shell).
-See [`docs/DECISIONS.md`](docs/DECISIONS.md) for why the merge
-happened.
+`chocolatebrownie250` on 2026-05-21: `negativezero` (design
+experiments), `url-vault` (bookmark v1), `negativezero-services`
+(platform shell that originally hosted Logto). Logto was removed
+2026-05-28 in favour of per-service WebAuthn; the Amethyst
+transcription service was absorbed the same day as `apps/tts/`. See
+[`docs/DECISIONS.md`](docs/DECISIONS.md) for the merge rationale and
+the 2026-05-28 entries for the more recent shape changes.
 
 ---
 
@@ -47,9 +55,18 @@ Dev: `cd apps/bookmark-manager && npm install && npm run dev`.
 
 **"I need to change the admin"** → `apps/admin/`. Same structure as
 bookmark-manager (Fastify + better-sqlite3 + WebAuthn on the server,
-React + Vite + Tailwind on the client). Today it's just a
+React + Vite + Tailwind on the client). Today it's a
 passkey-protected registration-code generator; the service whitelist
-lives in `server/src/routes/codes.ts`.
+lives in `server/src/routes/codes.ts`. Future expansion includes a
+"tts prompts" page (see PLAN.md Phase 3) for editing the cleanup and
+proofread system prompts that the tts service uses.
+
+**"I need to change the tts service"** → `apps/tts/`. Python 3.12 +
+FastAPI + aiosqlite, Whisper + Llama via Groq, vanilla-JS PWA. Source
+layout: `backend/app/` for the FastAPI app, `pwa/` for the frontend,
+`tests/` for pytest. Note: this is the Python exception to the
+otherwise TS+Fastify convention (see *Conventions* + DECISIONS.md
+2026-05-28). Don't rewrite to TS without a recorded decision.
 
 **"I need to add a new service"** → see *Adding a service* below.
 
@@ -64,14 +81,19 @@ without side effects.
 
 ### Code
 
-- **TypeScript everywhere** for new server/client code. No untyped JS
-  files in new code; existing ones may stay until touched.
-- **Fastify for backend services.** Don't introduce Express, Hono,
-  Koa, etc. without a recorded DECISIONS.md entry.
-- **better-sqlite3 for per-service storage.** Don't introduce Prisma,
-  Knex, Drizzle, etc. unless a service genuinely needs an ORM.
-- **React + Vite + Tailwind for frontends.** No alternate frameworks
-  without a DECISIONS.md entry.
+- **TypeScript + Fastify is the default** for new server code. No
+  untyped JS files in new code; existing ones may stay until touched.
+  Don't introduce Express, Hono, Koa, etc. without a recorded
+  DECISIONS.md entry.
+- **Python + FastAPI is a documented exception** carried by
+  `apps/tts/`. Don't extend it to new services without a recorded
+  decision; default new services to TS + Fastify. See DECISIONS.md
+  2026-05-28 "Python + FastAPI exception".
+- **better-sqlite3 for per-service TS storage; aiosqlite for tts.**
+  Don't introduce Prisma, Knex, Drizzle, SQLAlchemy, etc. unless a
+  service genuinely needs an ORM.
+- **React + Vite + Tailwind for TS frontends; vanilla JS PWA for
+  tts.** No alternate frameworks without a DECISIONS.md entry.
 - **No new comments by default.** Only add a comment when the *why* is
   non-obvious. Don't restate what well-named code already says, and
   don't tag comments to the current task ("added for X"). See
@@ -105,12 +127,14 @@ without side effects.
 - Generated at first deploy by `platform/deploy.sh`:
   `BOOKMARK_SESSION_SECRET`, `BOOKMARK_ENCRYPTION_KEY`,
   `BOOKMARK_SETUP_CODE_HASH`, `ADMIN_SESSION_SECRET`,
-  `ADMIN_SETUP_CODE_HASH`.
+  `ADMIN_SETUP_CODE_HASH`, `TTS_API_KEY`.
 - Bcrypt hashes get `$` → `$$` escaped before being written to `.env`
   because docker compose re-interpolates env-file values when
   resolving `${VAR}` in the YAML.
-- Must be supplied by operator (when Logto migrates to Neon):
-  `DATABASE_URL`.
+- Must be supplied by operator (paste into `platform/.env` before
+  re-running `deploy.sh`): `GROQ_API_KEY` (from
+  https://console.groq.com/keys). The tts container won't start
+  without it.
 - Never paste secrets into chat. Never commit them. If they leak into
   conversation, advise the operator to rotate.
 
@@ -155,12 +179,13 @@ without side effects.
 These steps can't be completed from an agent session in this
 container; they need a real shell / browser:
 
-- Anything touching the **Vultr VPS** (SSH, deploys)
-- Anything touching **Neon** (project creation, connection string)
+- Anything touching the **Vultr VPS** (SSH, deploys, `/srv/`,
+  /opt/, /etc/nginx, /etc/letsencrypt)
 - **DNS changes** at GoDaddy
-- **Logto Admin Console** clicks (creating OIDC apps, setting up
-  redirect URIs)
-- **Secret rotation** (VPS root password, GitHub tokens)
+- **Groq console** clicks (create / rotate `GROQ_API_KEY`)
+- **First-time passkey registration** for bookmark-manager and admin
+  (requires a real browser + an authenticator on a device)
+- **Secret rotation** (VPS root password, GitHub tokens, GROQ_API_KEY)
 
 When you finish work that requires one of the above, leave a note in
 the PR description listing exactly what the operator has to do, in
@@ -170,9 +195,12 @@ order, with concrete commands.
 
 ## Do-not-touch list
 
-- Other tenants on the VPS (wellfit, isgroup-one, amethyst). Their
-  nginx files in `/etc/nginx/sites-available/` are off-limits.
+- Other tenants on the VPS (wellfit, isgroup-one). Their nginx files
+  in `/etc/nginx/sites-available/` are off-limits.
 - url-vault's git history on GitHub — kept as the historical archive
   of the bookmark-manager's predecessor. Don't try to back-port
   changes; just work in this monorepo.
+- The upstream amethyst repo on GitHub — `apps/tts/` is a clean
+  import, not a fork with PRs flowing upstream. Changes here stay
+  here.
 - `docs/DECISIONS.md` past entries — append-only.

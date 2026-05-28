@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+<meta name="theme-color" content="#0a0712" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Amethyst" />
+<meta name="format-detection" content="telephone=no" />
+<title>Amethyst</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ========== Inline SVG icon sprite (referenced via <use href="#i-..."/>) ========== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="2" width="6" height="13" rx="3"/>
+      <path d="M5 11a7 7 0 0 0 14 0"/>
+      <line x1="12" y1="18" x2="12" y2="22"/>
+      <line x1="8" y1="22" x2="16" y2="22"/>
+    </symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="6" width="12" height="12" rx="2.5"/>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <polyline points="12 7 12 12 16 14"/>
+    </symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+    </symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="4" y1="6" x2="20" y2="6"/>
+      <line x1="4" y1="12" x2="20" y2="12"/>
+      <line x1="4" y1="18" x2="20" y2="18"/>
+      <circle cx="9" cy="6" r="2.5" fill="var(--bg)"/>
+      <circle cx="15" cy="12" r="2.5" fill="var(--bg)"/>
+      <circle cx="9" cy="18" r="2.5" fill="var(--bg)"/>
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="8" y="8" width="13" height="13" rx="2.5"/>
+      <path d="M5 15.5A2.5 2.5 0 0 1 2.5 13V5.5A2.5 2.5 0 0 1 5 3h7.5A2.5 2.5 0 0 1 15 5.5"/>
+    </symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />
+      <circle cx="19" cy="5" r="1.5"/>
+      <circle cx="5" cy="19" r="1.2"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="5 12 10 17 19 7"/>
+    </symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/>
+      <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="7"/>
+      <line x1="20" y1="20" x2="16.5" y2="16.5"/>
+    </symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 6 15 12 9 18"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Two balanced rotational arrows — reads cleanly even at 16 px.
+           Top arc + arrow head pointing right; bottom arc + arrow head
+           pointing left. -->
+      <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/>
+      <polyline points="21 3 21 8 16 8"/>
+      <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/>
+      <polyline points="3 21 3 16 8 16"/>
+    </symbol>
+    <symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 3h9.5A1.5 1.5 0 0 1 20 4.5V20.5A1.5 1.5 0 0 1 18.5 22H5.5A1.5 1.5 0 0 1 4 20.5V8z"/>
+      <polyline points="9 3 9 8 4 8"/>
+      <line x1="8" y1="13" x2="16" y2="13"/>
+      <line x1="8" y1="17" x2="14" y2="17"/>
+    </symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="20" y1="12" x2="5" y2="12"/>
+      <polyline points="11 6 5 12 11 18"/>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+  <!-- ========== Large title ========== -->
+  <header class="app-header">
+    <h1 class="title-large">Amethyst</h1>
+    <p class="title-sub" id="appSub">Voice → text, with proofread</p>
+  </header>
+
+  <!-- ========== Content area (scrolls; tabbar is fixed) ========== -->
+  <main class="content">
+
+    <!-- ========== RECORD ========== -->
+    <section id="tab-record" class="tab active" data-tab="record">
+
+      <div class="record-stage">
+        <button id="recBtn" class="rec-btn" aria-label="Record">
+          <svg class="rec-icon rec-icon--mic" aria-hidden="true"><use href="#i-mic"/></svg>
+          <svg class="rec-icon rec-icon--stop" aria-hidden="true"><use href="#i-stop"/></svg>
+        </button>
+        <div id="recTimer" class="timer">00:00</div>
+        <div id="recStatus" class="status"></div>
+      </div>
+
+      <article class="card result-card hidden" id="resultCard">
+        <button id="copyBtnTop" class="card-copy-top" aria-label="Copy text" title="Copy">
+          <svg class="btn-icon"><use href="#i-copy"/></svg>
+        </button>
+        <div class="result-meta">
+          <span id="resultLang"></span>
+          <span id="resultDur"></span>
+          <span id="resultTimings"></span>
+          <span id="resultMode" class="result-mode"></span>
+        </div>
+        <div class="result-text" id="resultText"></div>
+
+        <!-- Source toggle: which version of the text is displayed.
+             Buttons grey out when that version doesn't exist on the result. -->
+        <div class="result-source" role="radiogroup" aria-label="Text source">
+          <button type="button" class="source-btn" data-source="polished" role="radio" aria-checked="false">Polished</button>
+          <button type="button" class="source-btn active" data-source="cleaned" role="radio" aria-checked="true">Cleaned</button>
+          <button type="button" class="source-btn" data-source="raw" role="radio" aria-checked="false">Raw</button>
+        </div>
+
+        <!-- One unified intensity picker — drives both Re-cleanup and
+             Polish strength. Light → both light, Standard → both standard,
+             Aggressive → cleanup aggressive + polish strong. -->
+        <div class="result-intensity">
+          <span class="intensity-label">Intensity</span>
+          <div class="seg" role="radiogroup" aria-label="Reprocess intensity">
+            <button type="button" class="seg-btn" data-intensity="light" role="radio" aria-checked="false">Light</button>
+            <button type="button" class="seg-btn active" data-intensity="standard" role="radio" aria-checked="true">Standard</button>
+            <button type="button" class="seg-btn" data-intensity="aggressive" role="radio" aria-checked="false">Aggressive</button>
+          </div>
+        </div>
+
+        <div class="result-actions">
+          <button id="copyBtn" class="btn btn-primary btn-compact">
+            <svg class="btn-icon"><use href="#i-copy"/></svg>
+            <span>Copy</span>
+          </button>
+          <button id="reCleanBtn" class="btn btn-ghost btn-compact" title="Fix recognition errors only — preserves wording">
+            <span>Cleanup</span>
+          </button>
+          <button id="polishBtn" class="btn btn-ghost btn-compact" title="Rewrite for readability — removes filler, fixes flow">
+            <span>Polish</span>
+          </button>
+          <button id="reTranscribeBtn" class="btn btn-ghost btn-compact" title="Re-run audio through whisper-large-v3 (more accurate, slower)">
+            <span>Re-transcribe</span>
+          </button>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- ========== HISTORY ========== -->
+    <section id="tab-history" class="tab" data-tab="history">
+      <div class="search-bar">
+        <svg class="search-bar-icon"><use href="#i-search"/></svg>
+        <input type="search" id="historySearch" placeholder="Search transcripts" />
+        <button id="historyRefresh" class="icon-btn" aria-label="Refresh">
+          <svg class="btn-icon"><use href="#i-refresh"/></svg>
+        </button>
+      </div>
+      <ul id="historyList" class="history-list"></ul>
+      <button id="historyMore" class="btn btn-ghost full hidden">Load more</button>
+    </section>
+
+    <!-- ========== NOTES ========== -->
+    <section id="tab-notes" class="tab" data-tab="notes">
+
+      <!-- ───── List view (default for Notes tab) ───── -->
+      <div id="notesListView" class="notes-view">
+        <div class="notes-list-header">
+          <h2 class="notes-h2">Notes</h2>
+          <button id="notesNewBtn" class="btn btn-primary">
+            <svg class="btn-icon"><use href="#i-plus"/></svg>
+            <span>New</span>
+          </button>
+        </div>
+        <div class="search-bar">
+          <svg class="search-bar-icon"><use href="#i-search"/></svg>
+          <input type="search" id="notesSearch" placeholder="Search notes" />
+        </div>
+
+        <!-- Queued section — visible only while there's at least one note
+             with queue_status='processing'. Each item shows progress
+             (X / Y chunks); auto-refreshes every 30 s while present. -->
+        <section id="notesQueuedSection" class="notes-queued hidden">
+          <h3 class="notes-queued-h3">Queued</h3>
+          <ul id="notesQueuedList" class="notes-list notes-list--queued"></ul>
+        </section>
+
+        <ul id="notesList" class="notes-list"></ul>
+        <button id="notesMoreBtn" class="btn btn-ghost full hidden">Load more</button>
+        <p id="notesEmpty" class="hint hidden">No notes yet. Tap "New" to create one.</p>
+        <p id="notesNoMatch" class="hint hidden">No notes match this search.</p>
+      </div>
+
+      <!-- ───── Editor view (revealed when a note is open) ───── -->
+      <div id="notesEditView" class="notes-view hidden">
+        <div class="notes-edit-header">
+          <button id="notesBackBtn" class="icon-btn" aria-label="Back to list">
+            <svg class="btn-icon"><use href="#i-arrow-left"/></svg>
+          </button>
+          <span id="notesSaveStatus" class="save-status">Saved</span>
+          <div class="row gap-s">
+            <button id="notesSettingsBtn" class="icon-btn" aria-label="Settings" title="Pipeline settings">
+              <svg class="btn-icon"><use href="#i-gear"/></svg>
+            </button>
+            <button id="notesDeleteBtn" class="icon-btn icon-btn-danger" aria-label="Delete note" title="Delete">
+              <svg class="btn-icon"><use href="#i-trash"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <input id="notesTitle" type="text" placeholder="Untitled" class="notes-title-input" />
+
+        <textarea id="notesBody" class="notes-body" placeholder="Start typing or tap the mic to dictate…"></textarea>
+
+        <!-- Pipeline summary line (collapsed settings) -->
+        <p id="notesPipelineSummary" class="hint pipeline-summary"></p>
+
+        <!-- Settings popover — toggled by gear icon -->
+        <div id="notesSettingsPopover" class="notes-settings-popover hidden">
+          <div class="settings-grid">
+            <label class="field-label" for="notesSettingCleanup">Cleanup</label>
+            <select id="notesSettingCleanup">
+              <option value="off">Off</option>
+              <option value="light">Light</option>
+              <option value="standard">Standard</option>
+              <option value="aggressive">Aggressive</option>
+            </select>
+
+            <label class="field-label" for="notesSettingPolish">Polish</label>
+            <select id="notesSettingPolish">
+              <option value="off">Off</option>
+              <option value="light">Light</option>
+              <option value="standard">Standard</option>
+              <option value="strong">Strong</option>
+            </select>
+
+            <label class="field-label" for="notesSettingLang">Language</label>
+            <select id="notesSettingLang">
+              <option value="auto">Auto-detect</option>
+              <option value="ru">Russian</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <p class="hint">
+            Cleanup runs first, then polish on the cleaned text. Both apply when
+            you dictate. Glossary terms are protected in both stages.
+          </p>
+        </div>
+
+        <!-- Floating mic FAB (recording control) -->
+        <button id="notesMicBtn" class="notes-mic-fab" aria-label="Dictate">
+          <svg class="btn-icon"><use href="#i-mic"/></svg>
+        </button>
+
+        <!-- Recording overlay shown during dictation -->
+        <div id="notesRecOverlay" class="notes-rec-overlay hidden" role="dialog" aria-label="Recording">
+          <div class="notes-rec-card">
+            <div class="rec-pulse-ring"></div>
+            <svg class="rec-overlay-icon"><use href="#i-mic"/></svg>
+            <div id="notesRecTimer" class="timer rec-overlay-timer">00:00</div>
+            <div id="notesRecStatus" class="status rec-overlay-status">Tap anywhere to stop</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== GLOSSARY ========== -->
+    <section id="tab-glossary" class="tab" data-tab="glossary">
+      <p class="hint">
+        Built-in core (~80) and extended (~250) tech terms are shipped with the
+        server. Add your own — names of projects, colleagues, internal codenames.
+        They're passed to Whisper as a recognition hint and protected during
+        cleanup.
+      </p>
+
+      <div class="card">
+        <label class="field-label">Personal terms <span class="field-hint">one per line</span></label>
+        <textarea id="glossaryPersonal" rows="6" placeholder="Amethyst&#10;Igor&#10;OurCompanyName"></textarea>
+      </div>
+
+      <div class="card">
+        <label class="field-label">Anti-correct <span class="field-hint">never modified by cleanup</span></label>
+        <textarea id="glossaryAntiCorrect" rows="4" placeholder="codename-x&#10;internal-project-y"></textarea>
+      </div>
+
+      <div class="row gap-s">
+        <button id="glossarySave" class="btn btn-primary">
+          <svg class="btn-icon"><use href="#i-check"/></svg>
+          <span>Save</span>
+        </button>
+        <span id="glossaryStatus" class="hint"></span>
+      </div>
+
+      <details class="card collapse">
+        <summary>Built-in core <svg class="chev"><use href="#i-chevron"/></svg></summary>
+        <ul id="glossaryCore" class="chip-list"></ul>
+      </details>
+      <details class="card collapse">
+        <summary>Built-in extended <svg class="chev"><use href="#i-chevron"/></svg></summary>
+        <ul id="glossaryExtended" class="chip-list"></ul>
+      </details>
+    </section>
+
+    <!-- ========== SETTINGS ========== -->
+    <section id="tab-settings" class="tab" data-tab="settings">
+
+      <!-- Usage / quotas: aggregated from local transcriptions table. -->
+      <div class="card usage-card">
+        <div class="row gap-s" style="justify-content:space-between;">
+          <label class="field-label" style="margin:0;">Usage</label>
+          <button id="usageRefresh" class="icon-btn" aria-label="Refresh usage">
+            <svg class="btn-icon"><use href="#i-refresh"/></svg>
+          </button>
+        </div>
+        <div class="usage-grid">
+          <div class="usage-item">
+            <span class="usage-label">Today</span>
+            <span class="usage-value" id="usageToday">—</span>
+            <span class="usage-sub"  id="usageTodaySub"></span>
+          </div>
+          <div class="usage-item">
+            <span class="usage-label">This week</span>
+            <span class="usage-value" id="usageWeek">—</span>
+            <span class="usage-sub"  id="usageWeekSub"></span>
+          </div>
+          <div class="usage-item">
+            <span class="usage-label">This month</span>
+            <span class="usage-value" id="usageMonth">—</span>
+            <span class="usage-sub"  id="usageMonthSub"></span>
+          </div>
+          <div class="usage-item">
+            <span class="usage-label">All-time</span>
+            <span class="usage-value" id="usageAll">—</span>
+            <span class="usage-sub"  id="usageAllSub"></span>
+          </div>
+        </div>
+        <p class="hint" id="usageDetails">Counts every transcription stored on this server.</p>
+      </div>
+
+      <div class="card">
+        <label class="field-label">API base URL <span class="field-hint">empty → current origin</span></label>
+        <input type="url" id="apiBase" placeholder="https://your-host or leave empty" />
+
+        <label class="field-label">API key</label>
+        <input type="password" id="apiKey" autocomplete="off" placeholder="value of AMETHYST_API_KEY" />
+      </div>
+
+      <div class="card">
+        <label class="field-label">Default language</label>
+        <select id="defLang">
+          <option value="auto">Auto-detect</option>
+          <option value="ru">Russian</option>
+          <option value="en">English</option>
+        </select>
+
+        <label class="field-label">Cleanup</label>
+        <select id="defCleanup">
+          <option value="on:standard">On — standard (recommended)</option>
+          <option value="on:light">On — light (only obvious errors)</option>
+          <option value="on:aggressive">On — aggressive (also pauses & repeats)</option>
+          <option value="off">Off (raw transcript only)</option>
+        </select>
+
+        <label class="field-label">Audio bitrate <span class="field-hint">PWA recordings only</span></label>
+        <select id="audioBitrate">
+          <option value="24000">24 kbps (most compact)</option>
+          <option value="32000">32 kbps (recommended)</option>
+          <option value="48000">48 kbps (high quality)</option>
+          <option value="64000">64 kbps (max)</option>
+        </select>
+      </div>
+
+      <div class="row gap-s wrap">
+        <button id="settingsSave" class="btn btn-primary">
+          <svg class="btn-icon"><use href="#i-check"/></svg>
+          <span>Save</span>
+        </button>
+        <button id="settingsTest" class="btn btn-ghost">
+          <svg class="btn-icon"><use href="#i-link"/></svg>
+          <span>Test connection</span>
+        </button>
+        <button id="settingsTestMic" class="btn btn-ghost">
+          <svg class="btn-icon"><use href="#i-mic"/></svg>
+          <span>Test microphone</span>
+        </button>
+        <span id="settingsStatus" class="hint"></span>
+      </div>
+      <div id="micStatusBox" class="hint" style="white-space: pre-line; margin-top: 4px;"></div>
+
+    </section>
+
+  </main>
+
+  <!-- ========== Bottom tab bar (iOS-style) ========== -->
+  <nav class="tabbar" role="tablist">
+    <button class="tabbar-btn active" data-tab="record" role="tab" aria-selected="true">
+      <svg class="tabbar-icon"><use href="#i-mic"/></svg>
+      <span>Record</span>
+    </button>
+    <button class="tabbar-btn" data-tab="history" role="tab">
+      <svg class="tabbar-icon"><use href="#i-clock"/></svg>
+      <span>History</span>
+    </button>
+    <button class="tabbar-btn" data-tab="notes" role="tab">
+      <svg class="tabbar-icon"><use href="#i-note"/></svg>
+      <span>Notes</span>
+    </button>
+    <button class="tabbar-btn" data-tab="glossary" role="tab">
+      <svg class="tabbar-icon"><use href="#i-book"/></svg>
+      <span>Glossary</span>
+    </button>
+    <button class="tabbar-btn" data-tab="settings" role="tab">
+      <svg class="tabbar-icon"><use href="#i-sliders"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- Modal dialog: shown when polish-strong returns 413 because the
+     transcript exceeds the model's TPM ceiling. Two paths forward:
+     fall back to the lighter (Standard) polish, or queue the work
+     for chunked background processing. -->
+<div id="polishTooLongDialog" class="modal hidden" role="dialog" aria-labelledby="polishDialogTitle" aria-modal="true">
+  <div class="modal-card">
+    <h3 id="polishDialogTitle" class="modal-title">Transcript too long for Polish-Strong</h3>
+    <p id="polishDialogMessage" class="modal-message"></p>
+    <div class="modal-actions">
+      <button id="polishUseStandardBtn" class="btn btn-primary">Use Standard polish</button>
+      <button id="polishQueueBtn" class="btn btn-ghost">Queue & continue</button>
+      <button id="polishCancelBtn" class="btn btn-ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast — non-blocking confirmation for the queue action. -->
+<div id="appToast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
