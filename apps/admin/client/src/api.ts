@@ -13,13 +13,18 @@ const API_BASE = import.meta.env.BASE_URL;
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const url = API_BASE + (path.startsWith('/') ? path.slice(1) : path);
+  // Only declare a JSON content-type when there's actually a body. Fastify 5
+  // rejects an empty body when content-type is application/json with
+  // FST_ERR_CTP_EMPTY_JSON_BODY (400) — which broke every bodyless POST here
+  // (passkey login/options, logout, backup-code rotate). Fastify 4 tolerated it.
+  const headers: Record<string, string> = {
+    ...((init.headers as Record<string, string>) ?? {}),
+  };
+  if (init.body != null) headers['content-type'] = 'application/json';
   const res = await fetch(url, {
     ...init,
     credentials: 'include',
-    headers: {
-      'content-type': 'application/json',
-      ...(init.headers ?? {}),
-    },
+    headers,
   });
   if (res.status === 401) throw new UnauthorizedError();
   const text = await res.text();
