@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0a0712" />
+<title>Amethyst Live</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  /* Live-specific tweaks. Most chrome reuses styles.css. */
+  .live-app {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 20px 40px;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .live-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .live-header h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+    background: linear-gradient(180deg, #f4eefe 0%, #c9b9ff 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .live-header .live-back { color: var(--fg-muted); text-decoration: none; font-size: 13px; padding: 6px 10px; border-radius: 10px; background: var(--glass-1); border: 1px solid var(--border-soft); }
+  .live-header .live-back:hover { background: var(--glass-2); color: var(--fg); }
+
+  .live-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0 14px; }
+  .live-controls select { width: auto; flex: 1 1 220px; min-width: 180px; }
+
+  .live-status { font-size: 13px; color: var(--fg-muted); margin: 0 0 12px; min-height: 1.4em; }
+  .live-status.recording { color: var(--accent); }
+  .live-status.error { color: var(--danger); }
+
+  .live-progress { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
+  .live-progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-strong)); transition: width 200ms linear; }
+
+  .live-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .live-chunk {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.012) 60%),
+      var(--glass-tint), rgba(255,255,255,0.025);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-card);
+    padding: 14px 16px;
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    backdrop-filter: blur(24px) saturate(170%);
+    box-shadow: var(--shadow-card);
+    position: relative;
+  }
+  .live-chunk.pending { opacity: 0.7; }
+  .live-chunk.error { border-color: rgba(255,90,115,0.4); }
+  .chunk-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--fg-muted); margin-bottom: 8px; letter-spacing: 0.02em; }
+  .chunk-meta .badge {
+    padding: 2px 8px; border-radius: 999px; font-size: 11px;
+    background: rgba(155,122,255,0.13); border: 1px solid rgba(155,122,255,0.25); color: var(--fg-secondary);
+  }
+  .chunk-text {
+    font-size: 17px; line-height: 1.55; white-space: pre-wrap;
+    overflow-wrap: anywhere; word-break: break-word; color: var(--fg);
+    user-select: text; cursor: text;
+  }
+  .chunk-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .chunk-btn {
+    padding: 6px 12px; font-size: 12px; font-weight: 500; height: 32px;
+    border-radius: 10px; border: 1px solid var(--border); background: var(--glass-1); color: var(--fg);
+    cursor: pointer; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    transition: background 150ms var(--ease), transform 60ms var(--ease);
+  }
+  .chunk-btn:hover { background: var(--glass-2); }
+  .chunk-btn:active { transform: scale(0.96); }
+  .chunk-btn.copy { color: var(--accent); }
+  .chunk-btn.copied { background: rgba(76,217,154,0.18); color: var(--ok); border-color: rgba(76,217,154,0.4); }
+
+  .live-empty { color: var(--fg-muted); font-size: 14px; padding: 32px 20px; text-align: center;
+    border: 1px dashed var(--border-soft); border-radius: var(--r-card); }
+
+  details.help summary {
+    cursor: pointer; font-size: 13px; color: var(--fg-secondary);
+    padding: 10px 0; user-select: none;
+  }
+  details.help summary::-webkit-details-marker { display: none; }
+  details.help summary::before { content: "▸ "; color: var(--fg-muted); }
+  details.help[open] summary::before { content: "▾ "; }
+  details.help .help-body { font-size: 13px; line-height: 1.5; color: var(--fg-secondary); padding: 8px 0 4px; }
+  details.help code { background: rgba(0,0,0,0.4); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  details.help ol { margin: 6px 0; padding-left: 22px; }
+  details.help li { margin-bottom: 4px; }
+
+  .top-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .top-row .btn { height: 40px; padding: 0 16px; font-size: 14px; }
+  .top-row .start-btn { min-width: 120px; }
+
+  .copy-all-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 4px 0 10px; }
+  .copy-all-row .hint { margin: 0; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/>
+      <line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+    </symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="8" y="8" width="13" height="13" rx="2.5"/>
+      <path d="M5 15.5A2.5 2.5 0 0 1 2.5 13V5.5A2.5 2.5 0 0 1 5 3h7.5A2.5 2.5 0 0 1 15 5.5"/>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="live-app">
+
+  <header class="live-header">
+    <h1>Live capture</h1>
+    <a class="live-back" href="./">← Main</a>
+  </header>
+  <p class="title-sub" style="margin: 0 0 16px; color: var(--fg-muted); font-size: 13px;">
+    Rolling chunks → fast transcription. Defaults to no cleanup (raw Whisper) for minimum latency.
+  </p>
+
+  <div class="card" style="padding: 14px 16px;">
+    <div class="top-row">
+      <button id="liveBtn" class="btn btn-primary start-btn">
+        <svg class="btn-icon"><use href="#i-mic"/></svg>
+        <span>Start</span>
+      </button>
+      <button id="clearBtn" class="btn btn-ghost" title="Clear list">
+        <svg class="btn-icon"><use href="#i-trash"/></svg>
+        <span>Clear</span>
+      </button>
+    </div>
+
+    <div class="live-controls">
+      <select id="liveDevice" aria-label="Audio input"></select>
+      <select id="liveChunk" aria-label="Chunk length">
+        <option value="10000">10s chunks</option>
+        <option value="15000">15s chunks</option>
+        <option value="20000" selected>20s chunks</option>
+        <option value="30000">30s chunks</option>
+      </select>
+      <select id="liveCleanup" aria-label="Cleanup mode">
+        <option value="off" selected>Cleanup off (fastest)</option>
+        <option value="on:light">Cleanup light</option>
+        <option value="on:standard">Cleanup standard</option>
+      </select>
+      <select id="liveLang" aria-label="Language">
+        <option value="auto">Auto language</option>
+        <option value="ru">Russian</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+
+    <p id="liveStatus" class="live-status">Idle. Pick a device and press Start.</p>
+    <div class="live-progress" aria-hidden="true"><div id="liveBar" class="live-progress-bar"></div></div>
+
+    <details class="help">
+      <summary>How to capture mic + call audio together (macOS)</summary>
+      <div class="help-body">
+        Browsers can record only one input device at a time. To capture both
+        your microphone and the audio coming out of your computer (Zoom,
+        browser, music etc.), you need a virtual loopback device. The
+        cheapest path:
+        <ol>
+          <li>Install BlackHole 2ch — <code>brew install --cask blackhole-2ch</code> or download from existential.audio.</li>
+          <li>Open <em>Audio MIDI Setup</em> → <strong>+ → Create Aggregate Device</strong>. Tick your built-in mic + BlackHole 2ch. Name it "Mic + BlackHole". Drift correction on the BlackHole row.</li>
+          <li>In the same app, <strong>+ → Create Multi-Output Device</strong>. Tick your speakers + BlackHole 2ch. Name it "Speakers + BlackHole". Use it as your <em>system output</em> in System Settings → Sound when you want to capture call audio.</li>
+          <li>In the device picker above pick "Mic + BlackHole".</li>
+        </ol>
+        OBS users: in OBS you already have a similar setup; you can also
+        route a Virtual Camera + Virtual Audio device and pick that here.
+      </div>
+    </details>
+  </div>
+
+  <div class="copy-all-row">
+    <p class="hint">Newest at top. Each chunk is independent — copy whatever you need on the fly.</p>
+    <button id="copyAllBtn" class="chunk-btn copy">Copy all</button>
+  </div>
+
+  <div id="liveList" class="live-list"></div>
+
+</div>
+
+<script type="module" src="live.js"></script>
+</body>
+</html>
