@@ -68,8 +68,8 @@ jobs:
           sed -e 's|__LANDING_HOST_PORT__|3020|g' \
               -e 's|__BOOKMARK_HOST_PORT__|3021|g' \
               -e 's|__ADMIN_HOST_PORT__|3022|g' \
+              -e 's|__TTS_HOST_PORT__|3023|g' \
               platform/nginx/negativezero.one.conf > "$tmp/negativezero.one.conf"
-          cp platform/nginx/auth.negativezero.one.conf "$tmp/"
           cp platform/nginx/negativezero-connection-upgrade.conf "$tmp/"
 
           # Minimal nginx.conf that includes our pieces in the right scopes.
@@ -78,7 +78,6 @@ jobs:
           http {
             include $tmp/negativezero-connection-upgrade.conf;
             include $tmp/negativezero.one.conf;
-            include $tmp/auth.negativezero.one.conf;
           }
           EOF
 
