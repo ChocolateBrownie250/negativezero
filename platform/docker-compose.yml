@@ -5,11 +5,9 @@
 #
 # Conventions:
 # - All containers prefixed `negativezero-` so they're obvious in `docker ps`
-#   alongside unrelated tenants (wellfit, isgroup, amethyst) on the shared VPS.
+#   alongside unrelated tenants (wellfit, isgroup) on the shared VPS.
 # - All services bind to 127.0.0.1 only; nginx is the public entrypoint.
-# - Postgres for Logto is hosted on Neon (external, managed) — DATABASE_URL
-#   in .env points at the Neon endpoint. No local postgres container.
-# - Per-service state (bookmark SQLite, future services) lives under
+# - Per-service state (bookmark SQLite, tts SQLite + audio) lives under
 #   ./data/<service>/, bind-mounted. Backup = snapshot a directory tree.
 
 services:
@@ -73,32 +71,32 @@ services:
     networks:
       - internal
 
-  # ── logto (identity) ──────────────────────────────────────────
-  # OIDC provider at auth.negativezero.one. Postgres lives on Neon
-  # (see DATABASE_URL); the container only runs the stateless Logto
-  # process. On first run it seeds the Neon database (idempotent —
-  # no-op if already seeded) and applies pending alterations.
-  logto:
-    image: svhd/logto:${LOGTO_TAG:-latest}
-    container_name: negativezero-logto
+  # ── tts (Whisper transcription + LLM cleanup) ─────────────────
+  # Audio dictation pipeline at negativezero.one/services/tts/.
+  # FastAPI + uvicorn (Python 3.12), aiosqlite with FTS5, Groq Whisper
+  # + Llama. The PWA inside uses relative URLs, so nginx prefix-strip
+  # gives the container clean root paths.
+  #
+  # AMETHYST_API_KEY is mapped from TTS_API_KEY in .env — upstream code
+  # reads AMETHYST_API_KEY and renaming it would touch unrelated source.
+  # Data dir layout (DB + audio cache) matches the upstream config.py
+  # defaults to keep the import diff minimal.
+  tts:
+    build:
+      context: ../apps/tts
+    container_name: negativezero-tts
     restart: unless-stopped
-    entrypoint: ["sh", "-c", "npm run cli db seed && npm run cli db alteration deploy && npm start"]
     environment:
-      # Neon connection string — sslmode=require is mandatory for Neon.
-      DB_URL: ${DATABASE_URL}
-
-      ENDPOINT: ${ENDPOINT}
-      ADMIN_ENDPOINT: ${ADMIN_ENDPOINT}
-
-      # nginx fronts us with HTTPS; trust X-Forwarded-* headers.
-      TRUST_PROXY_HEADER: "1"
-
-      # Internal listen ports — match the host-side mapping below.
-      PORT: "3001"
-      ADMIN_PORT: "3002"
+      PORT: "3000"
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      AMETHYST_API_KEY: ${TTS_API_KEY}
+      DATA_DIR: /data
+      DB_PATH: /data/amethyst.sqlite
+      AUDIO_DIR: /data/audio
+    volumes:
+      - ./data/tts:/data
     ports:
-      - "127.0.0.1:${LOGTO_CORE_HOST_PORT:-3010}:3001"
-      - "127.0.0.1:${LOGTO_ADMIN_HOST_PORT:-3011}:3002"
+      - "127.0.0.1:${TTS_HOST_PORT:-3023}:3000"
     networks:
       - internal
 
