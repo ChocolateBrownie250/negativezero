@@ -78,23 +78,40 @@ function Favicon({ url, alt }: { url: string | null; alt: string }) {
 
 // 24px square selection indicator on the left edge of every row. Empty
 // rounded square when unselected, blue with white check when selected.
-// Always present so the affordance is obvious — clicking it (or the row)
-// toggles selection. Square shape (not circle) reads as a checkbox per
-// the user's request; gives a more deliberate "form control" feel than a
-// round dot on iOS.
-function SelectionDot({ selected }: { selected: boolean }) {
+// This checkbox is the ONLY thing that toggles selection — clicking empty
+// space on the row does nothing (per the user's request). Square shape
+// reads as a checkbox and gives a deliberate "form control" feel.
+// Hit area is padded to 36px so it's comfortably tappable on touch.
+function SelectionToggle({
+  selected,
+  onSelect,
+}: {
+  selected: boolean;
+  onSelect: (e: MouseEvent) => void;
+}) {
   return (
-    <div
-      className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors"
-      style={{
-        background: selected ? COLORS.blue : COLORS.surface,
-        boxShadow: selected
-          ? 'inset 0 1px 0 rgba(255,255,255,0.20)'
-          : `inset 0 0 0 1.5px ${RING_STRONG}`,
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(e);
       }}
+      className="w-9 h-9 -m-1.5 flex items-center justify-center shrink-0 cursor-pointer"
+      aria-label={selected ? 'Deselect' : 'Select'}
+      aria-pressed={selected}
     >
-      {selected && <Check size={16} strokeWidth={3} color="#fff" />}
-    </div>
+      <span
+        className="w-6 h-6 rounded-md flex items-center justify-center transition-colors"
+        style={{
+          background: selected ? COLORS.blue : COLORS.surface,
+          boxShadow: selected
+            ? 'inset 0 1px 0 rgba(255,255,255,0.20)'
+            : `inset 0 0 0 1.5px ${RING_STRONG}`,
+        }}
+      >
+        {selected && <Check size={16} strokeWidth={3} color="#fff" />}
+      </span>
+    </button>
   );
 }
 
@@ -132,14 +149,13 @@ export default function ItemRow({
     <div
       data-node-id={node.id}
       draggable={draggable}
-      onClick={onSelect}
       onContextMenu={onContextMenu}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className="relative flex items-center gap-3 px-4 py-3 cursor-pointer select-none transition-colors"
+      className="relative flex items-center gap-3 px-4 py-3 select-none transition-colors"
       style={{
         borderBottom: isLast ? 'none' : `1px solid ${SEPARATOR}`,
         background,
@@ -162,7 +178,7 @@ export default function ItemRow({
           style={{ bottom: -1, height: 2, background: COLORS.blue, zIndex: 5 }}
         />
       )}
-      <SelectionDot selected={selected} />
+      <SelectionToggle selected={selected} onSelect={onSelect} />
       {isFolder ? (
         <div
           className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
