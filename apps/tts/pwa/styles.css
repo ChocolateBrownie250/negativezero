@@ -8,20 +8,18 @@
 ============================================================================ */
 
 :root {
-  /* Page palette — slightly more saturated highs, deeper shadows. */
-  --bg-deepest:  #03020a;
-  --bg-bottom:   #060410;
-  --bg-mid:      #0c0719;
-  --bg-top:      #1f1338;
-  --bg:          #0a0712;
+  /* Page palette — neutral graphite (Apple systemGray dark scale), no hue. */
+  --bg-deepest:  #000000;
+  --bg-bottom:   #060607;
+  --bg-mid:      #111113;
+  --bg-top:      #1c1c1e;
+  --bg:          #0b0b0d;
 
-  /* Glass surface tints. Each layer gets its own translucent fill plus an
-     accent infusion so cards and bars feel tinted by the room's purple light
-     rather than just plain frosted glass. */
+  /* Glass surface tints — plain neutral frost, no colour infusion. */
   --glass-1:        rgba(255, 255, 255, 0.045);
   --glass-2:        rgba(255, 255, 255, 0.075);
   --glass-3:        rgba(255, 255, 255, 0.110);
-  --glass-tint:     rgba(155, 122, 255, 0.060);
+  --glass-tint:     rgba(255, 255, 255, 0.035);
   --glass-edge-hi:  rgba(255, 255, 255, 0.220);   /* the wet "specular" rim */
   --glass-edge-lo:  rgba(255, 255, 255, 0.060);
 
@@ -31,18 +29,20 @@
   --border:      rgba(255, 255, 255, 0.10);
   --border-soft: rgba(255, 255, 255, 0.06);
 
-  --fg:           #f4effc;
-  --fg-secondary: #c0b6d6;
-  --fg-muted:     #837a96;
+  --fg:           #f5f5f7;   /* Apple label */
+  --fg-secondary: #aeaeb2;   /* Apple secondary label */
+  --fg-muted:     #8e8e93;   /* Apple systemGray */
 
-  --accent:        #c4abff;
-  --accent-strong: #9d7df3;
-  --accent-deep:   #7a5cd8;
-  --accent-glow:   rgba(180, 147, 255, 0.55);
-  --accent-fg:     #170c30;
+  /* Monochrome accent — near-white primary on graphite, Apple "Pro" feel.
+     Buttons read as light pills with dark text; no blue, no violet. */
+  --accent:        #f5f5f7;
+  --accent-strong: #ffffff;
+  --accent-deep:   #d1d1d6;
+  --accent-glow:   rgba(255, 255, 255, 0.20);
+  --accent-fg:     #1c1c1e;
 
-  --danger:  #ff6585;
-  --ok:      #4cd99a;
+  --danger:  #ff453a;   /* Apple systemRed dark */
+  --ok:      #30d158;   /* Apple systemGreen dark */
 
   /* Continuous corner radii — iOS-26 feel. */
   --r-card:   20px;
@@ -66,7 +66,7 @@
        a halo that wraps around. The Y offset (10) is bigger than the
        blur (24), which keeps the brightness anchored under the
        sphere instead of flaring outward. */
-    0 10px 24px -4px rgba(157, 125, 243, 0.28),
+    0 10px 24px -4px rgba(255, 255, 255, 0.28),
     /* Crisp contact shadow showing the sphere sitting on the page. */
     0 3px 10px rgba(0, 0, 0, 0.40);
 
@@ -115,32 +115,26 @@ html, body {
 }
 
 body {
-  /* One light, smooth fall-off — but with a deeper palette and finer
-     steps than before. Single ambient halo at the top, then a 9-stop
-     vertical gradient that walks through saturated highs, indigo
-     mids, and near-black depths. Each step ≤ 12% of the page height
-     so the eye reads it as one continuous glide. */
+  /* Neutral graphite fall-off (Apple dark). A faint achromatic ambient at
+     the top gives subtle depth without any hue, then a graphite ramp from
+     systemGray6 (#1c1c1e) down to true black. No purple, no blue. */
   background:
-    /* Single ambient — broad, soft, top-centred, 5 stops for smoothness. */
+    /* Soft achromatic ambient — broad, top-centred. */
     radial-gradient(140% 75% at 50% -10%,
-      rgba(206, 172, 255, 0.34) 0%,
-      rgba(170, 134, 246, 0.22) 10%,
-      rgba(135, 100, 220, 0.12) 22%,
-      rgba(95, 68, 180, 0.05) 38%,
-      transparent 60%) fixed,
-    /* Page base — 9-step multi-stop, deeper saturation at the top
-       so the page feels like it has weight; deeper near-black at the
-       bottom for that wet-glass-on-marble Liquid feel. */
+      rgba(255, 255, 255, 0.10) 0%,
+      rgba(255, 255, 255, 0.05) 12%,
+      rgba(255, 255, 255, 0.02) 28%,
+      transparent 55%) fixed,
+    /* Page base — graphite ramp, weighted lighter at the top, near-black
+       at the bottom. */
     linear-gradient(180deg,
-      #2a1858    0%,
-      #20124a   12%,
-      #190e3a   22%,
-      #140b2e   33%,
-      #100822   45%,
-      #0b0618   58%,
-      #070411   72%,
-      #04030d   85%,
-      #010108  100%) fixed;
+      #1c1c1e    0%,
+      #161618   14%,
+      #101012   30%,
+      #0b0b0d   46%,
+      #08080a   62%,
+      #050506   80%,
+      #000000  100%) fixed;
 }
 
 /* ===== App container ===== */
@@ -166,7 +160,7 @@ body {
   font-weight: 700;
   letter-spacing: -0.022em;
   line-height: 1.1;
-  background: linear-gradient(180deg, #f4eefe 0%, #c9b9ff 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #c7c7cc 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -397,15 +391,15 @@ select {
        at the bottom. Each step is small (~12%), so there's no banding
        and the depth reads as continuous. */
     radial-gradient(125% 140% at 50% -14%,
-      #ece1ff               0%,
-      #d6c4ff              10%,
-      #c0a8ff              20%,
-      var(--accent)        30%,
-      #b094f7              44%,
-      var(--accent-strong) 58%,
-      #8870e8              72%,
-      var(--accent-deep)   88%,
-      #4d3aa0             100%);
+      #ffffff   0%,
+      #f2f2f4  11%,
+      #e0e0e4  21%,
+      #cacace  31%,
+      #b0b0b5  44%,
+      #98989d  58%,
+      #7c7c81  72%,
+      #5e5e63  88%,
+      #46464a 100%);
   color: white;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -507,8 +501,8 @@ select {
 }
 .result-toggle { margin-top: 16px; }
 .result-mode {
-  background: rgba(155, 122, 255, 0.13);
-  border: 1px solid rgba(155, 122, 255, 0.25);
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: var(--fg-secondary);
   padding: 2px 8px;
   border-radius: 999px;
@@ -766,9 +760,9 @@ select {
 .chip-list li {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 60%),
-    rgba(155, 122, 255, 0.16);
+    rgba(255, 255, 255, 0.16);
   color: var(--fg);
-  border: 1px solid rgba(155, 122, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
@@ -1077,9 +1071,9 @@ select {
 }
 .notes-list--queued li {
   /* Slightly different tint so queued items read as "in flight". */
-  border-color: rgba(196, 171, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.16);
   background:
-    linear-gradient(180deg, rgba(196, 171, 255, 0.05) 0%, rgba(196, 171, 255, 0.005) 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.005) 70%),
     var(--glass-tint),
     rgba(255,255,255,0.020);
 }
@@ -1228,7 +1222,7 @@ select {
 /* ----- Recording overlay ----- */
 .notes-rec-overlay {
   position: fixed; inset: 0;
-  background: rgba(6, 4, 12, 0.78);
+  background: rgba(0, 0, 0, 0.78);
   -webkit-backdrop-filter: blur(28px);
   backdrop-filter: blur(28px);
   display: flex; align-items: center; justify-content: center;
