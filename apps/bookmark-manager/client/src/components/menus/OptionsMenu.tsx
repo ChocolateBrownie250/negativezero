@@ -1,4 +1,4 @@
-import { Download, Upload, LogOut } from 'lucide-react';
+import { Download, Upload, ClipboardList, LogOut } from 'lucide-react';
 import DropdownPanel from './DropdownPanel';
 import MenuItem from './MenuItem';
 import { LABEL_SECONDARY } from '../../lib/colors';
@@ -8,6 +8,7 @@ interface Props {
   onClose: () => void;
   onExport: () => void;
   onImport: () => void;
+  onPasteLinks: () => void;
   onLogout: () => void;
   exportDisabled: boolean;
 }
@@ -17,6 +18,7 @@ export default function OptionsMenu({
   onClose,
   onExport,
   onImport,
+  onPasteLinks,
   onLogout,
   exportDisabled,
 }: Props) {
@@ -36,6 +38,14 @@ export default function OptionsMenu({
         label="Import Bookmarks"
         onClick={() => {
           onImport();
+          onClose();
+        }}
+      />
+      <MenuItem
+        icon={<ClipboardList size={18} color={LABEL_SECONDARY} />}
+        label="Paste Links"
+        onClick={() => {
+          onPasteLinks();
           onClose();
         }}
       />
