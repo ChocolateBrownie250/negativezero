@@ -51,6 +51,7 @@ import BookmarkModal from './modals/BookmarkModal';
 import FolderModal from './modals/FolderModal';
 import RenameModal from './modals/RenameModal';
 import ImportModal from './modals/ImportModal';
+import PasteLinksModal from './modals/PasteLinksModal';
 import MoveModal from './modals/MoveModal';
 
 interface Props {
@@ -63,6 +64,7 @@ type ModalState =
   | { kind: 'add-bookmark' }
   | { kind: 'add-folder' }
   | { kind: 'import' }
+  | { kind: 'paste-links' }
   | { kind: 'rename'; nodeId: string }
   | { kind: 'move'; ids: string[] }
   | null;
@@ -749,6 +751,74 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     }
   }
 
+  // Bulk-add pasted links: create a fresh "Import <date time>" folder in the
+  // current folder, then add a bookmark per URL. Reuses the normal create
+  // endpoint so each link gets its title/favicon fetched and validated.
+  async function addLinksNow(
+    urls: string[],
+    onProgress: (done: number, total: number) => void,
+  ): Promise<{ added: number; failed: number }> {
+    if (!currentFolder) return { added: 0, failed: 0 };
+    const parentId = currentFolder.id;
+    const basePath = path;
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp =
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+      `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    let folderId: string;
+    try {
+      const { node } = await api.createNode({
+        type: 'folder',
+        parentId,
+        name: `Import ${stamp}`,
+      });
+      folderId = node.id;
+    } catch (err) {
+      handleApiError(err);
+      throw err;
+    }
+
+    let added = 0;
+    let failed = 0;
+    for (let i = 0; i < urls.length; i++) {
+      try {
+        await api.createNode({ type: 'bookmark', parentId: folderId, url: urls[i] });
+        added += 1;
+      } catch (err) {
+        if (err instanceof UnauthorizedError) {
+          handleApiError(err);
+          throw err;
+        }
+        failed += 1;
+      }
+      onProgress(i + 1, urls.length);
+    }
+
+    // If every link bounced, don't leave an empty folder behind.
+    if (added === 0) {
+      try {
+        await api.deleteNode(folderId);
+      } catch {
+        // best-effort cleanup
+      }
+      await refetch();
+      setToast('No links could be added');
+      return { added, failed };
+    }
+
+    await refetch();
+    setPath([...basePath, folderId]);
+    setToast(
+      failed > 0
+        ? `Added ${added}, ${failed} failed`
+        : `Added ${added} ${added === 1 ? 'bookmark' : 'bookmarks'}`,
+    );
+    return { added, failed };
+  }
+
   async function logout() {
     try {
       await api.logout();
@@ -989,6 +1059,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
           onClose={() => setOptionsAnchor(null)}
           onExport={exportNow}
           onImport={() => setModal({ kind: 'import' })}
+          onPasteLinks={() => setModal({ kind: 'paste-links' })}
           onLogout={logout}
           exportDisabled={countItems(tree) === 0}
         />
@@ -1168,6 +1239,12 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
         <ImportModal
           onClose={() => setModal(null)}
           onSubmit={async (treeIn) => importNow(treeIn)}
+        />
+      )}
+      {modal?.kind === 'paste-links' && (
+        <PasteLinksModal
+          onClose={() => setModal(null)}
+          onSubmit={addLinksNow}
         />
       )}
       {modal?.kind === 'move' && (
