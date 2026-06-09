@@ -23,7 +23,6 @@ import { api, UnauthorizedError } from '../api';
 import {
   buildTree,
   collectBookmarkItems,
-  collectBookmarkUrls,
   countDescendantBookmarks,
   countItems,
   findFolder,
