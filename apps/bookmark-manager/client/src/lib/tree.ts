@@ -100,3 +100,13 @@ export function collectBookmarkUrls(folder: TreeFolder): string[] {
   walk(folder);
   return out;
 }
+
+export function collectBookmarkItems(folder: TreeFolder): Array<{ name: string; url: string }> {
+  const out: Array<{ name: string; url: string }> = [];
+  function walk(node: TreeNode) {
+    if (node.type === 'bookmark') out.push({ name: node.name, url: node.url });
+    else node.children.forEach(walk);
+  }
+  walk(folder);
+  return out;
+}
