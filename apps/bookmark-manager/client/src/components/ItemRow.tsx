@@ -180,15 +180,23 @@ export default function ItemRow({
       )}
       <SelectionToggle selected={selected} onSelect={onSelect} />
       {isFolder ? (
-        <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenFolder?.();
+          }}
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 cursor-pointer"
           style={{
             background: COLORS.surface,
             boxShadow: `inset 0 0 0 1px ${RING_SUBTLE}`,
           }}
+          aria-label="Open folder"
+          title="Open folder"
         >
           <Folder size={20} color={COLORS.blue} fill={COLORS.blue} />
-        </div>
+        </button>
       ) : (
         <Favicon url={node.faviconUrl} alt={node.name} />
       )}
