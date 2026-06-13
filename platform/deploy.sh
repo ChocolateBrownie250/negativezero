@@ -76,7 +76,8 @@ LANDING_PORT=$(next_free 3020)
 BOOKMARK_PORT=$(next_free $((LANDING_PORT+1)))
 ADMIN_APP_PORT=$(next_free $((BOOKMARK_PORT+1)))
 TTS_PORT=$(next_free $((ADMIN_APP_PORT+1)))
-log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT"
+TIMEZONES_PORT=$(next_free $((TTS_PORT+1)))
+log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT, timezones=$TIMEZONES_PORT"
 
 # ────────────────────────────────────────────────────────────────────────
 # 3. .env (first run generates secrets; re-runs preserve them)
@@ -134,11 +135,15 @@ if [ ! -f "$ENV_FILE" ]; then
     echo
 fi
 
-# Update derived values on every run (ports).
+# Update derived values on every run (ports). New port vars added after a
+# service's first deploy won't exist in an older .env, so seed any missing
+# line before the sed replace runs.
+grep -q '^TIMEZONES_HOST_PORT=' "$ENV_FILE" || echo "TIMEZONES_HOST_PORT=$TIMEZONES_PORT" >> "$ENV_FILE"
 sed -i "s|^LANDING_HOST_PORT=.*|LANDING_HOST_PORT=$LANDING_PORT|"     "$ENV_FILE"
 sed -i "s|^BOOKMARK_HOST_PORT=.*|BOOKMARK_HOST_PORT=$BOOKMARK_PORT|"  "$ENV_FILE"
 sed -i "s|^ADMIN_HOST_PORT=.*|ADMIN_HOST_PORT=$ADMIN_APP_PORT|"       "$ENV_FILE"
 sed -i "s|^TTS_HOST_PORT=.*|TTS_HOST_PORT=$TTS_PORT|"                 "$ENV_FILE"
+sed -i "s|^TIMEZONES_HOST_PORT=.*|TIMEZONES_HOST_PORT=$TIMEZONES_PORT|" "$ENV_FILE"
 
 # ────────────────────────────────────────────────────────────────────────
 # 4. Docker compose
@@ -152,7 +157,7 @@ if [ "$GROQ_PRESENT" = "1" ]; then
 else
     warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin only."
     warn "Paste a Groq key into $ENV_FILE and re-run to start tts."
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones
 fi
 
 log "Waiting for bookmark-manager on 127.0.0.1:$BOOKMARK_PORT"
@@ -164,6 +169,12 @@ done
 log "Waiting for admin on 127.0.0.1:$ADMIN_APP_PORT"
 for _ in $(seq 1 30); do
     curl -sf "http://127.0.0.1:$ADMIN_APP_PORT/api/health" >/dev/null 2>&1 && { log "admin up"; break; }
+    sleep 2
+done
+
+log "Waiting for timezones on 127.0.0.1:$TIMEZONES_PORT"
+for _ in $(seq 1 30); do
+    curl -sf "http://127.0.0.1:$TIMEZONES_PORT/" >/dev/null 2>&1 && { log "timezones up"; break; }
     sleep 2
 done
 
@@ -196,6 +207,7 @@ install_site() {
     sed -i "s|__BOOKMARK_HOST_PORT__|$BOOKMARK_PORT|g" "$dst"
     sed -i "s|__ADMIN_HOST_PORT__|$ADMIN_APP_PORT|g"   "$dst"
     sed -i "s|__TTS_HOST_PORT__|$TTS_PORT|g"           "$dst"
+    sed -i "s|__TIMEZONES_HOST_PORT__|$TIMEZONES_PORT|g" "$dst"
 
     [ "$SITES_AVAIL" != "$SITES_ENABLED" ] && ln -sf "$dst" "$SITES_ENABLED/$domain"
 
@@ -258,6 +270,7 @@ echo "  Landing:          https://$APEX_DOMAIN/"
 echo "  Bookmark manager: https://$APEX_DOMAIN/services/bookmark-manager/"
 echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
 [ "$GROQ_PRESENT" = "1" ] && echo "  TTS:              https://$APEX_DOMAIN/services/tts/"
+echo "  Timezones:        https://$APEX_DOMAIN/services/timezones/"
 echo "  Status:           docker compose -f $COMPOSE_FILE ps"
 echo "  Logs:             docker compose -f $COMPOSE_FILE logs -f"
 echo "  Env file:         $ENV_FILE  (chmod 600)"

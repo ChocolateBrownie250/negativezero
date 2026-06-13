@@ -14,6 +14,9 @@ reasoning behind architectural choices, see `DECISIONS.md`.
 
 - **Landing:** static HTML/CSS/Canvas (apps/landing/). Hypotrochoid
   animation in vanilla JS. No build step.
+- **Timezones:** static HTML/CSS/JS (apps/timezones/). Cross-timezone
+  meeting planner; all timezone math is client-side via the `Intl` API.
+  No backend, no build step.
 - **Bookmark service backend:** Node 22 + Fastify 5 + TypeScript +
   better-sqlite3 12. SQLite file lives on the VPS via a bind-mount
   volume. Per-service WebAuthn + setup-code auth (no shared identity
@@ -50,8 +53,9 @@ apps/
   bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
   tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/tts/)
+  timezones/            static cross-timezone planner (negativezero.one/services/timezones/)
 platform/
-  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts
+  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones
   deploy.sh             idempotent deployer for the VPS
   nginx/                apex site config + shared connection_upgrade map
   .env.template         starting point for the deployed .env
@@ -105,8 +109,18 @@ per-recording metadata + FTS5 search. Auth is a single Bearer API key
 (operator-provisioned, used by the iPhone Shortcut + PWA). State is
 one SQLite file plus an audio cache directory on a bind-mount volume.
 
+**`apps/timezones/`** — static cross-timezone meeting planner. One
+`index.html` + `styles.css` + `app.js`, sharing the Geist fonts with
+the landing. No backend, no build, no runtime dependencies: the zone
+catalogue comes from `Intl.supportedValuesOf('timeZone')` and all
+offset/conversion math from `Intl.DateTimeFormat`. Lets you add cities,
+pick a home zone, and read each zone's local time across the home day
+with working-hours and overlap highlighting; preferences persist in
+`localStorage`. Served by an `nginx:alpine` container with a read-only
+bind-mount, same pattern as landing.
+
 **`platform/`** — orchestration. `docker-compose.yml` defines landing
-+ bookmark-manager + admin + tts. `deploy.sh` is the idempotent VPS
++ bookmark-manager + admin + tts + timezones. `deploy.sh` is the idempotent VPS
 deployer (generates secrets, picks free ports, pulls/builds images,
 installs nginx site files, runs certbot). `nginx/` holds the apex
 site config + the shared `$connection_upgrade` map.
@@ -126,6 +140,7 @@ negativezero.one/services/bookmark-manager/api/...  → bookmark API
 negativezero.one/services/admin/               → admin SPA + API
 negativezero.one/services/tts/                 → tts PWA + API
 negativezero.one/services/tts/api/v1/...       → tts API (Bearer-authed)
+negativezero.one/services/timezones/           → static timezone planner
 negativezero.one/vtt-transcriber/              → 301 redirect → /services/tts/
                                                   (legacy URL kept for old clients)
 negativezero.one/services/<future>/            → future services (add a location block)
@@ -136,8 +151,8 @@ before proxying to the upstream container. Both the `location` directive
 and the `proxy_pass` target end in `/`, which makes nginx rewrite the
 matched prefix to `/` for the upstream. For the SPA-bearing services
 (bookmark-manager, admin), Vite's `base` config bakes the prefix back
-into asset references in the bundle. For tts, the PWA uses relative
-URLs, so no client-side base config is needed.
+into asset references in the bundle. For tts and timezones, the
+frontend uses relative URLs, so no client-side base config is needed.
 
 ---
 
@@ -148,6 +163,7 @@ URLs, so no client-side base config is needed.
 - **nginx → bookmark-manager:** loopback HTTP on `BOOKMARK_HOST_PORT`.
 - **nginx → admin:** loopback HTTP on `ADMIN_HOST_PORT`.
 - **nginx → tts:** loopback HTTP on `TTS_HOST_PORT`.
+- **nginx → timezones:** loopback HTTP on `TIMEZONES_HOST_PORT`.
 - **Browser ↔ bookmark-manager / admin:** HTTPS, session cookies
   (per-service `@fastify/secure-session`).
 - **iPhone Shortcut / PWA ↔ tts:** HTTPS, `Authorization: Bearer
