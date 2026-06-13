@@ -2,8 +2,9 @@
 
 Self-hosted services platform for the `negativezero.one` apex. Monorepo
 holding the landing page, the bookmark manager, the admin tool, the
-tts (Whisper transcription + LLM cleanup) service, and the platform
-infrastructure (nginx site config, deploy script). Hosted on a single
+tts (Whisper transcription + LLM cleanup) service, the timezones
+planner, and the platform infrastructure (nginx site config, deploy
+script). Hosted on a single
 Vultr VPS alongside unrelated tenants (wellfit, isgroup-one). For the
 live deployed state, ops procedures, and known issues, read
 `HANDOVER.md` at the repo root.
@@ -11,7 +12,7 @@ live deployed state, ops procedures, and known issues, read
 **Stack:** Node 22 + Fastify 5 + TypeScript + better-sqlite3 12 +
 React 18 (Vite 8, Tailwind 4) for the bookmark manager and admin;
 Python 3.12 + FastAPI + aiosqlite + Groq (Whisper + Llama) for tts;
-static HTML for the landing; nginx on apex; Docker Compose +
+static HTML for the landing and timezones planner; nginx on apex; Docker Compose +
 Let's Encrypt; deployed to a shared Ubuntu VPS. Auth is per-service
 WebAuthn (passkey) with a one-time setup code; tts uses a Bearer API
 key. No central identity provider — earlier plans for Logto were
@@ -25,8 +26,9 @@ apps/
   bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
   tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/tts/)
+  timezones/            static cross-timezone planner (negativezero.one/services/timezones/)
 platform/
-  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts
+  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones
   deploy.sh             idempotent deployer for the VPS
   nginx/                apex site config + shared connection_upgrade map
   .env.template

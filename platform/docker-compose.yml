@@ -26,6 +26,22 @@ services:
     networks:
       - internal
 
+  # ── timezones ─────────────────────────────────────────────────
+  # Static cross-timezone meeting planner at
+  # negativezero.one/services/timezones/. No backend; all timezone
+  # math is client-side via the Intl API. Served by nginx-alpine with
+  # a read-only bind-mount, same pattern as landing.
+  timezones:
+    image: nginx:alpine
+    container_name: negativezero-timezones
+    restart: unless-stopped
+    volumes:
+      - ../apps/timezones:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:${TIMEZONES_HOST_PORT:-3024}:80"
+    networks:
+      - internal
+
   # ── bookmark-manager ──────────────────────────────────────────
   # Self-hosted single-user bookmark service. Mounted at
   # negativezero.one/services/bookmark-manager/.

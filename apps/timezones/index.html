@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>timezones · negativezero</title>
+<meta name="description" content="A small cross-timezone meeting planner. Line up working hours across cities and find the overlap." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230B0B0A'/%3E%3Ccircle cx='8' cy='8' r='5' fill='none' stroke='%23E4B05A' stroke-width='1'/%3E%3Cline x1='8' y1='8' x2='8' y2='4' stroke='%23E4B05A' stroke-width='1'/%3E%3Cline x1='8' y1='8' x2='11' y2='9' stroke='%23E4B05A' stroke-width='1'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <a class="mark" href="/">−0 · negativezero.one</a>
+    <nav>
+      <a href="/#services">services</a>
+      <a href="https://github.com/ChocolateBrownie250">github</a>
+    </nav>
+  </header>
+
+  <div class="head">
+    <h1>timezones</h1>
+    <p class="lede">Line up working hours across cities and find the overlap. Drag the
+      marker to pick a moment — every row shows its local time.</p>
+  </div>
+
+  <div class="toolbar">
+    <div class="add">
+      <input id="search" type="text" autocomplete="off" spellcheck="false"
+             placeholder="add a city or zone…" aria-label="add a timezone" />
+      <div id="results" class="results" hidden></div>
+    </div>
+    <div class="controls">
+      <label class="ctl">
+        <span>date</span>
+        <input id="date" type="date" />
+      </label>
+      <label class="ctl">
+        <span>hours</span>
+        <span class="range">
+          <input id="workStart" type="number" min="0" max="23" step="1" />
+          <i>–</i>
+          <input id="workEnd" type="number" min="1" max="24" step="1" />
+        </span>
+      </label>
+      <button id="fmt" class="ctl btn" type="button" aria-pressed="false">24h</button>
+      <button id="now" class="ctl btn" type="button">now</button>
+    </div>
+  </div>
+
+  <div id="board" class="board"></div>
+  <p id="empty" class="empty" hidden>No zones yet — add a city above. Your own zone is added automatically.</p>
+
+  <div class="legend">
+    <span><i class="sw work"></i> working hours</span>
+    <span><i class="sw day"></i> daytime</span>
+    <span><i class="sw night"></i> night</span>
+    <span><i class="sw overlap"></i> everyone available</span>
+  </div>
+
+  <footer>
+    <div>© negativezero.one</div>
+    <div>−0 = 0, but the sign carries information</div>
+  </footer>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>

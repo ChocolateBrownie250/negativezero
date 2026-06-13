@@ -12,6 +12,47 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-13 — timezones added as a static service (no TS+Fastify backend)
+
+Added `apps/timezones/`, a cross-timezone meeting planner, mounted at
+`/services/timezones/`. It ships as a pure static site (HTML/CSS/JS)
+served by an `nginx:alpine` container with a read-only bind-mount —
+the same shape as `apps/landing/`, not the TS+Fastify default that
+AGENTS.md prescribes for new services.
+
+Origin: this is the negativezero home for the planner previously
+prototyped in the private `ChocolateBrownie250/isg-time-planner` repo.
+That repo was not reachable from the build session, so the service was
+re-implemented fresh against the negativezero design system rather than
+ported file-for-file.
+
+**Alternatives considered:**
+- TS + Fastify backend (the documented default) — rejected: the planner
+  needs no server. The zone catalogue comes from
+  `Intl.supportedValuesOf('timeZone')` and every offset/conversion from
+  `Intl.DateTimeFormat`; state is per-browser `localStorage`. A backend
+  would add a build, an image, and a process for zero behaviour.
+- A React+Vite SPA like bookmark-manager/admin — rejected: same reason;
+  a single screen with no auth or persistence-on-server doesn't justify
+  a framework or a `base`-prefixed bundle.
+- Static site served by nginx-alpine + bind-mount (mirrors landing) —
+  **chosen**.
+
+**Why this was chosen:**
+The TS+Fastify rule exists to stop new *server* code from sprawling
+across frameworks; it isn't a mandate to add a server where none is
+needed. Landing already establishes the static-via-nginx-alpine
+pattern, so this reuses an in-repo precedent and keeps the deploy
+surface minimal (no secrets, no SQLite, no health endpoint beyond the
+static root).
+
+**What would invalidate this:**
+- The planner grows server-side state (shared/saved plans, links you
+  send other people, accounts) — promote it to TS+Fastify +
+  better-sqlite3, matching bookmark-manager/admin.
+- It needs server-held secrets or a third-party API call that can't be
+  made from the browser — same promotion.
+
 ## 2026-05-28 — Logto removed from the platform; Neon dependency dropped
 
 This **reverses** the 2026-05-21 entries "Logto as identity provider"
