@@ -22,7 +22,7 @@ import {
 import { api, UnauthorizedError } from '../api';
 import {
   buildTree,
-  collectBookmarkUrls,
+  collectBookmarkItems,
   countDescendantBookmarks,
   countItems,
   findFolder,
@@ -37,7 +37,7 @@ import {
   LABEL_TERTIARY,
   RING_SUBTLE,
 } from '../lib/colors';
-import { externalLinkHref } from '../lib/platform';
+import { externalLinkHref, IS_IOS } from '../lib/platform';
 import ItemRow from './ItemRow';
 import EmptyState from './EmptyState';
 import Toast from './Toast';
@@ -53,6 +53,7 @@ import RenameModal from './modals/RenameModal';
 import ImportModal from './modals/ImportModal';
 import PasteLinksModal from './modals/PasteLinksModal';
 import MoveModal from './modals/MoveModal';
+import OpenLinksModal from './modals/OpenLinksModal';
 
 interface Props {
   onUnauthorized: () => void;
@@ -67,6 +68,7 @@ type ModalState =
   | { kind: 'paste-links' }
   | { kind: 'rename'; nodeId: string }
   | { kind: 'move'; ids: string[] }
+  | { kind: 'open-links'; items: Array<{ name: string; url: string }> }
   | null;
 
 // Right-click context menu — variant A is over a row (shows row-aware
@@ -717,16 +719,25 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
   }
 
   function openAllInFolder(folder: TreeFolder) {
-    openUrls(collectBookmarkUrls(folder));
+    const items = collectBookmarkItems(folder);
+    if (IS_IOS && items.length > 1) {
+      setModal({ kind: 'open-links', items });
+      return;
+    }
+    openUrls(items.map((i) => i.url));
   }
 
   function openSelectedBookmarks() {
-    const urls: string[] = [];
+    const items: Array<{ name: string; url: string }> = [];
     for (const id of selected) {
       const n = nodeById(id);
-      if (n && n.type === 'bookmark') urls.push(n.url);
+      if (n && n.type === 'bookmark') items.push({ name: n.name, url: n.url });
     }
-    openUrls(urls);
+    if (IS_IOS && items.length > 1) {
+      setModal({ kind: 'open-links', items });
+      return;
+    }
+    openUrls(items.map((i) => i.url));
   }
 
   function exportNow() {
@@ -1255,6 +1266,9 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
           onClose={() => setModal(null)}
           onMove={async (toFolderId) => moveItems(modal.ids, toFolderId)}
         />
+      )}
+      {modal?.kind === 'open-links' && (
+        <OpenLinksModal items={modal.items} onClose={() => setModal(null)} />
       )}
 
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
