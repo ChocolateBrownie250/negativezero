@@ -18,6 +18,7 @@ https://negativezero.one/                            → static landing
 https://negativezero.one/services/bookmark-manager/  → bookmark-manager SPA + API
 https://negativezero.one/services/admin/             → admin (registration-code generator)
 https://negativezero.one/services/tts/               → tts PWA + API (Bearer-authed)
+https://negativezero.one/services/timezones/         → static cross-timezone planner
 https://negativezero.one/vtt-transcriber/            → 301 redirect → /services/tts/
                                                        (legacy URL, kept for old iPhone Shortcuts)
 ```
@@ -33,6 +34,7 @@ negativezero-landing            nginx:alpine                       127.0.0.1:302
 negativezero-bookmark-manager   platform-bookmark-manager:latest   127.0.0.1:3021→3000
 negativezero-admin              platform-admin:latest              127.0.0.1:3022→3000
 negativezero-tts                platform-tts:latest                127.0.0.1:3023→3000
+negativezero-timezones          nginx:alpine                       127.0.0.1:3024→80
 ```
 
 Loopback ports are re-derived by `platform/deploy.sh` on every run from
@@ -98,7 +100,7 @@ tts`, update every client.
 
 Full details in `docs/ARCHITECTURE.md`; pointer list here:
 
-- **Monorepo layout** — `apps/{landing,bookmark-manager,admin,tts}/` +
+- **Monorepo layout** — `apps/{landing,bookmark-manager,admin,tts,timezones}/` +
   `platform/{docker-compose.yml,deploy.sh,nginx/}` + `docs/`.
 - **No central identity provider.** Per-service WebAuthn for the TS
   services; Bearer API key for tts. Earlier plans for Logto were
@@ -106,8 +108,8 @@ Full details in `docs/ARCHITECTURE.md`; pointer list here:
 - **Path-mount** — services live under `/services/<name>/`. nginx
   strips the prefix (trailing slash on both `location` and `proxy_pass`).
   Container sees clean root paths; the Vite build bakes the prefix back
-  into asset URLs for the TS services. The tts PWA uses relative URLs,
-  so no client-side base config is needed.
+  into asset URLs for the TS services. The tts PWA and the timezones
+  planner use relative URLs, so no client-side base config is needed.
 - **Per-service storage** — bind-mounted `platform/data/<service>/`.
   Each contains one or two SQLite files plus (for tts) an `audio/`
   cache directory. Owned by UID 999 (the container `app` user) for
@@ -134,8 +136,8 @@ ssh -i ~/.ssh/wellfit_prod_ed25519 root@45.76.88.245 \
   'cd /srv/negativezero && bash platform/deploy.sh'
 ```
 
-`deploy.sh` rebuilds landing + bookmark-manager + admin + tts and
-re-installs the apex nginx file. If `GROQ_API_KEY` is empty in
+`deploy.sh` rebuilds landing + bookmark-manager + admin + tts + timezones
+and re-installs the apex nginx file. If `GROQ_API_KEY` is empty in
 `platform/.env`, tts is skipped (the apex still deploys cleanly);
 paste the Groq key and re-run to bring tts up.
 

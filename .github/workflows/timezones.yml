@@ -1,0 +1,49 @@
+name: timezones
+
+# CI for the static timezones planner. Lightweight — no build step.
+# Validates the HTML parses, the JS is syntactically valid, the fonts
+# referenced by @font-face are present, and the page still references
+# its sibling assets.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/timezones/**'
+      - '.github/workflows/timezones.yml'
+  pull_request:
+    paths:
+      - 'apps/timezones/**'
+      - '.github/workflows/timezones.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: HTML lint (htmlhint)
+        run: npx --yes htmlhint apps/timezones/index.html
+
+      - name: JS parses (node --check)
+        run: node --check apps/timezones/app.js
+
+      - name: referenced fonts exist
+        run: |
+          missing=0
+          for f in Geist-Variable.ttf GeistMono-Variable.ttf; do
+            if [ ! -f "apps/timezones/fonts/$f" ]; then
+              echo "::error file=apps/timezones/index.html::missing referenced font: fonts/$f"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: referenced assets exist
+        run: |
+          for a in styles.css app.js; do
+            grep -q "\"./$a\"" apps/timezones/index.html \
+              || { echo "::error::index.html no longer references ./$a"; exit 1; }
+            [ -f "apps/timezones/$a" ] \
+              || { echo "::error::missing asset apps/timezones/$a"; exit 1; }
+          done

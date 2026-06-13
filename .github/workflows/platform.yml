@@ -69,6 +69,7 @@ jobs:
               -e 's|__BOOKMARK_HOST_PORT__|3021|g' \
               -e 's|__ADMIN_HOST_PORT__|3022|g' \
               -e 's|__TTS_HOST_PORT__|3023|g' \
+              -e 's|__TIMEZONES_HOST_PORT__|3024|g' \
               platform/nginx/negativezero.one.conf > "$tmp/negativezero.one.conf"
           cp platform/nginx/negativezero-connection-upgrade.conf "$tmp/"
 
