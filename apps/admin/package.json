@@ -12,7 +12,8 @@
     "dev:server": "npm -w server run dev",
     "dev:client": "npm -w client run dev",
     "build": "npm -w client run build && npm -w server run build",
-    "start": "npm -w server run start"
+    "start": "npm -w server run start",
+    "test": "npm -w server run test"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

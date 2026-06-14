@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -25,6 +25,39 @@ import {
 const RATE_LIMIT_LOGIN = {
   config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
 };
+
+// Global (IP-independent) lockout for first-enrollment setup-code attempts.
+// After this many failed attempts, mode='first' is disabled until reset on a
+// successful enrollment. Stored as a counter in auth_meta.
+const SETUP_FAILED_LIMIT = 10;
+const SETUP_FAILED_KEY = 'setup_failed_count';
+
+// Append-only audit log. There is no update/delete path for this table.
+function audit(req: FastifyRequest, event: string, detail?: string): void {
+  try {
+    db.prepare(
+      'INSERT INTO audit_log (ts, event, detail, ip) VALUES (?, ?, ?, ?)',
+    ).run(Date.now(), event, detail ?? null, req.ip ?? null);
+  } catch {
+    // Auditing must never break the request flow.
+  }
+}
+
+function getSetupFailedCount(): number {
+  const v = getMeta(SETUP_FAILED_KEY);
+  const n = v ? Number.parseInt(v, 10) : 0;
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function bumpSetupFailedCount(): number {
+  const next = getSetupFailedCount() + 1;
+  setMeta(SETUP_FAILED_KEY, String(next));
+  return next;
+}
+
+function resetSetupFailedCount(): void {
+  setMeta(SETUP_FAILED_KEY, '0');
+}
 
 function listCredentials(): CredentialRow[] {
   return db
@@ -62,8 +95,10 @@ async function isBackupCode(input: string): Promise<boolean> {
   return bcrypt.compare(normalizeCode(input), stored);
 }
 
+// Hash the NORMALIZED code so issue-time and verify-time agree. The hyphenated
+// form is only ever shown to the user; storage/verification use normalizeCode().
 async function hashBackupCode(plain: string): Promise<string> {
-  return bcrypt.hash(plain, 12);
+  return bcrypt.hash(normalizeCode(plain), 12);
 }
 
 export default async function authRoutes(app: FastifyInstance) {
@@ -93,12 +128,25 @@ export default async function authRoutes(app: FastifyInstance) {
 
       if (sessionAuth) {
         mode = 'authenticated';
-      } else if (
-        !hasAny &&
-        typeof body.setupCode === 'string' &&
-        (await isSetupCode(body.setupCode))
-      ) {
-        mode = 'first';
+      } else if (!hasAny && typeof body.setupCode === 'string') {
+        // Global, IP-independent lockout: disable first-enrollment after too
+        // many failed setup-code attempts across all clients.
+        if (getSetupFailedCount() >= SETUP_FAILED_LIMIT) {
+          audit(req, 'first_enrollment_locked', 'setup_code attempt while locked');
+          return reply.code(429).send({ error: 'setup_locked' });
+        }
+        if (await isSetupCode(body.setupCode)) {
+          mode = 'first';
+        } else {
+          const n = bumpSetupFailedCount();
+          if (n >= SETUP_FAILED_LIMIT) {
+            audit(
+              req,
+              'first_enrollment_locked',
+              `setup_code failures reached ${n}; first-enrollment disabled`,
+            );
+          }
+        }
       } else if (
         hasAny &&
         typeof body.backupCode === 'string' &&
@@ -119,7 +167,7 @@ export default async function authRoutes(app: FastifyInstance) {
         attestationType: 'none',
         authenticatorSelection: {
           residentKey: 'preferred',
-          userVerification: 'preferred',
+          userVerification: 'required',
         },
         excludeCredentials: existing.map((c) => ({
           id: c.id,
@@ -160,7 +208,7 @@ export default async function authRoutes(app: FastifyInstance) {
           expectedChallenge: challenge,
           expectedOrigin: RP_ORIGIN,
           expectedRPID: RP_ID,
-          requireUserVerification: false,
+          requireUserVerification: true,
         });
       } catch (err) {
         app.log.warn({ err }, 'passkey registration verification failed');
@@ -202,6 +250,14 @@ export default async function authRoutes(app: FastifyInstance) {
       });
       tx();
 
+      if (mode === 'first') {
+        // Successful first-enrollment clears the global setup-code lockout.
+        resetSetupFailedCount();
+        audit(req, 'first_enrollment', `credential ${credId}`);
+      } else if (mode === 'reset') {
+        audit(req, 'reset', `credential ${credId}`);
+      }
+
       req.session.set('regChallenge', undefined);
       req.session.set('regMode', undefined);
       req.session.set('userId', 'owner');
@@ -220,7 +276,7 @@ export default async function authRoutes(app: FastifyInstance) {
       const creds = listCredentials();
       const options = await generateAuthenticationOptions({
         rpID: RP_ID,
-        userVerification: 'preferred',
+        userVerification: 'required',
         allowCredentials: creds.map((c) => ({
           id: c.id,
           transports: c.transports
@@ -249,7 +305,10 @@ export default async function authRoutes(app: FastifyInstance) {
       const row = db
         .prepare('SELECT * FROM credentials WHERE id = ?')
         .get(credId) as CredentialRow | undefined;
-      if (!row) return reply.code(401).send({ error: 'unknown_credential' });
+      if (!row) {
+        audit(req, 'login_failure', `unknown_credential ${credId}`);
+        return reply.code(401).send({ error: 'unknown_credential' });
+      }
 
       let verification;
       try {
@@ -266,14 +325,16 @@ export default async function authRoutes(app: FastifyInstance) {
               ? (JSON.parse(row.transports) as AuthenticatorTransportFuture[])
               : undefined,
           },
-          requireUserVerification: false,
+          requireUserVerification: true,
         });
       } catch (err) {
         app.log.warn({ err }, 'passkey login verification failed');
+        audit(req, 'login_failure', `verification_failed ${row.id}`);
         return reply.code(401).send({ error: 'verification_failed' });
       }
 
       if (!verification.verified) {
+        audit(req, 'login_failure', `not_verified ${row.id}`);
         return reply.code(401).send({ error: 'verification_failed' });
       }
 
@@ -283,6 +344,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
       req.session.set('authChallenge', undefined);
       req.session.set('userId', 'owner');
+      audit(req, 'login_success', `credential ${row.id}`);
       return { ok: true };
     },
   );
@@ -308,6 +370,7 @@ export default async function authRoutes(app: FastifyInstance) {
     }
     const { id } = req.params as { id: string };
     db.prepare('DELETE FROM credentials WHERE id = ?').run(id);
+    audit(req, 'passkey_delete', `credential ${id}`);
     return { ok: true };
   });
 

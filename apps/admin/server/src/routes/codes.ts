@@ -30,10 +30,20 @@ export default async function codeRoutes(app: FastifyInstance) {
     const code = generateRegistrationCode();
     const hash = await bcrypt.hash(code, 12);
 
+    const codeId = randomUUID();
     db.prepare(
       `INSERT INTO generated_codes (id, service, code_hash, label, created_at)
        VALUES (?, ?, ?, ?, ?)`,
-    ).run(randomUUID(), body.service, hash, label, Date.now());
+    ).run(codeId, body.service, hash, label, Date.now());
+
+    db.prepare(
+      'INSERT INTO audit_log (ts, event, detail, ip) VALUES (?, ?, ?, ?)',
+    ).run(
+      Date.now(),
+      'code_generate',
+      `service=${body.service} id=${codeId}`,
+      req.ip ?? null,
+    );
 
     return { service: body.service, label, code, hash };
   });
