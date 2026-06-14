@@ -54,13 +54,15 @@ command -v certbot >/dev/null || { log "Installing certbot"; apt-get install -y 
 mkdir -p "$PLATFORM_DIR/data/bookmark-manager"
 mkdir -p "$PLATFORM_DIR/data/admin"
 mkdir -p "$PLATFORM_DIR/data/tts"
+mkdir -p "$PLATFORM_DIR/data/video-downloader"
 # Container processes run as UID 999 (the `app` user from each Dockerfile).
 # Bind-mounts inherit host ownership, so the host dirs must be writable by
 # 999, otherwise SQLite fails with SQLITE_CANTOPEN on first start.
 chown -R 999:999 \
     "$PLATFORM_DIR/data/bookmark-manager" \
     "$PLATFORM_DIR/data/admin" \
-    "$PLATFORM_DIR/data/tts"
+    "$PLATFORM_DIR/data/tts" \
+    "$PLATFORM_DIR/data/video-downloader"
 
 # ────────────────────────────────────────────────────────────────────────
 # 2. Pick free loopback ports
@@ -77,7 +79,8 @@ BOOKMARK_PORT=$(next_free $((LANDING_PORT+1)))
 ADMIN_APP_PORT=$(next_free $((BOOKMARK_PORT+1)))
 TTS_PORT=$(next_free $((ADMIN_APP_PORT+1)))
 TIMEZONES_PORT=$(next_free $((TTS_PORT+1)))
-log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT, timezones=$TIMEZONES_PORT"
+VIDEO_DOWNLOADER_PORT=$(next_free $((TIMEZONES_PORT+1)))
+log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT, timezones=$TIMEZONES_PORT, video-downloader=$VIDEO_DOWNLOADER_PORT"
 
 # ────────────────────────────────────────────────────────────────────────
 # 3. .env (first run generates secrets; re-runs preserve them)
@@ -135,15 +138,47 @@ if [ ! -f "$ENV_FILE" ]; then
     echo
 fi
 
+# ── video-downloader secrets (idempotent) ──────────────────────
+# This service may have been added after .env was first generated, so seed
+# its secrets on any run where they're missing — not only on first-run.
+# Same bcryptjs + $$-escape handling as the first-run block above.
+if ! grep -Eq '^VIDEO_DOWNLOADER_SESSION_SECRET=[0-9a-fA-F]{64}$' "$ENV_FILE"; then
+    VD_SESSION_SECRET=$(openssl rand -hex 32)
+    if grep -q '^VIDEO_DOWNLOADER_SESSION_SECRET=' "$ENV_FILE"; then
+        sed -i "s|^VIDEO_DOWNLOADER_SESSION_SECRET=.*|VIDEO_DOWNLOADER_SESSION_SECRET=$VD_SESSION_SECRET|" "$ENV_FILE"
+    else
+        echo "VIDEO_DOWNLOADER_SESSION_SECRET=$VD_SESSION_SECRET" >> "$ENV_FILE"
+    fi
+fi
+if ! grep -Eq '^VIDEO_DOWNLOADER_SETUP_CODE_HASH=.+$' "$ENV_FILE"; then
+    VD_SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
+    VD_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
+        "cd /tmp && npm i bcryptjs --silent >/dev/null 2>&1 && node -e 'require(\"bcryptjs\").hash(process.argv[1],12).then(h=>console.log(h))' '$VD_SETUP_CODE'")
+    VD_SETUP_CODE_HASH_ESCAPED=${VD_SETUP_CODE_HASH//\$/\$\$}
+    if grep -q '^VIDEO_DOWNLOADER_SETUP_CODE_HASH=' "$ENV_FILE"; then
+        sed -i "s|^VIDEO_DOWNLOADER_SETUP_CODE_HASH=.*|VIDEO_DOWNLOADER_SETUP_CODE_HASH=$VD_SETUP_CODE_HASH_ESCAPED|" "$ENV_FILE"
+    else
+        echo "VIDEO_DOWNLOADER_SETUP_CODE_HASH=$VD_SETUP_CODE_HASH_ESCAPED" >> "$ENV_FILE"
+    fi
+    echo
+    warn "Video downloader setup code (save this — it won't be shown again):"
+    echo "  video-downloader:  $VD_SETUP_CODE"
+    echo
+fi
+grep -q '^VIDEO_DOWNLOADER_PUBLIC_URL=' "$ENV_FILE" || \
+    echo "VIDEO_DOWNLOADER_PUBLIC_URL=https://$APEX_DOMAIN/services/video-downloader" >> "$ENV_FILE"
+
 # Update derived values on every run (ports). New port vars added after a
 # service's first deploy won't exist in an older .env, so seed any missing
 # line before the sed replace runs.
 grep -q '^TIMEZONES_HOST_PORT=' "$ENV_FILE" || echo "TIMEZONES_HOST_PORT=$TIMEZONES_PORT" >> "$ENV_FILE"
+grep -q '^VIDEO_DOWNLOADER_HOST_PORT=' "$ENV_FILE" || echo "VIDEO_DOWNLOADER_HOST_PORT=$VIDEO_DOWNLOADER_PORT" >> "$ENV_FILE"
 sed -i "s|^LANDING_HOST_PORT=.*|LANDING_HOST_PORT=$LANDING_PORT|"     "$ENV_FILE"
 sed -i "s|^BOOKMARK_HOST_PORT=.*|BOOKMARK_HOST_PORT=$BOOKMARK_PORT|"  "$ENV_FILE"
 sed -i "s|^ADMIN_HOST_PORT=.*|ADMIN_HOST_PORT=$ADMIN_APP_PORT|"       "$ENV_FILE"
 sed -i "s|^TTS_HOST_PORT=.*|TTS_HOST_PORT=$TTS_PORT|"                 "$ENV_FILE"
 sed -i "s|^TIMEZONES_HOST_PORT=.*|TIMEZONES_HOST_PORT=$TIMEZONES_PORT|" "$ENV_FILE"
+sed -i "s|^VIDEO_DOWNLOADER_HOST_PORT=.*|VIDEO_DOWNLOADER_HOST_PORT=$VIDEO_DOWNLOADER_PORT|" "$ENV_FILE"
 
 # ────────────────────────────────────────────────────────────────────────
 # 4. Docker compose
@@ -155,9 +190,9 @@ log "Building + starting containers"
 if [ "$GROQ_PRESENT" = "1" ]; then
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
 else
-    warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin only."
+    warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin/timezones/video-downloader only."
     warn "Paste a Groq key into $ENV_FILE and re-run to start tts."
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones video-downloader
 fi
 
 log "Waiting for bookmark-manager on 127.0.0.1:$BOOKMARK_PORT"
@@ -175,6 +210,12 @@ done
 log "Waiting for timezones on 127.0.0.1:$TIMEZONES_PORT"
 for _ in $(seq 1 30); do
     curl -sf "http://127.0.0.1:$TIMEZONES_PORT/" >/dev/null 2>&1 && { log "timezones up"; break; }
+    sleep 2
+done
+
+log "Waiting for video-downloader on 127.0.0.1:$VIDEO_DOWNLOADER_PORT"
+for _ in $(seq 1 30); do
+    curl -sf "http://127.0.0.1:$VIDEO_DOWNLOADER_PORT/api/health" >/dev/null 2>&1 && { log "video-downloader up"; break; }
     sleep 2
 done
 
@@ -208,6 +249,7 @@ install_site() {
     sed -i "s|__ADMIN_HOST_PORT__|$ADMIN_APP_PORT|g"   "$dst"
     sed -i "s|__TTS_HOST_PORT__|$TTS_PORT|g"           "$dst"
     sed -i "s|__TIMEZONES_HOST_PORT__|$TIMEZONES_PORT|g" "$dst"
+    sed -i "s|__VIDEO_DOWNLOADER_HOST_PORT__|$VIDEO_DOWNLOADER_PORT|g" "$dst"
 
     [ "$SITES_AVAIL" != "$SITES_ENABLED" ] && ln -sf "$dst" "$SITES_ENABLED/$domain"
 
@@ -271,6 +313,7 @@ echo "  Bookmark manager: https://$APEX_DOMAIN/services/bookmark-manager/"
 echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
 [ "$GROQ_PRESENT" = "1" ] && echo "  TTS:              https://$APEX_DOMAIN/services/tts/"
 echo "  Timezones:        https://$APEX_DOMAIN/services/timezones/"
+echo "  Video downloader: https://$APEX_DOMAIN/services/video-downloader/"
 echo "  Status:           docker compose -f $COMPOSE_FILE ps"
 echo "  Logs:             docker compose -f $COMPOSE_FILE logs -f"
 echo "  Env file:         $ENV_FILE  (chmod 600)"
