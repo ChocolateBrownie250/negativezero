@@ -70,7 +70,21 @@ export default async function nodeRoutes(app: FastifyInstance) {
     return { nodes };
   });
 
-  app.post('/nodes', async (req, reply) => {
+  app.post(
+    '/nodes',
+    {
+      // Creating a bookmark triggers a server-side outbound fetch
+      // (fetchMetadata), so rate-limit this endpoint to blunt SSRF-probing
+      // and fetch-amplification abuse. Matches the app's existing rateLimit
+      // config pattern (see transfer.ts /import).
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (req, reply) => {
     const body = req.body as
       | {
           type?: 'folder' | 'bookmark';
@@ -156,7 +170,8 @@ export default async function nodeRoutes(app: FastifyInstance) {
     );
 
     return reply.code(201).send({ node: rowToApi(getRow(id)!) });
-  });
+    },
+  );
 
   app.patch('/nodes/:id', async (req, reply) => {
     const { id } = req.params as { id: string };

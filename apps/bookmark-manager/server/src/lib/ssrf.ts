@@ -41,7 +41,14 @@ export function isPrivateIPv6(ip: string): boolean {
   return false;
 }
 
-export async function assertPublicTarget(hostname: string): Promise<void> {
+export type VettedAddress = { address: string; family: number };
+
+// Resolve a hostname ONCE, assert every resolved address is public, and
+// return the vetted addresses so the caller can PIN the outgoing connection
+// to one of these exact IPs. Pinning closes the TOCTOU / DNS-rebinding gap
+// where the address checked here would otherwise be re-resolved (and could
+// differ) when the socket is actually dialed.
+export async function resolvePublicAddresses(hostname: string): Promise<VettedAddress[]> {
   if (!hostname) throw new BlockedTargetError();
   const lower = hostname.toLowerCase();
   if (
@@ -53,7 +60,7 @@ export async function assertPublicTarget(hostname: string): Promise<void> {
     throw new BlockedTargetError();
   }
 
-  let records: { address: string; family: number }[];
+  let records: VettedAddress[];
   try {
     records = await dns.lookup(hostname, { all: true });
   } catch {
@@ -64,4 +71,9 @@ export async function assertPublicTarget(hostname: string): Promise<void> {
     if (r.family === 4 && isPrivateIPv4(r.address)) throw new BlockedTargetError();
     if (r.family === 6 && isPrivateIPv6(r.address)) throw new BlockedTargetError();
   }
+  return records;
+}
+
+export async function assertPublicTarget(hostname: string): Promise<void> {
+  await resolvePublicAddresses(hostname);
 }

@@ -21,6 +21,7 @@ from ulid import ULID
 
 from ..auth import verify_api_key
 from ..db import get_db
+from ..fts import build_fts_query
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
 from ..groq_client import polish as groq_polish
@@ -36,23 +37,6 @@ from ..models import (
 
 log = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(verify_api_key)])
-
-
-def _build_fts_query(q: str) -> str:
-    """Convert raw user input into an FTS5 MATCH query.
-
-    Each whitespace-separated token is wrapped as an FTS5 phrase (`"..."`)
-    and internal double quotes are doubled per FTS5 escape rules. Tokens
-    are joined with the implicit AND. This way arbitrary user input —
-    including stray `"`, `*`, `(`, `:`, or `+` — becomes a syntactically
-    valid query that searches for every typed token. Returns "" if the
-    input has no non-whitespace characters; callers should treat that as
-    "no search filter".
-    """
-    tokens = q.split()
-    if not tokens:
-        return ""
-    return " ".join('"' + tok.replace('"', '""') + '"' for tok in tokens)
 
 
 def _safe(row, col: str):
@@ -101,7 +85,7 @@ async def list_notes(
     elif queue == "idle":
         where.append("(n.queue_status IS NULL OR n.queue_status = 'done')")
 
-    fts_query = _build_fts_query(q) if q else ""
+    fts_query = build_fts_query(q) if q else ""
 
     select_cols = (
         "n.id, n.title, n.body, n.updated_at, n.created_at, "
@@ -262,7 +246,7 @@ async def dictate_into_note(
         )
     except Exception as exc:
         log.exception("Note-dictate transcribe failed")
-        raise HTTPException(502, f"Transcription upstream failed: {exc}") from exc
+        raise HTTPException(502, "Transcription upstream failed") from exc
 
     text_raw = whisper.text
     text_cleaned: str | None = None

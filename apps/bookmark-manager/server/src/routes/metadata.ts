@@ -2,7 +2,20 @@ import type { FastifyInstance } from 'fastify';
 import { fetchMetadata, BlockedTargetError, normalizeUrl } from '../lib/fetcher.js';
 
 export default async function metadataRoutes(app: FastifyInstance) {
-  app.post('/metadata/fetch', async (req, reply) => {
+  app.post(
+    '/metadata/fetch',
+    {
+      // This endpoint performs a server-side outbound fetch, so rate-limit it
+      // to blunt SSRF-probing and fetch-amplification abuse. Matches the
+      // app's existing rateLimit config pattern (see transfer.ts /import).
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (req, reply) => {
     const body = req.body as { url?: unknown } | null;
     const raw = typeof body?.url === 'string' ? body.url.trim() : '';
     if (!raw) return reply.code(400).send({ error: 'invalid_url' });
@@ -30,5 +43,6 @@ export default async function metadataRoutes(app: FastifyInstance) {
       }
       return reply.code(400).send({ error: 'invalid_url' });
     }
-  });
+    },
+  );
 }

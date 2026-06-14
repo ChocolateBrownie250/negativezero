@@ -222,4 +222,64 @@ two.ts
       }),
     ).rejects.toThrow(BlockedTargetError);
   });
+
+  it('downloads many segments concurrently without a false download_too_large', async () => {
+    // Each segment fetch yields the event loop before resolving, creating a
+    // real async boundary between concurrent workers. A budget implementation
+    // that reserves the whole remaining pool before this await makes the 2nd+
+    // concurrent worker see remaining<=0 and wrongly throw download_too_large.
+    // This must succeed (regression guard for the aggregate-byte-budget fix).
+    const segCount = 6;
+    const fetchUrl = vi.fn(async (url: string) => {
+      if (url === 'https://example.com/many.m3u8') {
+        const lines = ['#EXTM3U', '#EXT-X-TARGETDURATION:6'];
+        for (let i = 0; i < segCount; i++) lines.push('#EXTINF:6,', `seg-${i}.ts`);
+        lines.push('#EXT-X-ENDLIST');
+        return textResponse(lines.join('\n') + '\n');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      return bytesResponse('seg-bytes');
+    });
+    const runFfmpeg = vi.fn(async () => Buffer.from('movie'));
+
+    const result = await downloadHls({
+      playlistUrl: 'https://example.com/many.m3u8',
+      outputFormat: 'mov',
+      variant: 'first',
+      maxSegments: 50,
+      concurrency: 4,
+      fetchUrl,
+      runFfmpeg,
+    });
+
+    expect(result.bytes.toString()).toBe('movie');
+    expect(fetchUrl).toHaveBeenCalledTimes(segCount + 1);
+  });
+
+  it('rejects when actual downloaded bytes exceed maxBytes', async () => {
+    const fetchUrl = vi.fn(async (url: string) => {
+      if (url === 'https://example.com/big.m3u8') {
+        return textResponse(`#EXTM3U
+#EXT-X-TARGETDURATION:6
+#EXTINF:6,
+a.ts
+#EXTINF:6,
+b.ts
+#EXT-X-ENDLIST
+`);
+      }
+      return bytesResponse('xxxxxxxx'); // 8 bytes/segment, 16 total > 10 cap
+    });
+
+    await expect(
+      downloadHls({
+        playlistUrl: 'https://example.com/big.m3u8',
+        outputFormat: 'mov',
+        variant: 'first',
+        maxBytes: 10,
+        fetchUrl,
+        runFfmpeg: vi.fn(async () => Buffer.from('movie')),
+      }),
+    ).rejects.toThrow(DownloadRejectedError);
+  });
 });

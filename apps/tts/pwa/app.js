@@ -556,8 +556,15 @@ async function loadHistory(reset) {
       historyList.innerHTML = `<li class="muted">No transcriptions yet.</li>`;
     }
   } catch (e) {
-    historyList.innerHTML = `<li class="muted">Error: ${e.message}</li>`;
+    historyList.replaceChildren(errorRow(e.message));
   }
+}
+
+function errorRow(message) {
+  const li = document.createElement("li");
+  li.className = "muted";
+  li.textContent = `Error: ${message}`;
+  return li;
 }
 
 function renderHistoryItem(it) {
@@ -967,7 +974,7 @@ async function notesLoadList(reset = true) {
     notesElem.empty.classList.toggle("hidden", !empty || searching);
     notesElem.noMatch.classList.toggle("hidden", !empty || !searching);
   } catch (e) {
-    notesElem.list.innerHTML = `<li class="muted">Error: ${e.message}</li>`;
+    notesElem.list.replaceChildren(errorRow(e.message));
   }
 }
 

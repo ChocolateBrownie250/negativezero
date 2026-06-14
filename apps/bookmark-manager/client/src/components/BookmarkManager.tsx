@@ -706,16 +706,23 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
 
   function openUrls(urls: string[]) {
     if (urls.length === 0) return;
+    let opened = 0;
     for (const url of urls) {
+      // Defense-in-depth: never navigate to a non-http(s) URL.
+      const href = externalLinkHref(url);
+      if (!href) continue;
       const a = document.createElement('a');
-      a.href = externalLinkHref(url);
+      a.href = href;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      opened += 1;
     }
-    setToast(`Opening ${urls.length} tab${urls.length === 1 ? '' : 's'}`);
+    if (opened > 0) {
+      setToast(`Opening ${opened} tab${opened === 1 ? '' : 's'}`);
+    }
   }
 
   function openAllInFolder(folder: TreeFolder) {

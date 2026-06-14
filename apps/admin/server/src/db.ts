@@ -36,6 +36,15 @@ db.exec(`
     created_at   INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_generated_codes_created ON generated_codes(created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts     INTEGER NOT NULL,
+    event  TEXT NOT NULL,
+    detail TEXT,
+    ip     TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log(ts DESC);
 `);
 
 export type CredentialRow = {
@@ -54,4 +63,12 @@ export type GeneratedCodeRow = {
   code_hash: string;
   label: string | null;
   created_at: number;
+};
+
+export type AuditLogRow = {
+  id: number;
+  ts: number;
+  event: string;
+  detail: string | null;
+  ip: string | null;
 };

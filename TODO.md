@@ -12,6 +12,67 @@ explaining where you stopped.
 
 ---
 
+## Security hardening — IN PROGRESS 2026-06-14
+
+Fixes for the 2026-06-14 code audit (5 services), branch
+`claude/security-hardening`. Severity in brackets.
+
+### admin
+- [ ] [HIGH] Backup-code lockout: hash `normalizeCode(code)` at issue
+      time so issue/verify match (auth.ts, lib/codes.ts) + roundtrip test
+- [ ] [HIGH] Setup-code: global (IP-independent) failed-attempt lockout
+      on the first-enrollment path
+- [ ] [MED] Append-only `audit_log` table; record login / enroll /
+      reset / passkey-delete / code-gen events
+- [ ] [MED] Require user verification (`userVerification:'required'`,
+      `requireUserVerification:true`)
+- [ ] [LOW] middleware/auth.ts: `return reply.code(401)…`
+
+### bookmark-manager
+- [ ] [HIGH] Import: validate `child.url` scheme (http/https only) —
+      fixes stored XSS via `javascript:` (routes/transfer.ts)
+- [ ] [MED] Import: max depth + node-count cap (stack-overflow DoS)
+- [ ] [MED] SSRF: resolve once + pin vetted IP on connect (ssrf.ts +
+      fetcher.ts) — kills DNS rebinding
+- [ ] [LOW] Rate-limit POST /nodes and POST /metadata/fetch
+- [ ] [LOW] Client: don't render non-http(s) `node.url` as a live href
+
+### video-downloader
+- [ ] [HIGH] SSRF: resolve once + pin vetted IP (ssrf.ts +
+      hlsDownloader fetch) — DNS rebinding
+- [ ] [MED] IPv6 gaps: IPv4-mapped hex, NAT64, + CGNAT `100.64/10`
+- [ ] [MED] Hard aggregate byte budget (shared counter), not soft
+      per-fetch cap
+- [ ] [MED] Cap byterange fetch at `min(range.length, remaining)`
+- [ ] [LOW] /download: rate + body limit; stream ffmpeg output
+- [ ] [LOW] Generic ffmpeg error to client (log stderr server-side)
+- [ ] [LOW] middleware/auth.ts: return reply on 401
+
+### tts
+- [ ] [MED] Sanitize FTS5 MATCH in transcriptions search (reuse
+      `_build_fts_query`) — fixes 500 / broken search
+- [ ] [MED] Restrict CORS from `*` to the known PWA origin
+- [ ] [LOW] PWA error rows → `textContent` (app.js ~559, ~970)
+- [ ] [LOW] Generic upstream error messages (don't echo Groq exc text)
+- [ ] [LOW] Validate `model` / `*_model` against an allowlist
+
+### platform / infra
+- [ ] [MED] Container hardening: `no-new-privileges`, `cap_drop:[ALL]`,
+      `pids_limit` / `mem_limit` (all services)
+- [ ] [MED] backup.sh: encrypt tarball before upload (opt-in passphrase,
+      warn if unset)
+- [ ] [LOW] nginx security headers: HSTS, X-Content-Type-Options,
+      X-Frame-Options, Referrer-Policy
+- [ ] [LOW] Pin nginx image to a specific tag (no floating `:alpine`)
+- [ ] [LOW] nginx: reset `X-Forwarded-For` to `$remote_addr`
+
+### verify
+- [ ] Unit tests green (admin / bookmark / video-downloader vitest)
+- [ ] Deploy to VPS + smoke-test each fix (backup-code roundtrip, FTS
+      special chars, import `javascript:` rejected, headers present)
+
+---
+
 ## Operator (human) — one-time setup
 
 These can't be automated from inside an agent session; the human
@@ -172,6 +233,14 @@ and SPA static serving all work under fastify 5.
 
 ## Done
 
+- [x] **2026-06-14** Shipped tts PWA redesign (#62), video-downloader
+      service (#63), and tracked riga-real-estate in git (#61);
+      deployed all 6 services on 45.76.88.245. Ran a full 5-service
+      code audit (results feeding the Security hardening section above).
+- [x] **2026-06-13** timezones planner live at `/services/timezones/`
+      (#59/#60); VPS fast-forwarded to main + redeployed. Repo + VPS
+      cleanup: deleted 8 stale branches, freed ~20 GB Docker build
+      cache / unused images, removed 19 nginx `.bak` + stale `.env.bak`.
 - [x] **2026-05-28** Logto + Neon removed from the platform. Logto
       deployment torn down on VPS (containers, /srv/negativezero-services/,
       nginx sites, TLS certs); cosmetic `bookmarks.negativezero.one`

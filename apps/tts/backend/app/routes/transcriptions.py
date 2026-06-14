@@ -9,10 +9,12 @@ from fastapi.responses import FileResponse
 from ..auth import verify_api_key
 from ..config import settings
 from ..db import get_db
+from ..fts import build_fts_query
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
 from ..groq_client import polish as groq_polish
 from ..groq_client import transcribe as groq_transcribe
+from ..groq_client import validate_chat_model, validate_whisper_model
 from ..models import (
     CleanupMode,
     PolishMode,
@@ -92,7 +94,9 @@ async def list_transcriptions(
         where.append("t.source = ?")
         params.append(source)
 
-    if q:
+    fts_query = build_fts_query(q) if q else ""
+
+    if fts_query:
         sql = f"""
             SELECT t.* FROM transcriptions t
             JOIN transcriptions_fts f ON f.rowid = t.rowid
@@ -101,7 +105,7 @@ async def list_transcriptions(
             ORDER BY t.created_at DESC
             LIMIT ?
         """
-        bind = [q, *params, limit + 1]
+        bind = [fts_query, *params, limit + 1]
     else:
         sql = f"""
             SELECT t.* FROM transcriptions t
@@ -192,6 +196,11 @@ async def recleanup(
     cleanup_mode: CleanupMode = Query("standard"),
     cleanup_model: str | None = Query(None),
 ) -> TranscriptionResponse:
+    try:
+        validate_chat_model(cleanup_model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
     async with get_db() as conn:
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
@@ -244,6 +253,11 @@ async def retranscribe(
     the default turbo model misheard a word — by default we re-run with the
     higher-accuracy non-turbo variant. Resets text_clean and text_polished
     since they were derived from the previous transcript."""
+    try:
+        validate_whisper_model(model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
     async with get_db() as conn:
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
@@ -274,7 +288,7 @@ async def retranscribe(
         )
     except Exception as exc:
         log.exception("Re-transcribe call failed")
-        raise HTTPException(502, f"Transcription upstream failed: {exc}") from exc
+        raise HTTPException(502, "Transcription upstream failed") from exc
 
     async with get_db() as conn:
         await conn.execute(
@@ -311,6 +325,11 @@ async def polish_transcription(
     """Apply polish-mode rewriting to the cleaned text (or raw text if no
     cleanup was run). Polish reorders/rephrases for readability — see
     POLISH_INSTRUCTIONS in groq_client.py for what each mode does."""
+    try:
+        validate_chat_model(polish_model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
     async with get_db() as conn:
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
@@ -337,7 +356,7 @@ async def polish_transcription(
         raise HTTPException(413, str(exc)) from exc
     except Exception as exc:
         log.exception("Polish call failed")
-        raise HTTPException(502, f"Polish upstream failed: {exc}") from exc
+        raise HTTPException(502, "Polish upstream failed") from exc
 
     async with get_db() as conn:
         await conn.execute(
@@ -369,6 +388,11 @@ async def polish_transcription_queued(
     """Enqueue a long transcript for chunked polish processing in the
     background. Use this when the synchronous /polish endpoint returns 413."""
     from ..polish_queue import enqueue_polish
+
+    try:
+        validate_chat_model(polish_model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
     async with get_db() as conn:
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:

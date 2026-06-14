@@ -72,9 +72,21 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.expose_api_docs else None,
 )
 
+# The PWA is served same-origin from this same app, so cross-origin requests
+# are not part of normal operation. Rather than `allow_origins=["*"]` (which
+# lets any site script the API on behalf of a visitor), restrict to the known
+# PWA origin derived from PUBLIC_HOST. localhost also gets its http:// origin
+# for local development over plain HTTP.
+def _allowed_origins() -> list[str]:
+    host = (settings.public_host or "").strip()
+    if not host or host == "localhost":
+        return ["http://localhost", "https://localhost"]
+    return [f"https://{host}"]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

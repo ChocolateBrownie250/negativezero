@@ -113,6 +113,54 @@ tar -C "$WORKDIR" -czf "$ARCHIVE" "$DATE_STAMP"
 SIZE="$(du -h "$ARCHIVE" | cut -f1)"
 echo "  archive: $ARCHIVE ($SIZE)" >&2
 
+# ─── Encrypt ─────────────────────────────────────────────────────────
+# The tarball contains platform/.env (all service secrets) and the Logto
+# Postgres dump, so it must never sit unencrypted at rest in S3 or on the
+# rsync target. If BACKUP_PASSPHRASE is set we encrypt client-side before
+# upload and ship only the ciphertext; the prune regex below also matches
+# the encrypted suffix. If it's unset we keep the legacy behavior but warn
+# loudly that an unencrypted secrets bundle is leaving the host.
+if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
+    if command -v gpg >/dev/null 2>&1; then
+        ENC_ARCHIVE="$ARCHIVE.gpg"
+        echo "[$(date -u +%T)] encrypting archive (gpg --symmetric, AES-256)" >&2
+        if printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --quiet \
+                --pinentry-mode loopback --passphrase-fd 0 \
+                --cipher-algo AES256 --symmetric \
+                -o "$ENC_ARCHIVE" "$ARCHIVE"; then
+            rm -f "$ARCHIVE"
+            ARCHIVE="$ENC_ARCHIVE"
+        else
+            echo "error: gpg encryption failed; refusing to upload plaintext secrets" >&2
+            exit 2
+        fi
+    elif command -v openssl >/dev/null 2>&1; then
+        ENC_ARCHIVE="$ARCHIVE.enc"
+        echo "[$(date -u +%T)] encrypting archive (openssl enc -aes-256-cbc -pbkdf2)" >&2
+        if BACKUP_PASSPHRASE="$BACKUP_PASSPHRASE" openssl enc -aes-256-cbc -pbkdf2 -salt \
+                -pass env:BACKUP_PASSPHRASE \
+                -in "$ARCHIVE" -out "$ENC_ARCHIVE"; then
+            rm -f "$ARCHIVE"
+            ARCHIVE="$ENC_ARCHIVE"
+        else
+            echo "error: openssl encryption failed; refusing to upload plaintext secrets" >&2
+            exit 2
+        fi
+    else
+        echo "error: BACKUP_PASSPHRASE is set but neither gpg nor openssl is installed" >&2
+        echo "       install one (apt-get install gnupg) or unset BACKUP_PASSPHRASE" >&2
+        exit 2
+    fi
+    SIZE="$(du -h "$ARCHIVE" | cut -f1)"
+    echo "  encrypted archive: $ARCHIVE ($SIZE)" >&2
+else
+    warn_line() { printf '\033[1;33m!!  %s\033[0m\n' "$*" >&2; }
+    warn_line "WARNING: BACKUP_PASSPHRASE is not set."
+    warn_line "WARNING: shipping UNENCRYPTED archive containing platform/.env"
+    warn_line "WARNING: (all service secrets) and the Logto Postgres dump."
+    warn_line "WARNING: set BACKUP_PASSPHRASE in $CONFIG to encrypt at rest."
+fi
+
 # ─── Ship ────────────────────────────────────────────────────────────
 exit_code=0
 if [ -n "${BACKUP_S3_URI:-}" ]; then
@@ -152,11 +200,15 @@ CUTOFF="$(date -u -d "$RETAIN_DAYS days ago" +%Y-%m-%d 2>/dev/null \
 if [ -z "$CUTOFF" ]; then
     echo "  warn: couldn't compute cutoff date (bsd vs gnu date) — skipping prune" >&2
 elif [ -n "${BACKUP_S3_URI:-}" ] && command -v aws >/dev/null 2>&1; then
+    # Match both plaintext (.tar.gz) and encrypted (.tar.gz.gpg/.enc) objects
+    # so retention works regardless of whether BACKUP_PASSPHRASE is set, and
+    # also cleans up older snapshots from before encryption was enabled.
     aws s3 ls "${BACKUP_S3_URI%/}/" \
         | awk '{print $4}' \
-        | grep -E '^negativezero-[0-9]{4}-[0-9]{2}-[0-9]{2}\.tar\.gz$' \
+        | grep -E '^negativezero-[0-9]{4}-[0-9]{2}-[0-9]{2}\.tar\.gz(\.gpg|\.enc)?$' \
         | while read -r key; do
-            d="${key#negativezero-}"; d="${d%.tar.gz}"
+            d="${key#negativezero-}"
+            d="${d%.tar.gz.gpg}"; d="${d%.tar.gz.enc}"; d="${d%.tar.gz}"
             if [ "$d" \< "$CUTOFF" ]; then
                 echo "  pruning $key" >&2
                 aws s3 rm "${BACKUP_S3_URI%/}/$key" || true
