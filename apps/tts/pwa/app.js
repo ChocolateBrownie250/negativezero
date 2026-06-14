@@ -65,13 +65,14 @@ document.querySelectorAll("nav button").forEach(btn => {
     document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b === btn));
     document.querySelectorAll(".tab").forEach(s => s.classList.toggle("active", s.id === `tab-${tab}`));
     if (tab === "history") refreshHistory();
-    if (tab === "glossary") loadGlossary();
+    if (tab === "modes") { showModesMain(); renderModesOnce(); }
     if (tab === "settings") loadUsage();
   });
 });
 
 // ----- Recording -----
 const recBtn   = document.getElementById("recBtn");
+const recStage = document.getElementById("recStage");
 const recTimer = document.getElementById("recTimer");
 const recStatus= document.getElementById("recStatus");
 let mediaStream = null;
@@ -128,6 +129,19 @@ function describeMediaError(err) {
   }
 }
 
+function resetToRecordState() {
+  lastResult = null;
+  resultCard.classList.add("hidden");
+  const doneRow = document.getElementById("resultDoneRow");
+  if (doneRow) doneRow.classList.add("hidden");
+  recStage.style.display = "";
+  document.getElementById("appSub").textContent = "Voice to text, auto-proofread";
+  recTimer.textContent = "00:00";
+  recStatus.textContent = "Tap to dictate";
+}
+
+document.getElementById("resultNewBtn")?.addEventListener("click", resetToRecordState);
+
 async function startRecording() {
   recStatus.textContent = "";
 
@@ -159,6 +173,12 @@ async function startRecording() {
     return;
   }
 
+  // Entering a new recording — show the rec-stage again if it was hidden
+  recStage.style.display = "";
+  document.getElementById("resultDoneRow")?.classList.add("hidden");
+  resultCard.classList.add("hidden");
+  document.getElementById("appSub").textContent = "Voice to text, auto-proofread";
+
   recordedChunks = [];
   mediaRecorder.ondataavailable = e => { if (e.data.size) recordedChunks.push(e.data); };
   mediaRecorder.onstop = onStopped;
@@ -170,6 +190,9 @@ async function startRecording() {
   recordStart = Date.now();
   timerInt = setInterval(() => recTimer.textContent = fmtDuration(Date.now() - recordStart), 200);
   recBtn.classList.add("recording");
+  recStage.classList.add("recording");
+  recStatus.textContent = "Listening…";
+  recStatus.classList.add("status-ac");
   recBtn.setAttribute("aria-label", "Stop recording");
 }
 
@@ -178,6 +201,8 @@ function stopRecording() {
   if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
   clearInterval(timerInt);
   recBtn.classList.remove("recording");
+  recStage.classList.remove("recording");
+  recStatus.classList.remove("status-ac");
   recBtn.setAttribute("aria-label", "Record");
 }
 
@@ -203,7 +228,7 @@ async function onStopped() {
   try {
     const result = await api("api/v1/transcribe", { method: "POST", body: fd });
     showResult(result);
-    recStatus.textContent = "";
+    recStatus.textContent = "Tap to dictate";
   } catch (e) {
     recStatus.textContent = "Error: " + e.message;
   }
@@ -301,6 +326,21 @@ function showResult(r) {
   if (r.cleanup_mode) modeBits.push(`cleanup: ${r.cleanup_mode}`);
   if (r.polish_mode)  modeBits.push(`polish: ${r.polish_mode}`);
   resultMode.textContent = modeBits.join(" · ");
+
+  // Show the "Done" row with formatted duration
+  const doneRow = document.getElementById("resultDoneRow");
+  const doneTime = document.getElementById("resultDoneTime");
+  if (doneRow) {
+    doneRow.classList.remove("hidden");
+    if (doneTime) {
+      doneTime.textContent = r.duration_s
+        ? `${fmtDuration(r.duration_s * 1000)} recorded`
+        : "recorded";
+    }
+  }
+  recStage.style.display = "none";
+  document.getElementById("appSub").textContent = "Transcript ready";
+
   resultCard.classList.remove("hidden");
 
   // Default the source to the most-processed available view.
@@ -522,22 +562,46 @@ async function loadHistory(reset) {
 
 function renderHistoryItem(it) {
   const li = document.createElement("li");
+  li.className = "glass list-card";
   const dt = new Date(it.created_at * 1000);
-  const meta = [
-    dt.toLocaleString(),
-    it.source || "—",
-    it.language || "",
-    it.duration_s ? `${it.duration_s.toFixed(1)}s` : "",
-    it.has_audio ? "🎵" : "",
-  ].filter(Boolean).join(" · ");
-  li.innerHTML = `<div class="history-meta">${meta}</div><div class="history-snippet"></div>`;
-  li.querySelector(".history-snippet").textContent = it.text;
+  const time = dt.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const dur = it.duration_s
+    ? `${Math.floor(it.duration_s / 60)}:${String(Math.round(it.duration_s % 60)).padStart(2, "0")}`
+    : "";
+  li.innerHTML = `
+    <div class="lc-top">
+      <span class="lc-time"></span>
+      <span class="tag neutral lc-tag"></span>
+    </div>
+    <div class="lc-snippet"></div>
+    <div class="mini-meta">
+      <span class="mini-wave" aria-hidden="true"></span>
+      <span class="mini-dot"></span>
+      <span class="lc-lang"></span>
+      ${dur ? '<span class="mini-dot"></span><span class="lc-dur"></span>' : ""}
+    </div>`;
+  li.querySelector(".lc-time").textContent = time;
+  const src = it.source || "saved";
+  const tag = li.querySelector(".lc-tag");
+  tag.textContent = src;
+  tag.className = "tag" + (src === "Polished" || src === "polished" ? "" : " neutral");
+  li.querySelector(".lc-snippet").textContent = it.text;
+  li.querySelector(".lc-lang").textContent = it.language || "—";
+  if (dur) li.querySelector(".lc-dur").textContent = dur;
+  // Generate mini waveform bars
+  const waveEl = li.querySelector(".mini-wave");
+  for (let i = 0; i < 18; i++) {
+    const h = 3 + Math.round(9 * Math.abs(Math.sin(i * 0.9) * Math.cos(i * 0.5)));
+    const bar = document.createElement("i");
+    bar.style.height = h + "px";
+    waveEl.appendChild(bar);
+  }
   li.addEventListener("click", async () => {
     try {
       const full = await api(`api/v1/transcriptions/${it.id}`);
       showResult(full);
       document.querySelector('nav button[data-tab="record"]').click();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      document.querySelector(".screen-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       alert("Failed to load: " + e.message);
     }
@@ -566,6 +630,7 @@ function renderChips(id, terms) {
   ul.innerHTML = "";
   for (const t of terms) {
     const li = document.createElement("li");
+    li.className = "chip";
     li.textContent = t;
     ul.appendChild(li);
   }
@@ -587,6 +652,76 @@ document.getElementById("glossarySave").addEventListener("click", async () => {
     glStatus.textContent = "Failed: " + e.message;
   }
 });
+
+// ----- Modes & models (static reference cards) + Glossary sub-navigation -----
+const MODES = [
+  { icon: "waveform", title: "Transcribe", model: "whisper-large-v3",
+    desc: "Speech to text. Verbatim output with punctuation and casing.",
+    limits: [["Max clip", "25 MB · ~30 min"], ["Languages", "99 (auto)"], ["Audio in", "16 kHz mono"], ["Avg latency", "0.8 s"]],
+    instr: "Transcribe the audio verbatim.\nKeep punctuation and casing.\nDo not translate.\nMark unclear spans as [...]." },
+  { icon: "broom", title: "Cleanup", model: "llama-3.1-8b-instant",
+    desc: "Fixes recognition errors. Keeps your exact wording and tone.",
+    limits: [["Context", "8K tokens"], ["Chunk", "1,200 words"], ["Rate", "30 / min"], ["Avg latency", "1.2 s"]],
+    instr: "Correct only recognition errors and obvious typos.\nPreserve wording, slang and structure.\nNever paraphrase.\nApply glossary terms exactly." },
+  { icon: "sparkles", title: "Polish", model: "llama-3.3-70b-versatile",
+    desc: "Rewrites for readability. Removes filler and fixes flow.",
+    limits: [["Context", "32K tokens"], ["Chunk", "2,500 words"], ["Rate", "14 / min"], ["Avg latency", "2.1 s"]],
+    instr: "Rewrite for clarity and natural flow.\nRemove filler and false starts.\nKeep meaning and key terms.\nMatch the source language." },
+  { icon: "globe", title: "Translate", model: "llama-3.3-70b-versatile",
+    desc: "Translates the transcript into a chosen target language.",
+    limits: [["Context", "32K tokens"], ["Targets", "30+ languages"], ["Rate", "14 / min"], ["Avg latency", "2.4 s"]],
+    instr: "Translate into the target language.\nPreserve names and glossary terms.\nKeep the tone natural, not literal." },
+];
+let _modesRendered = false;
+function renderModesOnce() {
+  if (_modesRendered) return;
+  const host = document.getElementById("modesList");
+  if (!host) return;
+  for (const m of MODES) {
+    const cells = m.limits.map(([k, v]) =>
+      `<div class="limit-cell"><div class="limit-k">${k}</div><div class="limit-v">${v}</div></div>`).join("");
+    const card = document.createElement("article");
+    card.className = "glass mode-card";
+    card.innerHTML = `
+      <div class="mode-head">
+        <div class="mode-ic"><svg class="ic"><use href="#i-${m.icon}"/></svg></div>
+        <div><div class="mode-title">${m.title}</div><div class="mode-desc">${m.desc}</div></div>
+      </div>
+      <div class="mode-model"><svg class="ic"><use href="#i-cpu"/></svg><span>Model</span><span class="model-tag">${m.model}</span></div>
+      <div class="limit-grid">${cells}</div>
+      <div class="instr">
+        <div class="instr-h"><svg class="ic"><use href="#i-doc"/></svg><span>Instructions</span></div>
+        <div class="instr-body"></div>
+      </div>`;
+    card.querySelector(".instr-body").textContent = m.instr;
+    host.appendChild(card);
+  }
+  _modesRendered = true;
+}
+function showModesMain() {
+  document.getElementById("modesMain")?.classList.remove("hidden");
+  document.getElementById("modesGlossary")?.classList.add("hidden");
+}
+function showModesGlossary() {
+  document.getElementById("modesMain")?.classList.add("hidden");
+  document.getElementById("modesGlossary")?.classList.remove("hidden");
+  loadGlossary();
+}
+document.getElementById("glossaryOpen")?.addEventListener("click", showModesGlossary);
+document.getElementById("glossaryBack")?.addEventListener("click", showModesMain);
+document.getElementById("settingsModesLink")?.addEventListener("click", () => {
+  document.querySelector('nav button[data-tab="modes"]').click();
+});
+function wireCollapse(toggleId, listId) {
+  const t = document.getElementById(toggleId), l = document.getElementById(listId);
+  if (!t || !l) return;
+  t.addEventListener("click", () => {
+    const nowHidden = l.classList.toggle("hidden");
+    t.classList.toggle("open", !nowHidden);
+  });
+}
+wireCollapse("glossaryCoreToggle", "glossaryCore");
+wireCollapse("glossaryExtToggle", "glossaryExtended");
 
 // ----- Settings UI -----
 const apiBase = document.getElementById("apiBase");
@@ -644,12 +779,11 @@ function fmtBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 function paintBucket(suffix, b) {
+  // Main value = time, sub = clip count (matches design: "14m" / "23 clips")
   document.getElementById("usage" + suffix).textContent =
+    b.audio_seconds ? fmtMinutes(b.audio_seconds) : "—";
+  document.getElementById("usage" + suffix + "Sub").textContent =
     `${b.transcriptions} ${b.transcriptions === 1 ? "clip" : "clips"}`;
-  const sub = [];
-  if (b.audio_seconds) sub.push(fmtMinutes(b.audio_seconds));
-  if (b.audio_bytes)   sub.push(fmtBytes(b.audio_bytes));
-  document.getElementById("usage" + suffix + "Sub").textContent = sub.join(" · ");
 }
 async function loadUsage() {
   if (!settings.apiKey) {
@@ -873,16 +1007,17 @@ function _stopQueuePolling() {
 
 function renderNoteItem(n, opts = {}) {
   const li = document.createElement("li");
+  li.className = "glass list-card";
   const title = (n.title || "").trim() || "Untitled";
   const snippet = (n.snippet || "").trim() || "(empty)";
   li.innerHTML = `
-    <div class="note-title"></div>
-    <div class="note-snippet"></div>
-    <div class="note-meta"></div>
+    <div class="lc-title"></div>
+    <div class="lc-snippet"></div>
+    <div class="lc-time" style="margin-top:7px"></div>
   `;
-  li.querySelector(".note-title").textContent = title;
-  li.querySelector(".note-snippet").textContent = snippet;
-  li.querySelector(".note-meta").textContent = fmtRelative(n.updated_at);
+  li.querySelector(".lc-title").textContent = title;
+  li.querySelector(".lc-snippet").textContent = snippet;
+  li.querySelector(".lc-time").textContent = fmtRelative(n.updated_at);
 
   // For queued notes, show progress instead of (or alongside) the
   // standard "5 min ago" timestamp.
@@ -890,15 +1025,30 @@ function renderNoteItem(n, opts = {}) {
     const total = n.queue_total_chunks || 0;
     const done = n.queue_completed_chunks || 0;
     const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
+    const statusRow = document.createElement("div");
+    statusRow.className = "row gap-s";
+    statusRow.style.cssText = "font-size:12.5px;color:var(--fg-dim);margin-top:6px";
+    // ios-spinner (8 spokes)
+    const spinner = document.createElement("span");
+    spinner.className = "ios-spinner";
+    spinner.setAttribute("role", "status");
+    for (let s = 0; s < 8; s++) {
+      const spoke = document.createElement("i");
+      spoke.style.setProperty("--n", s);
+      spinner.appendChild(spoke);
+    }
+    statusRow.appendChild(spinner);
+    const statusText = document.createElement("span");
+    statusText.textContent = total > 0
+      ? `Polishing, chunk ${done + 1} of ${total}`
+      : "Polishing…";
+    statusRow.appendChild(statusText);
+    li.appendChild(statusRow);
     const progressBar = document.createElement("div");
     progressBar.className = "note-progress";
     progressBar.innerHTML = '<div class="note-progress-bar" style="width:0%"></div>';
     progressBar.querySelector(".note-progress-bar").style.width = `${pct}%`;
     li.appendChild(progressBar);
-    const progressText = document.createElement("div");
-    progressText.className = "note-progress-text";
-    progressText.textContent = `${done} / ${total} chunks polished${done === 0 ? " — first chunk in <1 min" : ""}`;
-    li.appendChild(progressText);
   }
 
   li.addEventListener("click", () => notesOpen(n.id));
@@ -969,11 +1119,18 @@ function paintPipelineSummary() {
   const c = notesElem.setCleanup.value;
   const p = notesElem.setPolish.value;
   const l = notesElem.setLang.value;
+  notesElem.pipeline.innerHTML = "";
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   const parts = [];
-  parts.push(c === "off" ? "no cleanup" : `cleanup: ${c}`);
-  parts.push(p === "off" ? "no polish"  : `polish: ${p}`);
-  if (l !== "auto") parts.push(`lang: ${l}`);
-  notesElem.pipeline.textContent = `Dictation pipeline → ${parts.join(" · ")}`;
+  if (c !== "off") parts.push(`Cleanup · ${cap(c)}`);
+  if (p !== "off") parts.push(`Polish · ${cap(p)}`);
+  parts.push(l === "auto" ? "Auto-detect" : l.toUpperCase());
+  for (const text of parts) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = text;
+    notesElem.pipeline.appendChild(chip);
+  }
 }
 
 function notesScheduleSave() {
