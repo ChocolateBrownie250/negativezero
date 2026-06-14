@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Riga real estate observations · negativezero</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<main class="app-shell">
+  <aside class="filter-rail" aria-label="Filters">
+    <a class="brand" href="/">
+      <span class="brand-mark">−0</span>
+      <span>
+        <strong>negativezero.one</strong>
+        <em>Riga real estate</em>
+      </span>
+    </a>
+
+    <label>
+      <span>Transaction</span>
+      <select id="transactionFilter" aria-label="Transaction"></select>
+    </label>
+
+    <label>
+      <span>Map metric</span>
+      <select id="metricFilter" aria-label="Map metric">
+        <option value="sale_m2">Sale median €/m²</option>
+        <option value="rent_month">Rent median €/month</option>
+        <option value="count">Observed listing count</option>
+        <option value="coverage">Coverage score</option>
+      </select>
+    </label>
+
+    <label>
+      <span>District</span>
+      <select id="districtFilter" aria-label="District"></select>
+    </label>
+
+    <label>
+      <span>Listing search</span>
+      <input id="searchFilter" type="search" placeholder="Street, title, district" autocomplete="off" />
+    </label>
+
+    <label class="check-row">
+      <input id="sampleFilter" type="checkbox" checked />
+      <span>Show low-sample aggregates</span>
+    </label>
+
+    <button id="exportButton" class="export-button" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3" /></svg>
+      Export CSV
+    </button>
+
+    <div class="source-note">
+      <strong>Collector guardrails</strong>
+      <p>No phone reveal, contact harvesting, photos, captcha bypass, generated sort/filter URL grids, or disallowed robot paths.</p>
+    </div>
+  </aside>
+
+  <section class="workspace">
+    <header class="topbar">
+      <div>
+        <a href="/" class="back-link">negativezero.one</a>
+        <h1>Riga real estate observations</h1>
+      </div>
+      <div class="status-pill" id="dataStatus">Loading data</div>
+    </header>
+
+    <section class="caveat-band" id="caveatBand">
+      <strong>Coverage caveat</strong>
+      <span>Loading source notes…</span>
+    </section>
+
+    <section class="kpi-strip" id="kpiStrip" aria-label="Key metrics"></section>
+
+    <section class="infographic-grid" aria-label="Interactive map and evidence summary">
+      <article class="panel map-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Riga apkaime value map</h2>
+            <p>Official neighborhood polygons from GEO RIGA; color shows selected metric and opacity reflects observed coverage.</p>
+          </div>
+        </div>
+        <div class="map-layout">
+          <div id="mapFrame" class="map-frame"></div>
+          <div id="mapLegend" class="map-legend"></div>
+        </div>
+      </article>
+
+      <article class="panel evidence-panel">
+        <h2>Infographic readout</h2>
+        <div id="evidenceList" class="evidence-list"></div>
+      </article>
+    </section>
+
+    <section class="view-grid">
+      <article class="panel chart-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Monthly medians</h2>
+            <p>SS observed asking-price medians. VZD confirmed sales are drawn separately where present.</p>
+          </div>
+        </div>
+        <div id="trendChart" class="chart-frame" aria-label="Monthly median trend"></div>
+      </article>
+
+      <article class="panel chart-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Listing volume</h2>
+            <p>Observed listings by month and transaction type.</p>
+          </div>
+        </div>
+        <div id="volumeChart" class="chart-frame compact" aria-label="Listing volume"></div>
+      </article>
+
+      <article class="panel chart-panel crime-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Riga-wide crime proxy controls</h2>
+            <p>Official municipality statistics and court-decision proxy signals. This layer is not district or incident crime exposure.</p>
+          </div>
+        </div>
+        <div id="crimeReadout" class="crime-readout"></div>
+        <div id="crimeChart" class="chart-frame compact" aria-label="Riga-wide crime proxy trend"></div>
+      </article>
+    </section>
+
+    <section class="view-grid lower-grid">
+      <article class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>District ranking</h2>
+            <p>Latest observed month, ranked by the active map metric.</p>
+          </div>
+        </div>
+        <div id="districtRanking" class="ranking-list"></div>
+      </article>
+
+      <article class="panel table-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Listing observations</h2>
+            <p>Rows are normalized observations from available snapshots, not copied publication records.</p>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Listing</th>
+                <th>District</th>
+                <th>Type</th>
+                <th>Rooms</th>
+                <th>m²</th>
+                <th>Latest price</th>
+                <th>Riga proxy</th>
+                <th>Last seen</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody id="listingTable"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </section>
+</main>
+
+<template id="errorTemplate">
+  <section class="error-state">
+    <h1>Data bundle unavailable</h1>
+    <p>The page loaded, but the static market data bundle could not be read or failed validation.</p>
+  </section>
+</template>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
