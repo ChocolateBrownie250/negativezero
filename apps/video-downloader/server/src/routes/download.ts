@@ -11,8 +11,22 @@ import {
 const VARIANTS = new Set<DownloadVariant>(['highest', 'lowest', 'first']);
 const FORMATS = new Set<OutputFormat>(['mov', 'mp4']);
 
+// The download endpoint is expensive (network fan-out + ffmpeg remux), so it
+// gets a tight per-route rate limit and a small body limit. The request body is
+// just a few JSON fields (playlistUrl, variant, outputFormat) and never needs
+// to be large.
+const DOWNLOAD_BODY_LIMIT = 8 * 1024; // 8 KiB
+
 export default async function downloadRoutes(app: FastifyInstance) {
-  app.post('/download', async (req, reply) => {
+  app.post('/download', {
+    bodyLimit: DOWNLOAD_BODY_LIMIT,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (req, reply) => {
     const body = (req.body ?? {}) as {
       playlistUrl?: unknown;
       variant?: unknown;

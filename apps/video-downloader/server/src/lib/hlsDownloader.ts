@@ -3,9 +3,14 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parse } from 'hls-parser';
-import { request } from 'undici';
+import { Agent, request } from 'undici';
 import { config } from '../config.js';
-import { assertPublicTarget, BlockedTargetError } from './ssrf.js';
+import {
+  assertPublicAddress,
+  assertPublicTarget,
+  BlockedTargetError,
+  resolvePublicTarget,
+} from './ssrf.js';
 
 export { BlockedTargetError };
 
@@ -16,6 +21,11 @@ type FetchOptions = {
   range?: { offset?: number; length: number };
   maxBytes?: number;
   signal?: AbortSignal;
+  // Shared aggregate byte budget across all concurrent fetches of one download.
+  // The fetch increments `used` per received chunk and aborts when it would
+  // exceed `max`, so the sum buffered across the worker pool is hard-capped at
+  // ~max (+ at most one in-flight chunk per worker) rather than max * concurrency.
+  budget?: { used: number; max: number };
 };
 
 type FetchResult = {
@@ -310,21 +320,40 @@ async function downloadItems(
   concurrency: number,
   signal?: AbortSignal,
 ): Promise<void> {
+  // Hard aggregate byte cap across all concurrent fetches, enforced WITHOUT
+  // pre-reserving the budget (pre-reserving the whole remaining pool before the
+  // await would make any second concurrent worker see remaining<=0 and falsely
+  // reject normal multi-segment downloads). Two complementary mechanisms:
+  //   1. `total` accounts ACTUAL bytes after each fetch returns and rejects once
+  //      the real sum exceeds maxBytes — correct for any FetchUrl (incl. test
+  //      mocks that don't stream).
+  //   2. the shared `budget` is threaded into the real fetch, which increments
+  //      it per received chunk and aborts mid-stream, bounding peak buffered
+  //      memory to ~maxBytes (+one in-flight chunk per worker) rather than
+  //      maxBytes * concurrency.
+  // Per-fetch cap also bounds a single ranged fetch to the attacker-controlled
+  // EXT-X-BYTERANGE length clamped to what's left of the budget.
   let total = 0;
+  const budget = { used: 0, max: maxBytes };
   await runLimited(items, concurrency, async (item) => {
     throwIfAborted(signal);
     await assertPublicUrl(item.url);
-    const fetched = await fetchUrl(
-      item.url,
-      item.range
-        ? { range: item.range, maxBytes: item.range.length, signal }
-        : { maxBytes: Math.max(1, maxBytes - total), signal },
-    );
+    const remaining = maxBytes - total;
+    if (remaining <= 0) throw new DownloadRejectedError('download_too_large');
+    const perFetchCap = item.range
+      ? Math.min(item.range.length, remaining)
+      : remaining;
+    const fetched = await fetchUrl(item.url, {
+      ...(item.range ? { range: item.range } : {}),
+      maxBytes: perFetchCap,
+      budget,
+      signal,
+    });
+    total += fetched.body.length;
+    if (total > maxBytes) throw new DownloadRejectedError('download_too_large');
     throwIfAborted(signal);
     const finalUrl = fetched.finalUrl ?? item.url;
     await assertPublicUrl(finalUrl);
-    total += fetched.body.length;
-    if (total > maxBytes) throw new DownloadRejectedError('download_too_large');
     item.bytes = fetched.body;
   });
 
@@ -391,59 +420,110 @@ export async function downloadHls(options: DownloadOptions): Promise<DownloadRes
   }
 }
 
+// Build an undici Agent whose connect step ALWAYS resolves to the single,
+// already-vetted IP address. This pins the TCP connection to the IP we
+// validated, defeating DNS-rebinding (TOCTOU) where a second resolution at
+// connect time could return a private IP. A new agent is created per hop so
+// each redirect target is independently resolved, validated, and pinned.
+function pinnedAgent(address: string, family: number): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, _opts, cb) => {
+        // Ignore the hostname entirely; force the pinned address.
+        cb(null, address, family);
+      },
+    },
+  });
+}
+
 export async function defaultFetchUrl(urlStr: string, options: FetchOptions = {}): Promise<FetchResult> {
   let current = urlStr;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     throwIfAborted(options.signal);
-    await assertPublicUrl(current);
+    // Resolve once per hop, assert every candidate IP is public, and pin the
+    // connection to the chosen vetted IP so undici cannot re-resolve to a
+    // different (private) address at connect time.
+    const url = assertHttpUrl(current);
+    const records = await resolvePublicTarget(url.hostname);
+    const pinned = records[0];
+    // Defensive re-check of the pinned address before connecting.
+    assertPublicAddress(pinned.address);
+    const dispatcher = pinnedAgent(pinned.address, pinned.family);
     const headers: Record<string, string> = {
       'User-Agent': 'negativezero-video-downloader/1.0',
       Accept: '*/*',
     };
     if (options.range) headers.Range = byteRangeHeader(options.range);
-    const res = await request(current, {
-      method: 'GET',
-      headers,
-      bodyTimeout: BODY_TIMEOUT,
-      headersTimeout: HEADERS_TIMEOUT,
-      signal: options.signal,
-    });
-
-    if (res.statusCode >= 300 && res.statusCode < 400) {
-      const location = res.headers.location;
-      const locStr = Array.isArray(location) ? location[0] : location;
-      res.body.resume();
-      if (!locStr) throw new DownloadRejectedError('redirect_missing_location');
-      if (hop === MAX_REDIRECTS) throw new DownloadRejectedError('too_many_redirects');
-      current = new URL(locStr, current).toString();
-      continue;
-    }
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      res.body.resume();
-      throw new DownloadRejectedError(`upstream_http_${res.statusCode}`);
+    let res;
+    try {
+      // No redirect interceptor is attached, so undici does NOT follow
+      // redirects: each 3xx is handled manually below and re-validated +
+      // re-pinned on the next hop. This is what keeps SSRF protection effective
+      // across redirects (equivalent to maxRedirections: 0).
+      res = await request(current, {
+        method: 'GET',
+        headers,
+        bodyTimeout: BODY_TIMEOUT,
+        headersTimeout: HEADERS_TIMEOUT,
+        dispatcher,
+        signal: options.signal,
+      });
+    } catch (err) {
+      await dispatcher.close().catch(() => {});
+      throw err;
     }
 
-    const chunks: Buffer[] = [];
-    let received = 0;
-    const maxBytes = options.maxBytes ?? config.maxBytes;
-    for await (const chunk of res.body) {
-      throwIfAborted(options.signal);
-      const buf = Buffer.from(chunk as Buffer);
-      received += buf.length;
-      if (received > maxBytes) {
-        res.body.destroy();
-        throw new DownloadRejectedError('download_too_large');
+    try {
+      if (res.statusCode >= 300 && res.statusCode < 400) {
+        const location = res.headers.location;
+        const locStr = Array.isArray(location) ? location[0] : location;
+        res.body.resume();
+        if (!locStr) throw new DownloadRejectedError('redirect_missing_location');
+        if (hop === MAX_REDIRECTS) throw new DownloadRejectedError('too_many_redirects');
+        current = new URL(locStr, current).toString();
+        continue;
       }
-      chunks.push(buf);
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.body.resume();
+        throw new DownloadRejectedError(`upstream_http_${res.statusCode}`);
+      }
+
+      const chunks: Buffer[] = [];
+      let received = 0;
+      const maxBytes = options.maxBytes ?? config.maxBytes;
+      const budget = options.budget;
+      for await (const chunk of res.body) {
+        throwIfAborted(options.signal);
+        const buf = Buffer.from(chunk as Buffer);
+        received += buf.length;
+        // Per-fetch cap (single segment / ranged byterange).
+        if (received > maxBytes) {
+          res.body.destroy();
+          throw new DownloadRejectedError('download_too_large');
+        }
+        // Shared aggregate cap across all concurrent fetches. Increment + check
+        // run synchronously (no await between them), so the counter stays
+        // consistent across the cooperative worker pool.
+        if (budget) {
+          budget.used += buf.length;
+          if (budget.used > budget.max) {
+            res.body.destroy();
+            throw new DownloadRejectedError('download_too_large');
+          }
+        }
+        chunks.push(buf);
+      }
+      const contentType = Array.isArray(res.headers['content-type'])
+        ? res.headers['content-type'][0]
+        : res.headers['content-type'];
+      return {
+        body: Buffer.concat(chunks),
+        finalUrl: current,
+        contentType,
+      };
+    } finally {
+      await dispatcher.close().catch(() => {});
     }
-    const contentType = Array.isArray(res.headers['content-type'])
-      ? res.headers['content-type'][0]
-      : res.headers['content-type'];
-    return {
-      body: Buffer.concat(chunks),
-      finalUrl: current,
-      contentType,
-    };
   }
   throw new DownloadRejectedError('too_many_redirects');
 }
@@ -501,7 +581,13 @@ export function defaultRunFfmpeg(args: {
       cleanupAbort();
       if (settled) return;
       if (code !== 0) {
-        rejectOnce(new DownloadRejectedError(`ffmpeg_failed: ${stderr.trim()}`));
+        // Log ffmpeg's stderr server-side only; never leak it to the client
+        // (it can reveal local paths and internal details). Return a generic
+        // error message instead.
+        console.error(
+          `[hlsDownloader] ffmpeg exited with code ${code}: ${stderr.trim()}`,
+        );
+        rejectOnce(new DownloadRejectedError('ffmpeg_failed'));
         return;
       }
       try {
