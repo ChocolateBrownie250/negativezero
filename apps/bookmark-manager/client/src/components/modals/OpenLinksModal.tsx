@@ -22,10 +22,14 @@ export default function OpenLinksModal({ items, onClose }: Props) {
         className="rounded-xl overflow-y-auto"
         style={{ maxHeight: '60vh', background: COLORS.surface }}
       >
-        {items.map(({ name, url }, i) => (
+        {items.map(({ name, url }, i) => {
+          // Defense-in-depth: don't render a non-http(s) URL as a live link.
+          const href = externalLinkHref(url);
+          if (!href) return null;
+          return (
           <a
             key={i}
-            href={externalLinkHref(url)}
+            href={href}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 px-4 py-3 no-underline"
@@ -52,7 +56,8 @@ export default function OpenLinksModal({ items, onClose }: Props) {
             </div>
             <ExternalLink size={14} style={{ color: LABEL_SECONDARY, flexShrink: 0 }} />
           </a>
-        ))}
+          );
+        })}
       </div>
     </Modal>
   );

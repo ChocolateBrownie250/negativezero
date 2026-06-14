@@ -136,6 +136,9 @@ export default function ItemRow({
 }: Props) {
   const moreRef = useRef<HTMLButtonElement | null>(null);
   const isFolder = node.type === 'folder';
+  // null for non-http(s) URLs — see externalLinkHref. Used to decide whether
+  // to render the open-bookmark control as a live link or a disabled span.
+  const safeHref = isFolder ? null : externalLinkHref(node.url);
 
   // Drop-target highlight wins over selection visual: it's the foreground
   // signal during a drag.
@@ -231,9 +234,9 @@ export default function ItemRow({
         >
           <ChevronRight size={20} />
         </button>
-      ) : (
+      ) : safeHref ? (
         <a
-          href={externalLinkHref(node.url)}
+          href={safeHref}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
@@ -245,6 +248,18 @@ export default function ItemRow({
         >
           <ExternalLink size={18} />
         </a>
+      ) : (
+        // Defense-in-depth: a non-http(s) URL is never rendered as a live
+        // link. Show the icon disabled so a hostile javascript:/data: URL
+        // that slipped past the server can't be clicked into execution.
+        <span
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          style={{ color: LABEL_TERTIARY, opacity: 0.4 }}
+          aria-label="Link unavailable"
+          title="This link can't be opened"
+        >
+          <ExternalLink size={18} />
+        </span>
       )}
       {/* Reorder grip — visible only on desktop (when draggable=true).
           Drag-starts from this element are routed to reorder mode in

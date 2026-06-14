@@ -1,6 +1,6 @@
-import { request } from 'undici';
+import { request, Agent } from 'undici';
 import { parse } from 'node-html-parser';
-import { assertPublicTarget, BlockedTargetError } from './ssrf.js';
+import { resolvePublicAddresses, BlockedTargetError, type VettedAddress } from './ssrf.js';
 
 const MAX_BYTES = 1_000_000; // 1 MB
 const HEADERS_TIMEOUT = 4000;
@@ -50,6 +50,46 @@ function normalizeUrl(input: string): string {
   return 'https://' + trimmed;
 }
 
+// Build an undici dispatcher that pins every connection it makes to the
+// already-vetted IPs. undici's connector passes a custom `lookup` straight
+// through to net/tls.connect, so the address dialed is exactly an address we
+// checked — closing the DNS-rebinding TOCTOU window between the SSRF check and
+// the socket dial. SNI / Host header stay the original hostname (the connector
+// derives servername from `host`, not from the resolved address), so TLS and
+// virtual hosting still work.
+//
+// The lookup honors Node's dns.lookup contract: when called with `{ all: true }`
+// it must return an array of { address, family }; otherwise it invokes the
+// callback with (err, address, family). Node's net layer uses the `all` form,
+// but we support both for safety.
+function pinnedLookup(
+  addresses: VettedAddress[],
+): (
+  hostname: string,
+  options: { all?: boolean } | undefined,
+  cb: (
+    err: NodeJS.ErrnoException | null,
+    address: string | VettedAddress[],
+    family?: number,
+  ) => void,
+) => void {
+  return (_hostname, options, cb) => {
+    if (options && options.all) {
+      cb(null, addresses);
+    } else {
+      cb(null, addresses[0].address, addresses[0].family);
+    }
+  };
+}
+
+function pinnedAgent(addresses: VettedAddress[]): Agent {
+  return new Agent({
+    connect: {
+      lookup: pinnedLookup(addresses) as never,
+    },
+  });
+}
+
 async function fetchOnce(urlStr: string): Promise<{ body: string; finalUrl: string }> {
   // Manual redirect handling — keeps the SSRF guard honest per hop (every
   // intermediate Location: target gets DNS-resolved and rejected if it
@@ -62,17 +102,29 @@ async function fetchOnce(urlStr: string): Promise<{ body: string; finalUrl: stri
     if (u.protocol !== 'http:' && u.protocol !== 'https:') {
       throw new BlockedTargetError();
     }
-    await assertPublicTarget(u.hostname);
+    // Resolve + vet once per hop, then PIN the dial to a vetted IP so the
+    // address we just checked is the address we actually connect to.
+    const vetted = await resolvePublicAddresses(u.hostname);
+    const dispatcher = pinnedAgent(vetted);
 
-    const res = await request(current, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; BookmarkManager/1.0)',
-        Accept: 'text/html,application/xhtml+xml',
-      },
-      bodyTimeout: BODY_TIMEOUT,
-      headersTimeout: HEADERS_TIMEOUT,
-    });
+    let res;
+    try {
+      res = await request(current, {
+        method: 'GET',
+        dispatcher,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; BookmarkManager/1.0)',
+          Accept: 'text/html,application/xhtml+xml',
+        },
+        bodyTimeout: BODY_TIMEOUT,
+        headersTimeout: HEADERS_TIMEOUT,
+      });
+    } catch (err) {
+      // Tear down the pinned dispatcher before propagating so we don't leak
+      // the per-hop agent's sockets.
+      dispatcher.close().catch(() => {});
+      throw err;
+    }
 
     if (res.statusCode >= 300 && res.statusCode < 400) {
       const location = res.headers['location'];
@@ -80,8 +132,10 @@ async function fetchOnce(urlStr: string): Promise<{ body: string; finalUrl: stri
       if (!locStr) {
         // 3xx with no Location → treat as terminal, fall through to body read
       } else {
-        // Drain so the connection returns to the pool.
+        // Drain so the connection returns to the pool, then tear down this
+        // hop's pinned dispatcher — the next hop re-resolves and re-pins.
         res.body.resume();
+        dispatcher.close().catch(() => {});
         if (hop === MAX_REDIRECTS) {
           throw new Error('too_many_redirects');
         }
@@ -90,24 +144,28 @@ async function fetchOnce(urlStr: string): Promise<{ body: string; finalUrl: stri
       }
     }
 
-    let received = 0;
-    const chunks: Buffer[] = [];
-    for await (const chunk of res.body) {
-      const buf = chunk as Buffer;
-      received += buf.length;
-      if (received > MAX_BYTES) {
-        chunks.push(buf.subarray(0, Math.max(0, MAX_BYTES - (received - buf.length))));
-        try {
-          res.body.destroy();
-        } catch {
-          // ignore
+    try {
+      let received = 0;
+      const chunks: Buffer[] = [];
+      for await (const chunk of res.body) {
+        const buf = chunk as Buffer;
+        received += buf.length;
+        if (received > MAX_BYTES) {
+          chunks.push(buf.subarray(0, Math.max(0, MAX_BYTES - (received - buf.length))));
+          try {
+            res.body.destroy();
+          } catch {
+            // ignore
+          }
+          break;
         }
-        break;
+        chunks.push(buf);
       }
-      chunks.push(buf);
+      const body = Buffer.concat(chunks).toString('utf8');
+      return { body, finalUrl: current };
+    } finally {
+      dispatcher.close().catch(() => {});
     }
-    const body = Buffer.concat(chunks).toString('utf8');
-    return { body, finalUrl: current };
   }
   // Loop exit only happens via return/throw above; this is unreachable but
   // keeps the type checker happy without a non-null assertion.
