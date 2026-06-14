@@ -116,6 +116,35 @@ services:
     networks:
       - internal
 
+  # ── video-downloader (clear-HLS remux) ────────────────────────
+  # Passkey-protected tool at negativezero.one/services/video-downloader/.
+  # Accepts direct public clear-HLS .m3u8 URLs, downloads segments to a temp
+  # dir, and remuxes to .mov/.mp4 with ffmpeg stream copy (no decrypt, no
+  # player scraping). Fastify + React, same prefix-strip path-mount as the
+  # other services; the Vite build bakes /services/video-downloader/ into assets.
+  video-downloader:
+    build:
+      context: ../apps/video-downloader
+    container_name: negativezero-video-downloader
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SESSION_SECRET: ${VIDEO_DOWNLOADER_SESSION_SECRET}
+      SETUP_CODE_HASH: ${VIDEO_DOWNLOADER_SETUP_CODE_HASH}
+      PUBLIC_URL: ${VIDEO_DOWNLOADER_PUBLIC_URL}
+      DATA_DIR: /app/server/data
+      VIDEO_DOWNLOADER_MAX_SEGMENTS: ${VIDEO_DOWNLOADER_MAX_SEGMENTS:-1000}
+      VIDEO_DOWNLOADER_MAX_BYTES: ${VIDEO_DOWNLOADER_MAX_BYTES:-2000000000}
+      VIDEO_DOWNLOADER_CONCURRENCY: ${VIDEO_DOWNLOADER_CONCURRENCY:-4}
+      VIDEO_DOWNLOADER_JOB_TIMEOUT_MS: ${VIDEO_DOWNLOADER_JOB_TIMEOUT_MS:-600000}
+    volumes:
+      - ./data/video-downloader:/app/server/data
+    ports:
+      - "127.0.0.1:${VIDEO_DOWNLOADER_HOST_PORT:-3025}:3000"
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge
