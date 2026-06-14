@@ -16,9 +16,15 @@ services:
   # container so we don't have to manage filesystem permissions on
   # the host nginx. The host nginx reverse-proxies / to this.
   landing:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: negativezero-landing
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 512m
     volumes:
       - ../apps/landing:/usr/share/nginx/html:ro
     ports:
@@ -32,9 +38,15 @@ services:
   # math is client-side via the Intl API. Served by nginx-alpine with
   # a read-only bind-mount, same pattern as landing.
   timezones:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: negativezero-timezones
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 512m
     volumes:
       - ../apps/timezones:/usr/share/nginx/html:ro
     ports:
@@ -51,6 +63,12 @@ services:
       context: ../apps/bookmark-manager
     container_name: negativezero-bookmark-manager
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 512m
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -74,6 +92,12 @@ services:
       context: ../apps/admin
     container_name: negativezero-admin
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 512m
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -102,6 +126,12 @@ services:
       context: ../apps/tts
     container_name: negativezero-tts
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 1g
     environment:
       PORT: "3000"
       GROQ_API_KEY: ${GROQ_API_KEY}
@@ -127,6 +157,12 @@ services:
       context: ../apps/video-downloader
     container_name: negativezero-video-downloader
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 1g
     environment:
       NODE_ENV: production
       PORT: "3000"
