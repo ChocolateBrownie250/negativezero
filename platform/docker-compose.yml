@@ -23,6 +23,10 @@ services:
       - "no-new-privileges:true"
     cap_drop:
       - ALL
+    # nginx master binds :80 inside the container, which needs this one cap
+    # back after cap_drop ALL (without it the container crash-loops on EACCES).
+    cap_add:
+      - NET_BIND_SERVICE
     pids_limit: 512
     mem_limit: 512m
     volumes:
@@ -45,6 +49,9 @@ services:
       - "no-new-privileges:true"
     cap_drop:
       - ALL
+    # nginx binds :80 inside the container — keep NET_BIND_SERVICE after drop ALL.
+    cap_add:
+      - NET_BIND_SERVICE
     pids_limit: 512
     mem_limit: 512m
     volumes:
