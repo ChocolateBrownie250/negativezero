@@ -12,6 +12,7 @@ from ..db import get_db
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
 from ..groq_client import transcribe as groq_transcribe
+from ..groq_client import validate_chat_model, validate_whisper_model
 from ..models import CleanupMode, TranscriptionResponse
 from ..storage import GROQ_AUDIO_LIMIT_BYTES, save_audio
 
@@ -49,6 +50,12 @@ async def transcribe_audio(
     do_cleanup = settings.cleanup_default_enabled if cleanup is None else cleanup
     mode = cleanup_mode or settings.cleanup_default_mode
 
+    try:
+        validate_whisper_model(model)
+        validate_chat_model(cleanup_model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
     data = await file.read()
     if not data:
         raise HTTPException(400, "Empty file")
@@ -75,7 +82,7 @@ async def transcribe_audio(
         )
     except Exception as exc:
         log.exception("Whisper call failed")
-        raise HTTPException(502, f"Transcription upstream failed: {exc}") from exc
+        raise HTTPException(502, "Transcription upstream failed") from exc
 
     text_raw = whisper.text
     text_clean: str | None = None

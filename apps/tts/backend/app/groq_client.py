@@ -20,6 +20,49 @@ def client() -> AsyncGroq:
     return _client
 
 
+# Allowlists of Groq model ids we are willing to forward. Callers accept a
+# model id from the client (form field / query param); without an allowlist
+# that becomes arbitrary-model passthrough to Groq. Validate against these
+# and reject unknown ids with a 400 at the API layer.
+ALLOWED_WHISPER_MODELS = frozenset(
+    {
+        "whisper-large-v3",
+        "whisper-large-v3-turbo",
+    }
+)
+
+# Chat models usable for cleanup/polish. Keep in sync with _MODEL_TPM below,
+# which enumerates every chat model we have a TPM budget for.
+ALLOWED_CHAT_MODELS = frozenset(
+    {
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "meta-llama/llama-4-scout-17b-16e-instruct",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "qwen/qwen3-32b",
+    }
+)
+
+
+def validate_whisper_model(model: str | None) -> None:
+    """Raise ValueError if a non-empty Whisper model id isn't allowlisted.
+
+    A falsy value means "use the configured default" and is always allowed.
+    """
+    if model and model not in ALLOWED_WHISPER_MODELS:
+        raise ValueError(f"Unsupported Whisper model: {model!r}")
+
+
+def validate_chat_model(model: str | None) -> None:
+    """Raise ValueError if a non-empty chat model id isn't allowlisted.
+
+    A falsy value means "use the configured default" and is always allowed.
+    """
+    if model and model not in ALLOWED_CHAT_MODELS:
+        raise ValueError(f"Unsupported model: {model!r}")
+
+
 @dataclass
 class WhisperResult:
     text: str
