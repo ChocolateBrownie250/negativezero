@@ -170,6 +170,21 @@ fi
 grep -q '^VIDEO_DOWNLOADER_PUBLIC_URL=' "$ENV_FILE" || \
     echo "VIDEO_DOWNLOADER_PUBLIC_URL=https://$APEX_DOMAIN/services/video-downloader" >> "$ENV_FILE"
 
+# ── shared SSO session secret (idempotent) ─────────────────────
+# One HS256 key shared by every service so a single apex `nz_session` cookie
+# (minted by admin on passkey login) authenticates the user everywhere. The
+# secret STRING is used verbatim as the HMAC key, so Node (jose) and Python
+# (PyJWT) agree byte-for-byte. Seed once; never rotate casually (rotating
+# invalidates all live sessions).
+if ! grep -Eq '^SSO_SESSION_SECRET=[0-9a-fA-F]{64}$' "$ENV_FILE"; then
+    SSO_SESSION_SECRET=$(openssl rand -hex 32)
+    if grep -q '^SSO_SESSION_SECRET=' "$ENV_FILE"; then
+        sed -i "s|^SSO_SESSION_SECRET=.*|SSO_SESSION_SECRET=$SSO_SESSION_SECRET|" "$ENV_FILE"
+    else
+        echo "SSO_SESSION_SECRET=$SSO_SESSION_SECRET" >> "$ENV_FILE"
+    fi
+fi
+
 # Update derived values on every run (ports). New port vars added after a
 # service's first deploy won't exist in an older .env, so seed any missing
 # line before the sed replace runs.
