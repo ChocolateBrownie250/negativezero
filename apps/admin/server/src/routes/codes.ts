@@ -7,7 +7,10 @@ import { generateRegistrationCode } from '../lib/codes.js';
 // Whitelist of services the admin can issue codes for. Adding a service to
 // the platform means adding it here too — otherwise the dropdown in the UI
 // silently accepts any string, which is bad form for an admin tool.
-const SERVICES = ['bookmark-manager', 'admin'] as const;
+// Passkey-protected services that consume a *_SETUP_CODE_HASH. tts is omitted
+// on purpose: it authenticates via the shared SSO session + an API key, not a
+// per-service setup code, so a generated code would be a no-op there.
+const SERVICES = ['bookmark-manager', 'admin', 'video-downloader'] as const;
 type Service = typeof SERVICES[number];
 
 function isService(v: unknown): v is Service {
