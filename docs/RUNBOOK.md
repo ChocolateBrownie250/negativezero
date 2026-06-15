@@ -174,6 +174,67 @@ ssh 'tail -f /var/log/nginx/access.log /var/log/nginx/error.log'
    never commit) and `restart <service>`. If the cause is in code,
    fix locally, re-deploy via the rsync procedure in HANDOVER.md.
 
+## Boot survival — `negativezero-compose.service`
+
+A systemd unit brings the whole compose stack up on every boot, so the
+services (incl. `timezones`) return after a reboot even if the stack was
+torn down beforehand. Added 2026-06-15.
+
+`/etc/systemd/system/negativezero-compose.service`:
+
+```ini
+[Unit]
+Description=negativezero platform compose stack (ensure up on boot)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/srv/negativezero/platform
+ExecStart=/usr/bin/docker compose --env-file .env up -d
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Why it exists: container revival otherwise relies solely on Docker's
+`restart: unless-stopped` replay, which only re-creates containers that
+were running at shutdown. After a `docker compose down`, a prune, or an
+interrupted deploy, nothing would bring the stack back on the next boot.
+This unit always runs `compose up -d`, so the full stack returns.
+
+Operating notes:
+
+- **Up-only by design — no `ExecStop`.** `systemctl stop negativezero-compose`
+  does *not* stop the stack (avoids a footgun on this shared box). To tear
+  it down, use `docker compose down` in `/srv/negativezero/platform`.
+- Ports come from `.env` (static), so this never reshuffles ports — unlike
+  `deploy.sh`, whose `next_free()` re-derives them.
+- Enabling it on a running stack is a no-op (`up -d` reports "Running").
+- A harmless warning `network negativezero-internal ... not created for
+  project "platform"` shows in the unit log — the network was first created
+  under an older project name; it does not affect recovery.
+
+```bash
+ssh
+# status / enable / disable
+systemctl status negativezero-compose.service
+systemctl enable  negativezero-compose.service
+# validate recovery without a real reboot (negativezero-only, ~seconds down)
+systemctl restart negativezero-compose.service
+# remove entirely
+systemctl disable --now negativezero-compose.service
+rm /etc/systemd/system/negativezero-compose.service
+systemctl daemon-reload
+```
+
+**(not in git yet)** This unit lives only on the VPS — it is not part of
+the repo, so the rsync deploy neither installs nor removes it. If the box
+is ever rebuilt, re-create the file above. To make it reproducible, commit
+it under `platform/` and install it from `deploy.sh`.
+
 ## Roll out a code change
 
 The deploy path is rsync-from-local-mac + run `platform/deploy.sh` on

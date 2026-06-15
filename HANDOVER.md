@@ -165,6 +165,16 @@ sudo systemctl reload nginx
 sudo tail -f /var/log/nginx/access.log
 ```
 
+### Boot survival
+
+The compose stack comes back on reboot via a systemd unit
+`negativezero-compose.service` — a `oneshot` that runs
+`docker compose up -d` after `docker.service`, so the services return even
+if the stack was torn down before the reboot. It is up-only: `systemctl
+stop` does *not* tear the stack down (use `docker compose down`). The unit
+lives only on the VPS, not in the repo. Full details + the unit file:
+RUNBOOK.md → *Boot survival — negativezero-compose.service*.
+
 ### Issue a new registration code via admin
 
 1. Sign in at `https://negativezero.one/services/admin/`.
