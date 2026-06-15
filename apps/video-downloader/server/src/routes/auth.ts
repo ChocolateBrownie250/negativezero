@@ -14,6 +14,7 @@ import type {
 import { config } from '../config.js';
 import { db, type CredentialRow } from '../db.js';
 import { generateRegistrationCode, normalizeCode } from '../lib/codes.js';
+import { readSsoCookie, verifySsoSession } from '../lib/ssoSession.js';
 import {
   RP_ID,
   RP_NAME,
@@ -68,8 +69,15 @@ async function hashBackupCode(plain: string): Promise<string> {
 
 export default async function authRoutes(app: FastifyInstance) {
   app.get('/auth/me', async (req) => {
+    let authenticated = req.session.get('userId') === 'owner';
+    if (!authenticated) {
+      const token = readSsoCookie(req.headers.cookie);
+      if (token && (await verifySsoSession(token, config.ssoSecret))) {
+        authenticated = true;
+      }
+    }
     return {
-      authenticated: req.session.get('userId') === 'owner',
+      authenticated,
       hasPasskey: credentialCount() > 0,
     };
   });

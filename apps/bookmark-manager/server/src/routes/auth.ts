@@ -12,6 +12,7 @@ import type {
   AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
 import { config } from '../config.js';
+import { readSsoCookie, verifySsoSession } from '../lib/ssoSession.js';
 import { db, type CredentialRow } from '../db.js';
 import { generateBackupCode, normalizeCode } from '../lib/codes.js';
 import {
@@ -80,8 +81,16 @@ export default async function authRoutes(app: FastifyInstance) {
   // Status
   // ---------------------------------------------------------------------------
   app.get('/auth/me', async (req) => {
+    let authenticated = req.session.get('userId') === 'owner';
+    if (!authenticated) {
+      // Accept the apex-wide nz_session SSO cookie as an alternative.
+      const token = readSsoCookie(req.headers.cookie);
+      if (token && (await verifySsoSession(token, config.ssoSecret))) {
+        authenticated = true;
+      }
+    }
     return {
-      authenticated: req.session.get('userId') === 'owner',
+      authenticated,
       hasPasskey: credentialCount() > 0,
     };
   });
