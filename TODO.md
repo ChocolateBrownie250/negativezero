@@ -50,60 +50,6 @@ Remaining one-time browser steps for the operator:
 - [ ] Register a passkey at `https://negativezero.one/services/admin/`
       using the admin setup code (same source as above)
 
-## TTS absorbed — IN PROGRESS 2026-05-28
-
-Code-side changes are landed in this PR (`claude/add-tts-drop-logto`);
-operator has to do the data migration + first deploy.
-
-- [x] Pull `/opt/amethyst/` source into `apps/tts/` (backend, pwa,
-      tests, shortcuts, pyproject, uv.lock, README, SECURITY_AUDIT)
-- [x] Adapt `apps/tts/Dockerfile`: PORT env, UID 999, /data ownership
-- [x] Wire into `platform/docker-compose.yml` (new `tts:` service block)
-- [x] Wire into `platform/nginx/negativezero.one.conf` (new
-      `/services/tts/` location; old `/vtt-transcriber/` → 301
-      redirect)
-- [x] Wire into `platform/.env.template` (`GROQ_API_KEY`,
-      `TTS_API_KEY`, `TTS_HOST_PORT`)
-- [x] Wire into `platform/deploy.sh` (generate `TTS_API_KEY`, chown
-      `platform/data/tts/`, defer container start if `GROQ_API_KEY`
-      is empty)
-- [x] Drop Logto + Neon refs from compose/env/deploy/nginx/docs
-- [ ] **Operator: copy GROQ_API_KEY and AMETHYST_API_KEY (renamed to
-      TTS_API_KEY) values from old `/opt/amethyst/.env` into
-      `/srv/negativezero/platform/.env`** — preserve the same keys so
-      existing iPhone Shortcut keeps working without re-pairing
-- [ ] **Operator: rsync data**
-      ```bash
-      ssh root@45.76.88.245
-      mkdir -p /srv/negativezero/platform/data/tts
-      rsync -av /opt/amethyst/data/ /srv/negativezero/platform/data/tts/
-      chown -R 999:999 /srv/negativezero/platform/data/tts
-      ```
-- [ ] **Operator: deploy**
-      ```bash
-      # from the local repo on this branch
-      rsync -av --exclude='.git/' --exclude='node_modules/' \
-            --exclude='dist/' --exclude='platform/.env' \
-            --exclude='platform/data/' --delete-after \
-            ./ root@45.76.88.245:/srv/negativezero/
-      ssh root@45.76.88.245 'cd /srv/negativezero && bash platform/deploy.sh'
-      ```
-- [ ] **Operator: verify**
-      - [ ] `https://negativezero.one/services/tts/` reaches the PWA
-      - [ ] `https://negativezero.one/services/tts/api/v1/health` returns OK
-      - [ ] `https://negativezero.one/vtt-transcriber/` 301s to
-            `/services/tts/`
-      - [ ] iPhone Shortcut still successfully transcribes a clip
-            (uses the new redirect transparently)
-- [ ] **Operator: tear down old standalone amethyst**
-      ```bash
-      ssh root@45.76.88.245
-      cd /opt/amethyst
-      docker compose down -v
-      docker network rm amethyst_default
-      rm -rf /opt/amethyst
-      ```
-
 ## Admin edits tts prompts (Phase 3 — agent-friendly chunks)
 
 Sequence in order. Each is roughly one session of focused work.
@@ -125,11 +71,17 @@ Sequence in order. Each is roughly one session of focused work.
 
 ## Polish (Phase 4)
 
-- [~] Nightly snapshot of `platform/data/` to S3 (or rsync to a
-      second host) — `platform/backup.sh` written. Operator wires up
-      `/etc/negativezero-backup.env` with `BACKUP_S3_URI` or
-      `BACKUP_RSYNC_DEST` and adds a cron entry (see
-      `docs/RUNBOOK.md`).
+- [x] **2026-06-15** Nightly encrypted backup is live: `backup.sh` (now
+      includes tts data) runs via `/usr/local/bin/negativezero-backup.sh`
+      from cron (04:17 UTC) → gpg AES-256 → **local baseline**
+      `/srv/backups/negativezero/`, 14-day retention; round-trip decrypt
+      verified. Replaced the dead `/opt/amethyst` backup cron. Passphrase
+      in `/etc/negativezero-backup.env` (chmod 600).
+- [ ] **Operator: off-host backup destination** — local baseline does NOT
+      survive disk/VPS loss. Set `BACKUP_S3_URI=s3://bucket/path/` (+ awscli
+      creds) or a remote `BACKUP_RSYNC_DEST=user@host:/path/` in
+      `/etc/negativezero-backup.env`, and **save `BACKUP_PASSPHRASE` from
+      that file into your password manager** (required to decrypt).
 - [x] Operator runbook: `docs/RUNBOOK.md`
 - [ ] Rename bookmark-manager internal name to "Bismuth" (folder,
       package, container, README, UI title). URL stays
@@ -172,6 +124,11 @@ and SPA static serving all work under fastify 5.
 
 ## Done
 
+- [x] **2026-06-15** Ops maintenance: nightly encrypted backups wired
+      (see Polish section), tts data included in snapshots, dead amethyst
+      backup cron removed. Confirmed the "TTS absorbed" migration fully
+      done (old `/opt/amethyst` gone, data migrated, all endpoints live)
+      and dropped its stale checklist.
 - [x] **2026-06-15** Security hardening (PR #64 + cap follow-ups): fixed all
       24 findings from the 2026-06-14 audit across admin / bookmark-manager /
       video-downloader / tts / platform. admin: backup-code lockout +
