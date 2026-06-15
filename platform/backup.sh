@@ -8,6 +8,7 @@
 # What gets backed up:
 #   - platform/data/bookmark-manager/ (SQLite + WAL)
 #   - platform/data/admin/             (SQLite + WAL)
+#   - platform/data/tts/               (transcription SQLite + audio cache)
 #   - platform/.env                    (chmod-600 secrets)
 #   - Logto's postgres state (pg_dumpall from negativezero-postgres)
 #
@@ -71,7 +72,7 @@ mkdir -p "$SNAP"
 # write rate (single user, one service each) the WAL is typically empty
 # or near-empty and a raw file copy is fine. Re-evaluate if data loss
 # from a torn snapshot ever shows up.
-for svc in bookmark-manager admin; do
+for svc in bookmark-manager admin tts; do
     SRC="$SRC_ROOT/platform/data/$svc"
     if [ -d "$SRC" ]; then
         mkdir -p "$SNAP/$svc"
