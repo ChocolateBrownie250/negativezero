@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import fastifyCookie from '@fastify/cookie';
 import secureSession from '@fastify/secure-session';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
@@ -19,6 +20,10 @@ async function main() {
   });
 
   await app.register(rateLimit, { global: false });
+
+  // Register @fastify/cookie before secure-session so routes can read/set the
+  // apex-wide nz_session SSO cookie via reply.setCookie / req.cookies.
+  await app.register(fastifyCookie);
 
   // Cookie path is derived from PUBLIC_URL's pathname so the session
   // cookie isn't sent to neighbouring services under the same apex.
