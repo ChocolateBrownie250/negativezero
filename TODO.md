@@ -22,12 +22,12 @@ operator has to do them in a browser / VPS console.
 - [ ] Rotate the bookmark-manager v1 setup code if it was ever set
       on the live deploy (also in old HANDOVER.md)
 - [ ] Revoke any GitHub PATs pasted into earlier sessions
-- [ ] On GoDaddy: A record `negativezero.one` → `<VPS_IP>` (already
-      pointing, no action unless the VPS is reprovisioned)
-- [ ] On GoDaddy: **delete** A records `auth.negativezero.one` and
-      `bookmarks.negativezero.one` (both point at the VPS but
-      nothing serves them anymore — Logto was removed 2026-05-28,
-      `bookmarks.*` was retired in Phase 0)
+- [x] **2026-06-15** GoDaddy DNS verified (via Chrome): apex `A @ →
+      45.76.88.245` correct; the stale `auth.` and `bookmarks.` records
+      no longer exist (already removed) — nothing to delete. Live records:
+      `A @`, `NS`×2, `CNAME tg → vercel`, `CNAME www → negativezero.one`,
+      `_domainconnect`, `SOA`, `TXT _dmarc`. (Note: `tg.` → Vercel is the
+      tg-downloader; left untouched.)
 - [ ] On GitHub: delete `ChocolateBrownie250/negativezero-services`
       repo (archived 2026-05-28, but `gh repo delete` needs the
       `delete_repo` scope: `gh auth refresh -h github.com -s
