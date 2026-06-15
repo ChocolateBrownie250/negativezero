@@ -33,6 +33,7 @@ export const config = {
   port: Number(process.env.PORT ?? 3000),
   sessionSecret: Buffer.from(sessionSecretHex, 'hex'),
   setupCodeHash,
+  ssoSecret: process.env.SSO_SESSION_SECRET ?? '',
   publicUrl: process.env.PUBLIC_URL ?? '',
   dataDir:
     process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data'),

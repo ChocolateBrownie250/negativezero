@@ -112,15 +112,40 @@ export default function Login({ onLoggedIn }: Props) {
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() =>
+            window.location.assign(
+              '/services/admin/?return=/services/video-downloader/',
+            )
+          }
+          className="w-full rounded-xl py-3 text-white font-semibold flex items-center justify-center gap-2"
+          style={{
+            background: COLORS.blue,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.20)',
+          }}
+        >
+          <Shield size={18} />
+          Sign in with negativezero
+        </button>
+
+        <div
+          className="text-[12px] text-center my-4"
+          style={{ color: LABEL_TERTIARY }}
+        >
+          or use this service's passkey
+        </div>
+
         {hasPasskey && (
           <button
             type="button"
             onClick={onPasskey}
             disabled={submitting || !supported}
-            className="w-full rounded-xl py-3 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full rounded-xl py-3 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             style={{
-              background: COLORS.blue,
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.20)',
+              background: COLORS.surface,
+              color: '#ffffff',
+              boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
             }}
           >
             <KeyRound size={18} />
@@ -133,10 +158,11 @@ export default function Login({ onLoggedIn }: Props) {
             type="button"
             onClick={() => setModal('first')}
             disabled={!supported}
-            className="w-full rounded-xl py-3 text-white font-semibold disabled:opacity-50"
+            className="w-full rounded-xl py-3 font-semibold disabled:opacity-50"
             style={{
-              background: COLORS.blue,
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.20)',
+              background: COLORS.surface,
+              color: '#ffffff',
+              boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
             }}
           >
             Register for the first time

@@ -101,6 +101,32 @@ export default function Login({ onLoggedIn }: Props) {
           {hasPasskey ? 'Sign in with your passkey' : 'No passkey registered yet'}
         </p>
 
+        {/* Primary: cross-service SSO via negativezero admin. Redirects to the
+            admin login which mints the apex-wide nz_session cookie, then bounces
+            back here. Works even before a per-service passkey is registered. */}
+        <button
+          type="button"
+          onClick={() =>
+            window.location.assign(
+              '/services/admin/?return=/services/bookmark-manager/',
+            )
+          }
+          className="w-full rounded-xl py-3 text-white font-semibold flex items-center justify-center gap-2"
+          style={{
+            background: COLORS.blue,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.20)',
+          }}
+        >
+          Sign in with negativezero
+        </button>
+
+        <div
+          className="text-[12px] text-center my-3"
+          style={{ color: LABEL_TERTIARY }}
+        >
+          or
+        </div>
+
         {!supported && (
           <div
             className="text-[13px] mb-4 text-center"
@@ -115,10 +141,11 @@ export default function Login({ onLoggedIn }: Props) {
             type="button"
             onClick={onPasskey}
             disabled={submitting || !supported}
-            className="w-full rounded-xl py-3 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full rounded-xl py-3 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             style={{
-              background: COLORS.blue,
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.20)',
+              background: COLORS.surface,
+              color: '#ffffff',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
             }}
           >
             <KeyRound size={18} />

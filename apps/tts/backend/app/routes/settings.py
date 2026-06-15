@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
 
-from ..auth import verify_api_key
+from ..auth import verify_auth
 from ..glossary import load_glossary, update_anti_correct, update_personal
 from ..models import GlossaryUpdate, GlossaryView
 
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter(dependencies=[Depends(verify_auth)])
 
 
 @router.get("/glossary", response_model=GlossaryView)

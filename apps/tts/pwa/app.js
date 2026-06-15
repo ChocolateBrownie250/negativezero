@@ -33,12 +33,16 @@ function apiUrl(path) {
   return new URL(cleanPath, new URL("./", window.location.href)).href;
 }
 function authHeaders() {
-  if (!settings.apiKey) throw new Error("No API key set. Open Settings.");
-  return { Authorization: `Bearer ${settings.apiKey}` };
+  // When a key is set, send it as a Bearer token (iPhone Shortcut / manual
+  // fallback / pasted key). When empty, send no auth header — the browser
+  // relies on the shared `nz_session` SSO cookie instead.
+  if (settings.apiKey) return { Authorization: `Bearer ${settings.apiKey}` };
+  return {};
 }
 async function api(path, init = {}) {
   const headers = { ...authHeaders(), ...(init.headers || {}) };
-  const resp = await fetch(apiUrl(path), { ...init, headers });
+  // credentials: "include" so the cross-service `nz_session` cookie is sent.
+  const resp = await fetch(apiUrl(path), { ...init, headers, credentials: "include" });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
     // Pull a friendly message out of FastAPI's `{"detail": "..."}` shape
@@ -56,6 +60,17 @@ async function api(path, init = {}) {
   }
   const ct = resp.headers.get("content-type") || "";
   return ct.includes("application/json") ? resp.json() : resp.text();
+}
+
+// When a request comes back 401 and no manual API key is configured, the
+// browser has no valid SSO cookie — bounce to the hub login, which returns
+// here once authenticated. Returns true if it handled (redirected) the error.
+function handleAuthError(e) {
+  if (e && e.status === 401 && !settings.apiKey) {
+    window.location.assign("/services/admin/?return=/services/tts/");
+    return true;
+  }
+  return false;
 }
 
 // ----- Tabs -----
@@ -540,10 +555,6 @@ async function refreshHistory() {
 }
 
 async function loadHistory(reset) {
-  if (!settings.apiKey) {
-    historyList.innerHTML = `<li class="muted">Set API key in Settings first.</li>`;
-    return;
-  }
   const params = new URLSearchParams({ limit: "30" });
   if (historyCursor) params.set("cursor", historyCursor);
   if (historyQuery) params.set("q", historyQuery);
@@ -556,6 +567,11 @@ async function loadHistory(reset) {
       historyList.innerHTML = `<li class="muted">No transcriptions yet.</li>`;
     }
   } catch (e) {
+    if (handleAuthError(e)) return;
+    if (e.status === 401) {
+      historyList.innerHTML = `<li class="muted">Set API key in Settings first.</li>`;
+      return;
+    }
     historyList.replaceChildren(errorRow(e.message));
   }
 }
@@ -793,10 +809,6 @@ function paintBucket(suffix, b) {
     `${b.transcriptions} ${b.transcriptions === 1 ? "clip" : "clips"}`;
 }
 async function loadUsage() {
-  if (!settings.apiKey) {
-    usageDetails.textContent = "Set API key first to see usage.";
-    return;
-  }
   usageDetails.textContent = "Loading…";
   try {
     const u = await api("api/v1/usage");
@@ -810,6 +822,11 @@ async function loadUsage() {
       `${all.cleanups} cleanup runs · ${compute.toFixed(1)}s total processing time. ` +
       `Aggregated from local DB; Groq billing may differ.`;
   } catch (e) {
+    if (handleAuthError(e)) return;
+    if (e.status === 401) {
+      usageDetails.textContent = "Set API key first to see usage.";
+      return;
+    }
     usageDetails.textContent = "Failed to load usage: " + e.message;
   }
 }
@@ -944,13 +961,6 @@ function fmtRelative(ts) {
 }
 
 async function notesLoadList(reset = true) {
-  if (!settings.apiKey) {
-    notesElem.list.innerHTML = `<li class="muted">Set API key in Settings first.</li>`;
-    notesElem.empty.classList.add("hidden");
-    notesElem.noMatch.classList.add("hidden");
-    notesElem.queuedSection.classList.add("hidden");
-    return;
-  }
   if (reset) {
     notesState.cursor = null;
     notesElem.list.innerHTML = "";
@@ -974,6 +984,14 @@ async function notesLoadList(reset = true) {
     notesElem.empty.classList.toggle("hidden", !empty || searching);
     notesElem.noMatch.classList.toggle("hidden", !empty || !searching);
   } catch (e) {
+    if (handleAuthError(e)) return;
+    if (e.status === 401) {
+      notesElem.list.innerHTML = `<li class="muted">Set API key in Settings first.</li>`;
+      notesElem.empty.classList.add("hidden");
+      notesElem.noMatch.classList.add("hidden");
+      notesElem.queuedSection.classList.add("hidden");
+      return;
+    }
     notesElem.list.replaceChildren(errorRow(e.message));
   }
 }
@@ -1095,10 +1113,6 @@ function notesBackToList() {
 }
 
 async function notesCreate() {
-  if (!settings.apiKey) {
-    alert("Set API key in Settings first.");
-    return;
-  }
   try {
     const n = await api("api/v1/notes", {
       method: "POST",
@@ -1107,6 +1121,11 @@ async function notesCreate() {
     });
     await notesOpen(n.id);
   } catch (e) {
+    if (handleAuthError(e)) return;
+    if (e.status === 401) {
+      alert("Set API key in Settings first.");
+      return;
+    }
     alert("Couldn't create note: " + e.message);
   }
 }

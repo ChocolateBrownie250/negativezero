@@ -11,9 +11,15 @@ import type {
   AuthenticationResponseJSON,
   AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
-import { config } from '../config.js';
+import { config, isProd } from '../config.js';
 import { db, type CredentialRow } from '../db.js';
 import { generateRegistrationCode, normalizeCode } from '../lib/codes.js';
+import {
+  mintSsoSession,
+  readSsoCookie,
+  verifySsoSession,
+  SSO_MAX_AGE_S,
+} from '../lib/ssoSession.js';
 import {
   RP_ID,
   RP_NAME,
@@ -103,14 +109,22 @@ async function hashBackupCode(plain: string): Promise<string> {
 
 export default async function authRoutes(app: FastifyInstance) {
   app.get('/auth/me', async (req) => {
+    let authenticated = req.session.get('userId') === 'owner';
+    if (!authenticated) {
+      const ssoToken = readSsoCookie(req.headers.cookie);
+      if (ssoToken && (await verifySsoSession(ssoToken, config.ssoSecret))) {
+        authenticated = true;
+      }
+    }
     return {
-      authenticated: req.session.get('userId') === 'owner',
+      authenticated,
       hasPasskey: credentialCount() > 0,
     };
   });
 
-  app.post('/auth/logout', async (req) => {
+  app.post('/auth/logout', async (req, reply) => {
     req.session.delete();
+    reply.clearCookie('nz_session', { path: '/' });
     return { ok: true };
   });
 
@@ -262,6 +276,16 @@ export default async function authRoutes(app: FastifyInstance) {
       req.session.set('regMode', undefined);
       req.session.set('userId', 'owner');
 
+      // Mint the apex-wide SSO cookie so other services accept this session too.
+      const ssoToken = await mintSsoSession(config.ssoSecret);
+      reply.setCookie('nz_session', ssoToken, {
+        path: '/',
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: SSO_MAX_AGE_S,
+      });
+
       return {
         ok: true,
         backupCode: newBackupPlain,
@@ -344,6 +368,17 @@ export default async function authRoutes(app: FastifyInstance) {
 
       req.session.set('authChallenge', undefined);
       req.session.set('userId', 'owner');
+
+      // Mint the apex-wide SSO cookie so other services accept this session too.
+      const ssoToken = await mintSsoSession(config.ssoSecret);
+      reply.setCookie('nz_session', ssoToken, {
+        path: '/',
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: SSO_MAX_AGE_S,
+      });
+
       audit(req, 'login_success', `credential ${row.id}`);
       return { ok: true };
     },

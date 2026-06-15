@@ -36,6 +36,7 @@ export const config = {
   sessionSecret: Buffer.from(sessionSecretHex, 'hex'),
   encryptionKeyHex,
   setupCodeHash,
+  ssoSecret: process.env.SSO_SESSION_SECRET ?? '',
   publicUrl: process.env.PUBLIC_URL ?? '',
   dataDir:
     process.env.DATA_DIR ??

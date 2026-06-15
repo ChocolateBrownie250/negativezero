@@ -49,6 +49,14 @@ export default function Login({ onLoggedIn }: Props) {
       const options = await api.passkey.loginOptions();
       const assertion = await startAuthentication({ optionsJSON: options as never });
       await api.passkey.loginVerify(assertion);
+      // Cross-service SSO bounce: if another service sent us here with a
+      // ?return=/services/... path, return the user there now that the shared
+      // nz_session cookie has been set. Guard to same-origin /services/ paths.
+      const returnValue = new URLSearchParams(window.location.search).get('return');
+      if (returnValue && returnValue.startsWith('/services/')) {
+        window.location.assign(returnValue);
+        return;
+      }
       onLoggedIn();
     } catch (err: unknown) {
       const status = (err as { status?: number }).status;

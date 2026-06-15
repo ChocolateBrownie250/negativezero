@@ -19,7 +19,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from ulid import ULID
 
-from ..auth import verify_api_key
+from ..auth import verify_auth
 from ..db import get_db
 from ..fts import build_fts_query
 from ..glossary import load_glossary
@@ -36,7 +36,7 @@ from ..models import (
 )
 
 log = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter(dependencies=[Depends(verify_auth)])
 
 
 def _safe(row, col: str):
