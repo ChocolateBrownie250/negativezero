@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     groq_api_key: str = Field(..., alias="GROQ_API_KEY")
     amethyst_api_key: str = Field(..., alias="AMETHYST_API_KEY")
 
+    # Shared cross-service SSO secret. When set, the browser PWA can
+    # authenticate via the hub-issued `nz_session` HS256 JWT cookie instead
+    # of the Bearer API key. Used VERBATIM as the HMAC key (UTF-8 bytes),
+    # matching the Node services' `new TextEncoder().encode(secret)`.
+    # Empty (default) disables the cookie path — only Bearer works.
+    sso_session_secret: str = Field("", alias="SSO_SESSION_SECRET")
+
     public_host: str = Field("localhost", alias="PUBLIC_HOST")
     acme_email: str = Field("", alias="ACME_EMAIL")
 

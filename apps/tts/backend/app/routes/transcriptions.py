@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from ..auth import verify_api_key
+from ..auth import verify_auth
 from ..config import settings
 from ..db import get_db
 from ..fts import build_fts_query
@@ -24,7 +24,7 @@ from ..models import (
 )
 
 log = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter(dependencies=[Depends(verify_auth)])
 
 
 _AUDIO_MEDIA_TYPES = {

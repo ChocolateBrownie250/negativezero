@@ -12,10 +12,10 @@ import time
 
 from fastapi import APIRouter, Depends
 
-from ..auth import verify_api_key
+from ..auth import verify_auth
 from ..db import get_db
 
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter(dependencies=[Depends(verify_auth)])
 
 
 def _bucket_starts(now_ts: int | None = None) -> dict[str, int]:

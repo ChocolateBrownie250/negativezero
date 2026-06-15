@@ -27,8 +27,9 @@ function apiUrl(path) {
   return new URL(cleanPath, new URL("./", window.location.href)).href;
 }
 function authHeaders() {
-  if (!settings.apiKey) throw new Error("No API key — open the main app's Settings tab and save it once.");
-  return { Authorization: `Bearer ${settings.apiKey}` };
+  // With a pasted key (Shortcut / manual), send Bearer. Otherwise rely on the
+  // apex SSO cookie (nz_session) sent automatically via credentials: "include".
+  return settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
 }
 
 // ---------- DOM refs ----------
@@ -184,10 +185,8 @@ async function startLive() {
     return;
   }
   try {
-    if (!settings.apiKey) {
-      setStatus("Set the API key in the main app first (Settings → API key → Save).", "error");
-      return;
-    }
+    // No upfront key gate: the browser authenticates via the apex SSO cookie,
+    // machine clients via Bearer. The transcribe POST 401s if neither is valid.
     const deviceId = deviceSel.value || undefined;
     state.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -303,7 +302,7 @@ async function uploadChunk(blob, mime, startedAt) {
   const t0 = performance.now();
   try {
     const resp = await fetch(apiUrl("api/v1/transcribe"), {
-      method: "POST", body: fd, headers: authHeaders(),
+      method: "POST", body: fd, headers: authHeaders(), credentials: "include",
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");

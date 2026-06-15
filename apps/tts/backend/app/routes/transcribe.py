@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from ulid import ULID
 
-from ..auth import verify_api_key
+from ..auth import verify_auth
 from ..config import settings
 from ..db import get_db
 from ..glossary import load_glossary
@@ -17,7 +17,7 @@ from ..models import CleanupMode, TranscriptionResponse
 from ..storage import GROQ_AUDIO_LIMIT_BYTES, save_audio
 
 log = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter(dependencies=[Depends(verify_auth)])
 
 
 def _ext_from_upload(file: UploadFile) -> str:
