@@ -31,7 +31,8 @@ RUN pip install --no-cache-dir \
         "argon2-cffi>=23.1" \
         "aiosqlite>=0.20" \
         "python-ulid>=3.0" \
-        "httpx>=0.27"
+        "httpx>=0.27" \
+        "pyjwt>=2.8"
 
 COPY backend/app /app/app
 COPY pwa /app/pwa
