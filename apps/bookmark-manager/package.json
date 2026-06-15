@@ -16,6 +16,6 @@
     "hash-password": "npm -w server run hash-password"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^10.0.3"
   }
 }
