@@ -42,14 +42,16 @@ procedures.
 
 Remaining one-time browser steps for the operator:
 
-- [ ] **Register passkeys (fresh codes issued 2026-06-15).** All
-      passkeys were wiped on the user's request (data preserved); fresh
-      single-use setup codes for **admin / bookmark-manager /
-      video-downloader** are in `/root/nz-setup-codes.txt` on the VPS
-      (`ssh wellfit cat /root/nz-setup-codes.txt`). For each: open the
-      URL, register a passkey, **save the backup code it shows**. tts has
-      no passkey accounts — access is the `AMETHYST_API_KEY` already in
-      the PWA settings.
+- [ ] **Register ONE passkey on admin (SSO covers the rest).** Since
+      2026-06-15 the platform has single-sign-on: register a passkey at
+      `https://negativezero.one/services/admin/` using the admin setup
+      code from `/root/nz-setup-codes.txt` (`ssh wellfit cat …`), **save
+      the backup code it shows**, and you're then signed in to
+      bookmark-manager, video-downloader and tts automatically (the
+      apex `nz_session` cookie). The bookmark/video-downloader setup
+      codes are now only needed if you want a per-service fallback
+      passkey. tts browser PWA uses the SSO session; the iPhone Shortcut
+      still uses the `AMETHYST_API_KEY`.
 
 ## Admin edits tts prompts (Phase 3 — agent-friendly chunks)
 
@@ -125,6 +127,17 @@ and SPA static serving all work under fastify 5.
 
 ## Done
 
+- [x] **2026-06-15** Cross-service SSO (PR #69 + tts Dockerfile fix):
+      lightweight single-sign-on — admin mints an apex-wide `nz_session`
+      HS256-JWT cookie on passkey login; bookmark-manager,
+      video-downloader and tts all accept it (additive — each service's
+      own login stays as a fallback). Shared `SSO_SESSION_SECRET` (seeded
+      by deploy.sh), `jose` (Node) / `PyJWT` (tts), secret used verbatim
+      so both languages agree. tts keeps Bearer-key auth for the iPhone
+      Shortcut. Verified live: one minted cookie → `authenticated:true` on
+      all 4 services, bad tokens → 401, Bearer key → 200. (One snag fixed:
+      the tts Dockerfile pins an explicit pip list, so PyJWT had to be
+      added there, not just pyproject.)
 - [x] **2026-06-15** Ops maintenance: nightly encrypted backups wired
       (see Polish section), tts data included in snapshots, dead amethyst
       backup cron removed. Confirmed the "TTS absorbed" migration fully
