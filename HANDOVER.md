@@ -172,8 +172,9 @@ The compose stack comes back on reboot via a systemd unit
 `docker compose up -d` after `docker.service`, so the services return even
 if the stack was torn down before the reboot. It is up-only: `systemctl
 stop` does *not* tear the stack down (use `docker compose down`). The unit
-lives only on the VPS, not in the repo. Full details + the unit file:
-RUNBOOK.md → *Boot survival — negativezero-compose.service*.
+is tracked at `platform/negativezero-compose.service` and installed by
+`deploy.sh`. Full details: RUNBOOK.md → *Boot survival —
+negativezero-compose.service*.
 
 ### Issue a new registration code via admin
 

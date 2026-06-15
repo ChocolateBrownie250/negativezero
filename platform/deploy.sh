@@ -13,6 +13,8 @@
 #   4. Builds + starts all containers via docker compose. tts is skipped
 #      until GROQ_API_KEY is present so the apex deploys cleanly before
 #      the operator has wired up Groq.
+#   4b. Installs a systemd unit (negativezero-compose) so the stack
+#      comes back on boot even if it was torn down
 #   5. Installs nginx site file for negativezero.one + shared upgrade map
 #   6. certbot --nginx for TLS on negativezero.one (skipped if DNS not live)
 #   7. Final smoke test
@@ -228,6 +230,36 @@ if [ "$GROQ_PRESENT" = "1" ]; then
 fi
 
 # ────────────────────────────────────────────────────────────────────────
+# 4b. Boot-survival systemd unit
+# ────────────────────────────────────────────────────────────────────────
+# Without this, the stack only returns after a reboot via Docker's
+# restart-policy replay — which does nothing if the stack was torn down
+# (compose down / prune / interrupted deploy) before the reboot. This unit
+# runs `docker compose up -d` on every boot. Scoped to negativezero only;
+# idempotent (re-copy + reload + enable are no-ops when already in place).
+# enable (not --now): the boot symlink is what matters — the stack is
+# already up from section 4, so the unit need not run during the deploy.
+BOOT_UNIT_SRC="$PLATFORM_DIR/negativezero-compose.service"
+BOOT_UNIT_DST="/etc/systemd/system/negativezero-compose.service"
+if [ -f "$BOOT_UNIT_SRC" ] && command -v systemctl >/dev/null 2>&1; then
+    # Render WorkingDirectory from the live $PLATFORM_DIR (same __TOKEN__
+    # pattern as the nginx site below) so the boot unit can never drift
+    # from where the repo is actually checked out.
+    rendered="$(mktemp)"
+    sed "s|__PLATFORM_DIR__|$PLATFORM_DIR|g" "$BOOT_UNIT_SRC" > "$rendered"
+    if ! cmp -s "$rendered" "$BOOT_UNIT_DST" 2>/dev/null; then
+        log "Installing boot-survival unit: $BOOT_UNIT_DST"
+        cp "$rendered" "$BOOT_UNIT_DST"
+        systemctl daemon-reload
+    fi
+    rm -f "$rendered"
+    systemctl enable negativezero-compose.service >/dev/null 2>&1 \
+        || warn "could not enable negativezero-compose.service"
+else
+    warn "boot unit not installed (missing $BOOT_UNIT_SRC or systemctl)"
+fi
+
+# ────────────────────────────────────────────────────────────────────────
 # 5. nginx sites + connection-upgrade map
 # ────────────────────────────────────────────────────────────────────────
 SITES_AVAIL=/etc/nginx/sites-available
@@ -318,3 +350,4 @@ echo "  Status:           docker compose -f $COMPOSE_FILE ps"
 echo "  Logs:             docker compose -f $COMPOSE_FILE logs -f"
 echo "  Env file:         $ENV_FILE  (chmod 600)"
 echo "  Re-run:           bash $PLATFORM_DIR/deploy.sh"
+echo "  Boot unit:        systemctl status negativezero-compose.service"

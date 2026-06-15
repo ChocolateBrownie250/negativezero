@@ -230,10 +230,14 @@ rm /etc/systemd/system/negativezero-compose.service
 systemctl daemon-reload
 ```
 
-**(not in git yet)** This unit lives only on the VPS — it is not part of
-the repo, so the rsync deploy neither installs nor removes it. If the box
-is ever rebuilt, re-create the file above. To make it reproducible, commit
-it under `platform/` and install it from `deploy.sh`.
+The unit is tracked in the repo at
+[`../platform/negativezero-compose.service`](../platform/negativezero-compose.service),
+and `deploy.sh` installs + enables it idempotently (section *4b*) — so a
+deploy or a box rebuild re-creates it. `deploy.sh` only `enable`s it (the
+boot symlink); it does not start the unit during a deploy, because the
+deploy already ran `docker compose up -d` itself. (The repo copy templates
+`WorkingDirectory` as `__PLATFORM_DIR__`; `deploy.sh` substitutes the real
+checkout path on install — shown resolved above.)
 
 ## Roll out a code change
 
