@@ -19,8 +19,8 @@ operator has to do them in a browser / VPS console.
 
 - [ ] Rotate the VPS root password (the old one was committed
       plaintext to `url-vault/HANDOVER.md` before this merge)
-- [ ] Rotate the bookmark-manager v1 setup code if it was ever set
-      on the live deploy (also in old HANDOVER.md)
+- [x] ~~Rotate the bookmark-manager v1 setup code~~ — superseded
+      2026-06-15: all setup codes regenerated in the full passkey reset
 - [ ] Revoke any GitHub PATs pasted into earlier sessions
 - [x] **2026-06-15** GoDaddy DNS verified (via Chrome): apex `A @ →
       45.76.88.245` correct; the stale `auth.` and `bookmarks.` records
@@ -42,13 +42,14 @@ procedures.
 
 Remaining one-time browser steps for the operator:
 
-- [ ] Register a passkey at
-      `https://negativezero.one/services/bookmark-manager/` using the
-      bookmark-manager setup code from `/tmp/deploy*.log` on the VPS
-      (or re-derive via the "regenerate everything" procedure in
-      HANDOVER.md — only safe if no passkey is registered yet)
-- [ ] Register a passkey at `https://negativezero.one/services/admin/`
-      using the admin setup code (same source as above)
+- [ ] **Register passkeys (fresh codes issued 2026-06-15).** All
+      passkeys were wiped on the user's request (data preserved); fresh
+      single-use setup codes for **admin / bookmark-manager /
+      video-downloader** are in `/root/nz-setup-codes.txt` on the VPS
+      (`ssh wellfit cat /root/nz-setup-codes.txt`). For each: open the
+      URL, register a passkey, **save the backup code it shows**. tts has
+      no passkey accounts — access is the `AMETHYST_API_KEY` already in
+      the PWA settings.
 
 ## Admin edits tts prompts (Phase 3 — agent-friendly chunks)
 
