@@ -167,7 +167,10 @@ async function startRecording() {
 
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      // channelCount:1 — Whisper downmixes to mono anyway, so capturing a
+      // single channel sends the whole bitrate budget to one voice track and
+      // halves upload size on stereo inputs (no transcription-accuracy cost).
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
   } catch (err) {
     console.error("getUserMedia failed:", err);
@@ -759,6 +762,11 @@ function paintSettings() {
   apiKey.value  = settings.apiKey;
   defLang.value = settings.defLang;
   defCleanup.value = settings.defCleanup;
+  // Whisper resamples to 16 kHz mono, so bitrate above ~32 kbps buys no
+  // transcription quality. We now only offer 24/32; coerce any legacy
+  // 48k/64k preference down to the recommended 32k.
+  const ALLOWED_BITRATES = new Set([24000, 32000]);
+  if (!ALLOWED_BITRATES.has(settings.audioBitrate)) settings.audioBitrate = 32000;
   audioBitrate.value = String(settings.audioBitrate);
 }
 paintSettings();
@@ -1235,7 +1243,9 @@ function notesDictateStart() {
 async function beginDictation() {
   try {
     notesState.recDictate.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      // Mono capture — see beginRecording(): Whisper is mono, so one channel
+      // is optimal and keeps uploads small.
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
   } catch (err) {
     alert("Mic error: " + describeMediaError(err));
