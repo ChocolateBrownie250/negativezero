@@ -11,6 +11,7 @@ from ..config import settings
 from ..db import get_db
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
+from ..groq_client import map_upstream_error
 from ..groq_client import transcribe as groq_transcribe
 from ..groq_client import validate_chat_model, validate_whisper_model
 from ..models import CleanupMode, TranscriptionResponse
@@ -82,7 +83,8 @@ async def transcribe_audio(
         )
     except Exception as exc:
         log.exception("Whisper call failed")
-        raise HTTPException(502, "Transcription upstream failed") from exc
+        status, detail = map_upstream_error(exc, action="Transcription")
+        raise HTTPException(status, detail) from exc
 
     text_raw = whisper.text
     text_clean: str | None = None

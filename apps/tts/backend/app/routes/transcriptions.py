@@ -13,6 +13,7 @@ from ..db import get_db
 from ..fts import build_fts_query
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
+from ..groq_client import map_upstream_error
 from ..groq_client import polish as groq_polish
 from ..groq_client import transcribe as groq_transcribe
 from ..groq_client import translate as groq_translate
@@ -295,7 +296,8 @@ async def retranscribe(
         )
     except Exception as exc:
         log.exception("Re-transcribe call failed")
-        raise HTTPException(502, "Transcription upstream failed") from exc
+        status, detail = map_upstream_error(exc, action="Transcription")
+        raise HTTPException(status, detail) from exc
 
     async with get_db() as conn:
         await conn.execute(
@@ -363,7 +365,8 @@ async def polish_transcription(
         raise HTTPException(413, str(exc)) from exc
     except Exception as exc:
         log.exception("Polish call failed")
-        raise HTTPException(502, "Polish upstream failed") from exc
+        status, detail = map_upstream_error(exc, action="Polish")
+        raise HTTPException(status, detail) from exc
 
     async with get_db() as conn:
         await conn.execute(
@@ -443,7 +446,8 @@ async def translate_transcription(
         raise HTTPException(413, str(exc)) from exc
     except Exception as exc:
         log.exception("Translate call failed")
-        raise HTTPException(502, "Translation upstream failed") from exc
+        status, detail = map_upstream_error(exc, action="Translation")
+        raise HTTPException(status, detail) from exc
 
     async with get_db() as conn:
         await conn.execute(

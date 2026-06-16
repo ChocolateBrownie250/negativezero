@@ -24,6 +24,7 @@ from ..db import get_db
 from ..fts import build_fts_query
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
+from ..groq_client import map_upstream_error
 from ..groq_client import polish as groq_polish
 from ..groq_client import transcribe as groq_transcribe
 from ..models import (
@@ -246,7 +247,8 @@ async def dictate_into_note(
         )
     except Exception as exc:
         log.exception("Note-dictate transcribe failed")
-        raise HTTPException(502, "Transcription upstream failed") from exc
+        status, detail = map_upstream_error(exc, action="Transcription")
+        raise HTTPException(status, detail) from exc
 
     text_raw = whisper.text
     text_cleaned: str | None = None
