@@ -18,18 +18,10 @@ import {
   RING_STRONG,
 } from '../lib/colors';
 import EditModal from '../components/modals/EditModal';
+import { redirectErrorLabel } from '../lib/errors';
 
 interface Props {
   onUnauthorized: () => void;
-}
-
-function errorLabel(message: string): string {
-  const key = message.replace(/\s\(\d+\)$/, '');
-  const labels: Record<string, string> = {
-    invalid_target: 'Enter a valid http(s) URL.',
-    validation: 'Enter a destination URL.',
-  };
-  return labels[key] ?? message;
 }
 
 function hostOf(target: string): string {
@@ -51,7 +43,10 @@ export default function Dashboard({ onUnauthorized }: Props) {
 
   function handleError(err: unknown) {
     if (err instanceof UnauthorizedError) onUnauthorized();
-    else setError(errorLabel((err as Error).message || 'request_failed'));
+    else {
+      const msg = (err as Error).message || 'request_failed';
+      setError(redirectErrorLabel(msg, msg));
+    }
   }
 
   useEffect(() => {

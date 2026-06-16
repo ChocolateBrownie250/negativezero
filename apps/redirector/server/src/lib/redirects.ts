@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 // Every redirect is addressed by a 16-character hash that lives directly under
 // the service root: negativezero.one/services/redirector/<hash>. The hash is
 // minted server-side; the user only supplies the destination. Lowercase base36
-// keeps the link copy-paste friendly and case-insensitive.
+// keeps the link copy-paste friendly.
 export const SLUG_LENGTH = 16;
 const SLUG_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -12,10 +12,6 @@ const SLUG_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 // never shadow the SPA, the API, or a static asset path.
 export const SLUG_PATTERN = `[a-z0-9]{${SLUG_LENGTH}}`;
 const SLUG_RE = new RegExp(`^${SLUG_PATTERN}$`);
-
-export function normalizeSlug(input: string): string {
-  return input.trim().toLowerCase();
-}
 
 export function isValidSlug(slug: string): boolean {
   return SLUG_RE.test(slug);
@@ -37,34 +33,26 @@ export class InvalidTargetError extends Error {
   }
 }
 
+const MAX_TARGET_LEN = 2048;
+
 // Normalize a user-supplied target into a canonical absolute http(s) URL.
-// A bare "example.com/x" is treated as https. Anything that isn't http or
-// https (javascript:, data:, mailto:, file:, …) is rejected — we only ever
-// emit the result as a Location header, and only http(s) is safe to redirect
-// a browser to.
+//   - Explicit http://… / https://… is used as-is.
+//   - An explicit non-http(s) authority scheme (ftp://, ws://, file://) is
+//     rejected outright.
+//   - Anything else (a bare "example.com/x", "host:port/x") is treated as
+//     https.
+// The final protocol/host check is the real guard: whatever we store is only
+// ever emitted as a Location header, and only an http(s) URL with a host is
+// safe to redirect a browser to.
 export function normalizeTarget(input: string): string {
   const raw = input.trim();
-  if (!raw) throw new InvalidTargetError();
+  if (!raw || raw.length > MAX_TARGET_LEN) throw new InvalidTargetError();
 
-  let candidate = raw;
-  const schemeMatch = raw.match(/^([a-z][a-z0-9+.-]*):(.*)$/is);
-  if (schemeMatch) {
-    const scheme = schemeMatch[1].toLowerCase();
-    const rest = schemeMatch[2];
-    if (rest.startsWith('//')) {
-      // Authority-based scheme (scheme://…). Must be http or https — reject
-      // ftp:, file:, ws:, etc.
-      if (scheme !== 'http' && scheme !== 'https') throw new InvalidTargetError();
-    } else if (!scheme.includes('.') && !/^\d/.test(rest)) {
-      // Opaque scheme with no authority (mailto:, javascript:, data:, tel:).
-      // A bare "host:port" is distinguished because the part before the colon
-      // is a hostname (may contain a dot) and the part after starts with the
-      // port digits — neither holds for these schemes, so reject.
-      throw new InvalidTargetError();
-    } else {
-      // Bare "host:port[/path]" — no scheme. Default to https.
-      candidate = `https://${raw}`;
-    }
+  let candidate: string;
+  if (/^https?:\/\//i.test(raw)) {
+    candidate = raw;
+  } else if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) {
+    throw new InvalidTargetError();
   } else {
     candidate = `https://${raw}`;
   }

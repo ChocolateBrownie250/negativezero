@@ -1,21 +1,13 @@
 import { useState } from 'react';
 import { api, type Redirect } from '../../api';
 import { COLORS, LABEL_SECONDARY } from '../../lib/colors';
+import { redirectErrorLabel } from '../../lib/errors';
 import Modal from './Modal';
 
 interface Props {
   redirect: Redirect;
   onClose: () => void;
   onSaved: (next: Redirect) => void;
-}
-
-function errorLabel(message: string): string {
-  const key = message.replace(/\s\(\d+\)$/, '');
-  const labels: Record<string, string> = {
-    invalid_target: 'Enter a valid http(s) URL.',
-    validation: 'Enter a destination URL.',
-  };
-  return labels[key] ?? 'Could not save changes.';
 }
 
 export default function EditModal({ redirect, onClose, onSaved }: Props) {
@@ -35,7 +27,12 @@ export default function EditModal({ redirect, onClose, onSaved }: Props) {
       });
       onSaved(next);
     } catch (err) {
-      setError(errorLabel((err as Error).message || 'request_failed'));
+      setError(
+        redirectErrorLabel(
+          (err as Error).message || 'request_failed',
+          'Could not save changes.',
+        ),
+      );
       setSaving(false);
     }
   }

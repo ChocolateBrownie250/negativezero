@@ -32,12 +32,21 @@ describe('lib/redirects', () => {
     expect(normalizeTarget('example.com')).toBe('https://example.com/');
     expect(normalizeTarget('  example.com/path  ')).toBe('https://example.com/path');
     expect(normalizeTarget('http://example.com')).toBe('http://example.com/');
+    expect(normalizeTarget('example.com:8080/p')).toBe('https://example.com:8080/p');
   });
 
-  it('rejects non-http(s) targets', () => {
+  it('accepts a bare host carrying userinfo (default https)', () => {
+    expect(normalizeTarget('user:pass@example.com/path')).toBe(
+      'https://user:pass@example.com/path',
+    );
+  });
+
+  it('rejects non-http(s) and empty targets', () => {
     expect(() => normalizeTarget('javascript:alert(1)')).toThrow(InvalidTargetError);
-    expect(() => normalizeTarget('mailto:a@b.com')).toThrow(InvalidTargetError);
+    expect(() => normalizeTarget('ftp://example.com')).toThrow(InvalidTargetError);
+    expect(() => normalizeTarget('data:text/html,<x>')).toThrow(InvalidTargetError);
     expect(() => normalizeTarget('')).toThrow(InvalidTargetError);
+    expect(() => normalizeTarget('a'.repeat(2049))).toThrow(InvalidTargetError);
   });
 });
 

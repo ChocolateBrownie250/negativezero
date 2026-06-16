@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { db, type RedirectRow } from '../db.js';
-import { normalizeSlug, SLUG_PATTERN } from '../lib/redirects.js';
+import { SLUG_PATTERN } from '../lib/redirects.js';
 
 // Public redirect endpoint. No auth: the whole point is a shareable link.
 // The hash lives directly under the service root —
 // negativezero.one/services/redirector/<hash> — which nginx prefix-strips to
-// /<hash>. The route param is regex-constrained to the exact 16-char hash
-// shape so it can never shadow the SPA ('/'), the API ('/api/...'), or a
-// static asset ('/assets/...'). Rate-limited to blunt hash-enumeration.
+// /<hash>. The route param is regex-constrained to the exact 16-char lowercase
+// hash shape, so it can never shadow the SPA ('/'), the API ('/api/...'), or a
+// static asset ('/assets/...') — and the param always arrives already lowercase
+// and exact-length, so it's used verbatim. Rate-limited to blunt enumeration.
 export default async function goRoutes(app: FastifyInstance) {
   app.get(
     `/:slug(${SLUG_PATTERN})`,
@@ -18,7 +19,7 @@ export default async function goRoutes(app: FastifyInstance) {
       const { slug } = req.params as { slug: string };
       const row = db
         .prepare('SELECT * FROM redirects WHERE slug = ?')
-        .get(normalizeSlug(slug)) as RedirectRow | undefined;
+        .get(slug) as RedirectRow | undefined;
 
       if (!row) {
         return reply.code(404).type('text/html').send(notFoundPage(slug));
