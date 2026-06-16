@@ -54,8 +54,10 @@ apps/
   admin/                registration-code generator (negativezero.one/services/admin/)
   tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/tts/)
   timezones/            static cross-timezone planner (negativezero.one/services/timezones/)
+  video-downloader/     clear-HLS remux tool (negativezero.one/services/video-downloader/)
+  redirector/           short-link redirects (negativezero.one/services/redirector/)
 platform/
-  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones
+  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones + video-downloader + redirector
   deploy.sh             idempotent deployer for the VPS
   nginx/                apex site config + shared connection_upgrade map
   .env.template         starting point for the deployed .env
@@ -141,6 +143,9 @@ negativezero.one/services/admin/               → admin SPA + API
 negativezero.one/services/tts/                 → tts PWA + API
 negativezero.one/services/tts/api/v1/...       → tts API (Bearer-authed)
 negativezero.one/services/timezones/           → static timezone planner
+negativezero.one/services/video-downloader/    → video-downloader SPA + API
+negativezero.one/services/redirector/          → redirector SPA + API
+negativezero.one/services/redirector/<hash>    → public 302 redirect (16-char hash)
 negativezero.one/vtt-transcriber/              → 301 redirect → /services/tts/
                                                   (legacy URL kept for old clients)
 negativezero.one/services/<future>/            → future services (add a location block)
@@ -284,17 +289,23 @@ Vultr VPS (Ubuntu)
 │   │   └── data/
 │   │       ├── bookmark-manager/  (SQLite + WAL, bind-mounted)
 │   │       ├── admin/             (SQLite + WAL, bind-mounted)
-│   │       └── tts/               (SQLite + WAL + audio/ cache, bind-mounted)
+│   │       ├── tts/               (SQLite + WAL + audio/ cache, bind-mounted)
+│   │       ├── video-downloader/  (SQLite + WAL, bind-mounted)
+│   │       └── redirector/        (SQLite + WAL, bind-mounted)
 │   ├── apps/landing/        (bind-mounted into nginx-alpine container)
 │   ├── apps/bookmark-manager/  (built into image at deploy time)
 │   ├── apps/admin/             (built into image at deploy time)
-│   └── apps/tts/               (built into image at deploy time)
+│   ├── apps/tts/               (built into image at deploy time)
+│   ├── apps/video-downloader/  (built into image at deploy time)
+│   └── apps/redirector/        (built into image at deploy time)
 │
 └── containers:
     ├── negativezero-landing            (nginx:alpine serving apps/landing/)
     ├── negativezero-bookmark-manager   (Fastify + built React, SQLite on volume)
     ├── negativezero-admin              (Fastify + built React, SQLite on volume)
-    └── negativezero-tts                (FastAPI + PWA, SQLite + audio on volume)
+    ├── negativezero-tts                (FastAPI + PWA, SQLite + audio on volume)
+    ├── negativezero-video-downloader   (Fastify + built React, SQLite on volume)
+    └── negativezero-redirector         (Fastify + built React, SQLite on volume)
 ```
 
 Deploy flow (idempotent): `platform/deploy.sh` ensures `.env` exists

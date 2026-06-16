@@ -1,0 +1,32 @@
+{
+  "name": "@negativezero/redirector-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/secure-session": "^8.3.0",
+    "@fastify/static": "^9.1.3",
+    "@simplewebauthn/server": "^13.3.0",
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^12.10.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.8.5",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.14.10",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3",
+    "vitest": "^2.1.9"
+  }
+}

@@ -1,0 +1,75 @@
+name: redirector
+
+# CI for the redirector service. Runs typecheck + tests + build, and
+# validates the Dockerfile can produce a runnable image. Mirrors
+# bookmark-manager.yml (minus the at-rest encryption key — redirector has
+# none — and the /bookmarks-pro/ guard).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/redirector/**'
+      - '.github/workflows/redirector.yml'
+  pull_request:
+    paths:
+      - 'apps/redirector/**'
+      - '.github/workflows/redirector.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/redirector
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          # Node 22 in lockstep with the other TS services + the Dockerfile.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/redirector/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck + build (client + server)
+        run: npm run build
+
+      - name: server tests
+        run: npm -w server test
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/redirector
+          push: false
+          load: true
+          tags: negativezero-redirector:ci
+          cache-from: type=gha,scope=redirector
+          cache-to: type=gha,scope=redirector,mode=max
+
+      - name: smoke-test image starts
+        # Boot the container with stub secrets and check it doesn't crash on
+        # config validation. Startup catching is enough to spot regressions in
+        # the runtime image layout; a full health probe needs a real session.
+        run: |
+          docker run --rm --name rd-smoke -d \
+            -e SESSION_SECRET=$(openssl rand -hex 32) \
+            -e SETUP_CODE_HASH='$2b$12$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRS' \
+            -e PUBLIC_URL=http://localhost:3000 \
+            -p 3000:3000 \
+            negativezero-redirector:ci
+          sleep 5
+          docker logs rd-smoke
+          docker ps --filter name=rd-smoke --filter status=running --format '{{.Names}}' | grep -q rd-smoke
+          docker stop rd-smoke
