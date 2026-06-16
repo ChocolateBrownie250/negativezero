@@ -60,11 +60,13 @@ mkdir -p "$PLATFORM_DIR/data/video-downloader"
 # Container processes run as UID 999 (the `app` user from each Dockerfile).
 # Bind-mounts inherit host ownership, so the host dirs must be writable by
 # 999, otherwise SQLite fails with SQLITE_CANTOPEN on first start.
+mkdir -p "$PLATFORM_DIR/data/redirector"
 chown -R 999:999 \
     "$PLATFORM_DIR/data/bookmark-manager" \
     "$PLATFORM_DIR/data/admin" \
     "$PLATFORM_DIR/data/tts" \
-    "$PLATFORM_DIR/data/video-downloader"
+    "$PLATFORM_DIR/data/video-downloader" \
+    "$PLATFORM_DIR/data/redirector"
 
 # ────────────────────────────────────────────────────────────────────────
 # 2. Pick free loopback ports
@@ -82,7 +84,8 @@ ADMIN_APP_PORT=$(next_free $((BOOKMARK_PORT+1)))
 TTS_PORT=$(next_free $((ADMIN_APP_PORT+1)))
 TIMEZONES_PORT=$(next_free $((TTS_PORT+1)))
 VIDEO_DOWNLOADER_PORT=$(next_free $((TIMEZONES_PORT+1)))
-log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT, timezones=$TIMEZONES_PORT, video-downloader=$VIDEO_DOWNLOADER_PORT"
+REDIRECTOR_PORT=$(next_free $((VIDEO_DOWNLOADER_PORT+1)))
+log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT, timezones=$TIMEZONES_PORT, video-downloader=$VIDEO_DOWNLOADER_PORT, redirector=$REDIRECTOR_PORT"
 
 # ────────────────────────────────────────────────────────────────────────
 # 3. .env (first run generates secrets; re-runs preserve them)
@@ -170,6 +173,36 @@ fi
 grep -q '^VIDEO_DOWNLOADER_PUBLIC_URL=' "$ENV_FILE" || \
     echo "VIDEO_DOWNLOADER_PUBLIC_URL=https://$APEX_DOMAIN/services/video-downloader" >> "$ENV_FILE"
 
+# ── redirector secrets (idempotent) ────────────────────────────
+# Added after .env was first generated, so seed its secrets on any run where
+# they're missing — not only on first-run. Same bcryptjs + $$-escape handling
+# as the first-run block above.
+if ! grep -Eq '^REDIRECTOR_SESSION_SECRET=[0-9a-fA-F]{64}$' "$ENV_FILE"; then
+    RD_SESSION_SECRET=$(openssl rand -hex 32)
+    if grep -q '^REDIRECTOR_SESSION_SECRET=' "$ENV_FILE"; then
+        sed -i "s|^REDIRECTOR_SESSION_SECRET=.*|REDIRECTOR_SESSION_SECRET=$RD_SESSION_SECRET|" "$ENV_FILE"
+    else
+        echo "REDIRECTOR_SESSION_SECRET=$RD_SESSION_SECRET" >> "$ENV_FILE"
+    fi
+fi
+if ! grep -Eq '^REDIRECTOR_SETUP_CODE_HASH=.+$' "$ENV_FILE"; then
+    RD_SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
+    RD_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
+        "cd /tmp && npm i bcryptjs --silent >/dev/null 2>&1 && node -e 'require(\"bcryptjs\").hash(process.argv[1],12).then(h=>console.log(h))' '$RD_SETUP_CODE'")
+    RD_SETUP_CODE_HASH_ESCAPED=${RD_SETUP_CODE_HASH//\$/\$\$}
+    if grep -q '^REDIRECTOR_SETUP_CODE_HASH=' "$ENV_FILE"; then
+        sed -i "s|^REDIRECTOR_SETUP_CODE_HASH=.*|REDIRECTOR_SETUP_CODE_HASH=$RD_SETUP_CODE_HASH_ESCAPED|" "$ENV_FILE"
+    else
+        echo "REDIRECTOR_SETUP_CODE_HASH=$RD_SETUP_CODE_HASH_ESCAPED" >> "$ENV_FILE"
+    fi
+    echo
+    warn "Redirector setup code (save this — it won't be shown again):"
+    echo "  redirector:        $RD_SETUP_CODE"
+    echo
+fi
+grep -q '^REDIRECTOR_PUBLIC_URL=' "$ENV_FILE" || \
+    echo "REDIRECTOR_PUBLIC_URL=https://$APEX_DOMAIN/services/redirector" >> "$ENV_FILE"
+
 # ── shared SSO session secret (idempotent) ─────────────────────
 # One HS256 key shared by every service so a single apex `nz_session` cookie
 # (minted by admin on passkey login) authenticates the user everywhere. The
@@ -190,12 +223,14 @@ fi
 # line before the sed replace runs.
 grep -q '^TIMEZONES_HOST_PORT=' "$ENV_FILE" || echo "TIMEZONES_HOST_PORT=$TIMEZONES_PORT" >> "$ENV_FILE"
 grep -q '^VIDEO_DOWNLOADER_HOST_PORT=' "$ENV_FILE" || echo "VIDEO_DOWNLOADER_HOST_PORT=$VIDEO_DOWNLOADER_PORT" >> "$ENV_FILE"
+grep -q '^REDIRECTOR_HOST_PORT=' "$ENV_FILE" || echo "REDIRECTOR_HOST_PORT=$REDIRECTOR_PORT" >> "$ENV_FILE"
 sed -i "s|^LANDING_HOST_PORT=.*|LANDING_HOST_PORT=$LANDING_PORT|"     "$ENV_FILE"
 sed -i "s|^BOOKMARK_HOST_PORT=.*|BOOKMARK_HOST_PORT=$BOOKMARK_PORT|"  "$ENV_FILE"
 sed -i "s|^ADMIN_HOST_PORT=.*|ADMIN_HOST_PORT=$ADMIN_APP_PORT|"       "$ENV_FILE"
 sed -i "s|^TTS_HOST_PORT=.*|TTS_HOST_PORT=$TTS_PORT|"                 "$ENV_FILE"
 sed -i "s|^TIMEZONES_HOST_PORT=.*|TIMEZONES_HOST_PORT=$TIMEZONES_PORT|" "$ENV_FILE"
 sed -i "s|^VIDEO_DOWNLOADER_HOST_PORT=.*|VIDEO_DOWNLOADER_HOST_PORT=$VIDEO_DOWNLOADER_PORT|" "$ENV_FILE"
+sed -i "s|^REDIRECTOR_HOST_PORT=.*|REDIRECTOR_HOST_PORT=$REDIRECTOR_PORT|" "$ENV_FILE"
 
 # ────────────────────────────────────────────────────────────────────────
 # 4. Docker compose
@@ -207,9 +242,9 @@ log "Building + starting containers"
 if [ "$GROQ_PRESENT" = "1" ]; then
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
 else
-    warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin/timezones/video-downloader only."
+    warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin/timezones/video-downloader/redirector only."
     warn "Paste a Groq key into $ENV_FILE and re-run to start tts."
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones video-downloader
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones video-downloader redirector
 fi
 
 log "Waiting for bookmark-manager on 127.0.0.1:$BOOKMARK_PORT"
@@ -233,6 +268,12 @@ done
 log "Waiting for video-downloader on 127.0.0.1:$VIDEO_DOWNLOADER_PORT"
 for _ in $(seq 1 30); do
     curl -sf "http://127.0.0.1:$VIDEO_DOWNLOADER_PORT/api/health" >/dev/null 2>&1 && { log "video-downloader up"; break; }
+    sleep 2
+done
+
+log "Waiting for redirector on 127.0.0.1:$REDIRECTOR_PORT"
+for _ in $(seq 1 30); do
+    curl -sf "http://127.0.0.1:$REDIRECTOR_PORT/api/health" >/dev/null 2>&1 && { log "redirector up"; break; }
     sleep 2
 done
 
@@ -297,6 +338,7 @@ install_site() {
     sed -i "s|__TTS_HOST_PORT__|$TTS_PORT|g"           "$dst"
     sed -i "s|__TIMEZONES_HOST_PORT__|$TIMEZONES_PORT|g" "$dst"
     sed -i "s|__VIDEO_DOWNLOADER_HOST_PORT__|$VIDEO_DOWNLOADER_PORT|g" "$dst"
+    sed -i "s|__REDIRECTOR_HOST_PORT__|$REDIRECTOR_PORT|g" "$dst"
 
     [ "$SITES_AVAIL" != "$SITES_ENABLED" ] && ln -sf "$dst" "$SITES_ENABLED/$domain"
 
@@ -361,6 +403,7 @@ echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
 [ "$GROQ_PRESENT" = "1" ] && echo "  TTS:              https://$APEX_DOMAIN/services/tts/"
 echo "  Timezones:        https://$APEX_DOMAIN/services/timezones/"
 echo "  Video downloader: https://$APEX_DOMAIN/services/video-downloader/"
+echo "  Redirector:       https://$APEX_DOMAIN/services/redirector/"
 echo "  Status:           docker compose -f $COMPOSE_FILE ps"
 echo "  Logs:             docker compose -f $COMPOSE_FILE logs -f"
 echo "  Env file:         $ENV_FILE  (chmod 600)"

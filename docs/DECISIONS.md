@@ -12,6 +12,55 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-16 — redirector added (short-link service, no at-rest encryption)
+
+Added `apps/redirector/`, a passkey-protected short-link service mounted
+at `/services/redirector/`. The owner pastes a destination URL and gets
+back a permanent 16-character hash link
+(`negativezero.one/services/redirector/<hash>`) that 302-redirects to it.
+It's the bookmark manager turned inside out: instead of saving a link to
+click later, you mint a short link to share. Built on the TS + Fastify +
+better-sqlite3 + React/Vite/Tailwind default, copied from the
+`video-downloader` template (the leanest current example), so it brings
+no new dependencies and no convention exceptions.
+
+Two deliberate departures from the bookmark-manager shape, recorded
+because they were choices, not oversights:
+
+- **No at-rest encryption.** bookmark-manager encrypts names + URLs with
+  `ENCRYPTION_KEY`. Redirect *targets* are public destinations — anyone
+  with the shareable hash link gets 302'd to them — so encrypting them
+  buys nothing and the slug (the lookup key) must be queryable plaintext
+  anyway. So no `REDIRECTOR_ENCRYPTION_KEY`; the service takes only
+  `SESSION_SECRET` + `SETUP_CODE_HASH` (+ shared `SSO_SESSION_SECRET`).
+- **No outbound fetch / no SSRF surface.** bookmark-manager and
+  video-downloader fetch remote content (metadata, HLS) and carry an
+  `ssrf.ts` guard. The redirector never fetches the target; it only
+  emits a `Location` header and lets the browser navigate. Targets are
+  validated to be `http`/`https` (rejecting `javascript:`, `data:`,
+  `mailto:`, `file:`, …) so a stored target can't be a script URL, but
+  there's no server-side request to guard.
+
+**Routing note:** the 16-char hash lives directly under the service root
+(`/services/redirector/<hash>`), which nginx prefix-strips to `/<hash>`.
+The public route param is regex-constrained to the exact
+`[a-z0-9]{16}` shape so a hash can never shadow the SPA (`/`), the API
+(`/api/...`), or a static asset (`/assets/...`).
+
+**Alternatives considered:**
+- User-chosen custom slugs (like `go/my-link`) — rejected: the spec is a
+  16-char hash minted server-side; the user supplies only the
+  destination. Slugs are immutable permalinks (target + label are
+  editable). Revisit if vanity slugs are ever wanted.
+- Encrypting targets at rest for parity with bookmark-manager —
+  rejected as above; revisit only if the threat model changes (e.g. the
+  service starts storing private destinations that must stay secret from
+  someone with filesystem access but not the link).
+
+**What would invalidate this:** wanting vanity/custom slugs, or the
+targets becoming genuinely sensitive (then add encryption like
+bookmark-manager). Either is a new entry, not an edit here.
+
 ## 2026-06-13 — timezones added as a static service (no TS+Fastify backend)
 
 Added `apps/timezones/`, a cross-timezone meeting planner, mounted at

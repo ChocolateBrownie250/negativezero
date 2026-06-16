@@ -203,6 +203,41 @@ services:
     networks:
       - internal
 
+  # ── redirector (short-link redirects) ─────────────────────────
+  # Passkey-protected short-link service at
+  # negativezero.one/services/redirector/. The owner pastes a destination
+  # URL and gets back a permanent 16-char hash link
+  # (…/services/redirector/<hash>) that 302-redirects to it. The hash
+  # endpoint is public (shareable); the management UI is behind the same
+  # WebAuthn + apex SSO flow as the other private services. Same Fastify +
+  # React prefix-strip path-mount; no at-rest encryption and no outbound
+  # fetch (the server only emits a Location header).
+  redirector:
+    build:
+      context: ../apps/redirector
+    container_name: negativezero-redirector
+    restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 512m
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SESSION_SECRET: ${REDIRECTOR_SESSION_SECRET}
+      SSO_SESSION_SECRET: ${SSO_SESSION_SECRET}
+      SETUP_CODE_HASH: ${REDIRECTOR_SETUP_CODE_HASH}
+      PUBLIC_URL: ${REDIRECTOR_PUBLIC_URL}
+      DATA_DIR: /app/server/data
+    volumes:
+      - ./data/redirector:/app/server/data
+    ports:
+      - "127.0.0.1:${REDIRECTOR_HOST_PORT:-3026}:3000"
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge

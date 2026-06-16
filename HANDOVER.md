@@ -19,6 +19,9 @@ https://negativezero.one/services/bookmark-manager/  → bookmark-manager SPA + 
 https://negativezero.one/services/admin/             → admin (registration-code generator)
 https://negativezero.one/services/tts/               → tts PWA + API (Bearer-authed)
 https://negativezero.one/services/timezones/         → static cross-timezone planner
+https://negativezero.one/services/video-downloader/  → video-downloader SPA + API (clear-HLS remux)
+https://negativezero.one/services/redirector/        → redirector SPA + API (short-link redirects)
+https://negativezero.one/services/redirector/<hash>  → public 302 redirect (16-char hash)
 https://negativezero.one/vtt-transcriber/            → 301 redirect → /services/tts/
                                                        (legacy URL, kept for old iPhone Shortcuts)
 ```
@@ -35,6 +38,8 @@ negativezero-bookmark-manager   platform-bookmark-manager:latest   127.0.0.1:302
 negativezero-admin              platform-admin:latest              127.0.0.1:3022→3000
 negativezero-tts                platform-tts:latest                127.0.0.1:3023→3000
 negativezero-timezones          nginx:alpine                       127.0.0.1:3024→80
+negativezero-video-downloader   platform-video-downloader:latest   127.0.0.1:3025→3000
+negativezero-redirector         platform-redirector:latest         127.0.0.1:3026→3000
 ```
 
 Loopback ports are re-derived by `platform/deploy.sh` on every run from
@@ -234,6 +239,8 @@ The only persistent state on the VPS that's ours and that matters:
 /srv/negativezero/platform/data/bookmark-manager/   # bookmarks.db + WAL
 /srv/negativezero/platform/data/admin/              # admin.db + WAL
 /srv/negativezero/platform/data/tts/                # amethyst.sqlite + audio/ cache
+/srv/negativezero/platform/data/video-downloader/   # video-downloader.db + WAL
+/srv/negativezero/platform/data/redirector/         # redirector.db + WAL
 /srv/negativezero/platform/.env                     # secrets (chmod 600)
 ```
 
