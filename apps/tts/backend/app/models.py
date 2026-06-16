@@ -22,6 +22,11 @@ class TranscriptionResponse(BaseModel):
     cleanup_mode: str | None
     polish_model: str | None = None
     polish_mode: str | None = None
+    text_translated: str | None = None
+    translate_lang: str | None = None
+    translate_source: str | None = None
+    translate_model: str | None = None
+    translate_ms: int | None = None
     whisper_ms: int | None
     cleanup_ms: int | None
     polish_ms: int | None = None

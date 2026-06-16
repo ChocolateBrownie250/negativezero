@@ -36,6 +36,11 @@ async def _migrate(conn: aiosqlite.Connection) -> None:
             ("polish_model", "TEXT"),
             ("polish_mode", "TEXT"),
             ("polish_ms", "INTEGER"),
+            ("text_translated", "TEXT"),
+            ("translate_lang", "TEXT"),
+            ("translate_source", "TEXT"),
+            ("translate_model", "TEXT"),
+            ("translate_ms", "INTEGER"),
         ],
     )
     # Polish-queue support — added later than the original notes table,

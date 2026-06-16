@@ -5,6 +5,7 @@ const defaultSettings = {
   apiKey: "",
   defLang: "auto",
   defCleanup: "on:standard",
+  defTranslateLang: "English",   // default target for the Translate button
   audioBitrate: 32000,   // up from 24k — more headroom for noisy environments
 };
 function loadSettings() {
@@ -307,7 +308,8 @@ function paintSourceButtons() {
     const available = lastResult && (
       (src === "raw" && !!lastResult.text_raw) ||
       (src === "cleaned" && !!lastResult.text_clean) ||
-      (src === "polished" && !!lastResult.text_polished)
+      (src === "polished" && !!lastResult.text_polished) ||
+      (src === "translated" && !!lastResult.text_translated)
     );
     btn.disabled = !available;
     btn.setAttribute("aria-checked", String(src === currentSource && available));
@@ -317,7 +319,8 @@ function paintSourceButtons() {
 function applySource() {
   if (!lastResult) return;
   let text = lastResult.text;
-  if (currentSource === "polished" && lastResult.text_polished) text = lastResult.text_polished;
+  if (currentSource === "translated" && lastResult.text_translated) text = lastResult.text_translated;
+  else if (currentSource === "polished" && lastResult.text_polished) text = lastResult.text_polished;
   else if (currentSource === "cleaned" && lastResult.text_clean) text = lastResult.text_clean;
   else if (currentSource === "raw" && lastResult.text_raw) text = lastResult.text_raw;
   resultText.textContent = text;
@@ -339,11 +342,16 @@ function showResult(r) {
   if (r.whisper_ms != null) t.push(`Whisper ${r.whisper_ms} ms`);
   if (r.cleanup_ms != null) t.push(`cleanup ${r.cleanup_ms} ms`);
   if (r.polish_ms != null)  t.push(`polish ${r.polish_ms} ms`);
+  if (r.translate_ms != null) t.push(`translate ${r.translate_ms} ms`);
   resultTimings.textContent = t.join(" · ");
   const modeBits = [];
   if (r.cleanup_mode) modeBits.push(`cleanup: ${r.cleanup_mode}`);
   if (r.polish_mode)  modeBits.push(`polish: ${r.polish_mode}`);
+  if (r.translate_lang) modeBits.push(`→ ${r.translate_lang}`);
   resultMode.textContent = modeBits.join(" · ");
+  // Reflect the last-used target language in the picker, if any.
+  const tlSel = document.getElementById("translateLang");
+  if (tlSel && r.translate_lang) tlSel.value = r.translate_lang;
 
   // Show the "Done" row with formatted duration
   const doneRow = document.getElementById("resultDoneRow");
@@ -456,6 +464,36 @@ document.getElementById("polishBtn").addEventListener("click", async (ev) => {
     } else {
       recStatus.textContent = `Polish failed: ${e.message}`;
     }
+  } finally {
+    if (span) span.textContent = orig;
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("translateBtn").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  if (!lastResult || btn.disabled) return;
+  const lang = document.getElementById("translateLang").value;
+  // Translate whatever base version is currently selected (Polished by
+  // default). If the translated view is showing, fall back to best-available
+  // on the server (omit source).
+  const src = ["polished", "cleaned", "raw"].includes(currentSource) ? currentSource : "";
+  const span = btn.querySelector("span");
+  const orig = span ? span.textContent : "";
+  if (span) span.textContent = "Translating…";
+  btn.disabled = true;
+  try {
+    const qs = `target=${encodeURIComponent(lang)}` + (src ? `&source=${src}` : "");
+    const updated = await api(`api/v1/transcriptions/${lastResult.id}/translate?${qs}`, { method: "POST" });
+    showResult(updated);
+    // Switch the view to the fresh translation.
+    if (updated.text_translated) {
+      currentSource = "translated";
+      paintSourceButtons();
+      applySource();
+    }
+  } catch (e) {
+    recStatus.textContent = `Translate failed: ${e.message}`;
   } finally {
     if (span) span.textContent = orig;
     btn.disabled = false;
@@ -851,6 +889,7 @@ const apiBase = document.getElementById("apiBase");
 const apiKey  = document.getElementById("apiKey");
 const defLang = document.getElementById("defLang");
 const defCleanup = document.getElementById("defCleanup");
+const defTranslateLang = document.getElementById("defTranslateLang");
 const audioBitrate = document.getElementById("audioBitrate");
 const settingsStatus = document.getElementById("settingsStatus");
 
@@ -859,12 +898,16 @@ function paintSettings() {
   apiKey.value  = settings.apiKey;
   defLang.value = settings.defLang;
   defCleanup.value = settings.defCleanup;
+  if (defTranslateLang) defTranslateLang.value = settings.defTranslateLang;
   // Whisper resamples to 16 kHz mono, so bitrate above ~32 kbps buys no
   // transcription quality. We now only offer 24/32; coerce any legacy
   // 48k/64k preference down to the recommended 32k.
   const ALLOWED_BITRATES = new Set([24000, 32000]);
   if (!ALLOWED_BITRATES.has(settings.audioBitrate)) settings.audioBitrate = 32000;
   audioBitrate.value = String(settings.audioBitrate);
+  // Default the result-card target-language picker to the saved preference.
+  const tlSel = document.getElementById("translateLang");
+  if (tlSel) tlSel.value = settings.defTranslateLang;
 }
 paintSettings();
 
@@ -875,6 +918,7 @@ document.getElementById("settingsSave").addEventListener("click", () => {
     apiKey: apiKey.value.trim(),
     defLang: defLang.value,
     defCleanup: defCleanup.value,
+    defTranslateLang: defTranslateLang ? defTranslateLang.value : settings.defTranslateLang,
     audioBitrate: Number(audioBitrate.value),
   };
   saveSettings(settings);

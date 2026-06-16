@@ -371,3 +371,95 @@ async def polish(
         mode=mode,
         elapsed_ms=elapsed_ms,
     )
+
+
+# ============================================================================
+# Translate — a terminal step run over the best available text (raw/clean/
+# polished). Reuses the chat models; preserves protected glossary terms.
+# ============================================================================
+
+
+def _build_translate_messages(
+    *,
+    text: str,
+    glossary: Glossary,
+    target_lang: str,
+    source_lang: str | None,
+) -> list[dict]:
+    # Same slim whitelist as polish (core + personal); the long extended list
+    # isn't load-bearing for translation and bloats the prompt budget.
+    whitelist = glossary.whitelist_for_polish()
+    anti_correct = glossary.anti_correct
+
+    system = (
+        "You are a professional translator. Translate the user's text into "
+        f"{target_lang}. Preserve the meaning, tone, and register, and produce "
+        "natural, fluent prose in the target language — not a word-for-word "
+        "literal rendering.\n\n"
+        "PROTECTED TERMS: keep the following names/terms EXACTLY as written — "
+        "do not translate, transliterate, or re-case them:\n"
+        f"{json.dumps(whitelist, ensure_ascii=False)}\n\n"
+        "DO-NOT-TRANSLATE LIST: leave the following strings exactly as they "
+        "appear in the source:\n"
+        f"{json.dumps(anti_correct, ensure_ascii=False)}\n\n"
+        "Do not summarise, omit, or add content that is not in the source. "
+        "Do not add notes or explanations.\n\n"
+        "OUTPUT FORMAT: respond with a single JSON object: "
+        '{"text": "<translation>"}. '
+        "No prose, no markdown, no explanation. Only the JSON object."
+    )
+    user = (
+        (f"Source language: {source_lang}\n\n" if source_lang and source_lang != "auto" else "")
+        + f"Text to translate:\n{text}"
+    )
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+
+async def translate(
+    *,
+    text: str,
+    glossary: Glossary,
+    target_lang: str,
+    source_lang: str | None = None,
+    model: str | None = None,
+) -> CleanupResult:
+    """Translate text into target_lang. Returns CleanupResult (mode carries the
+    target language) so callers can treat it like cleanup/polish."""
+    used_model = model or settings.translate_model
+    messages = _build_translate_messages(
+        text=text, glossary=glossary, target_lang=target_lang, source_lang=source_lang
+    )
+    # Translation length varies by language pair (e.g. RU<->EN can swing ±30%);
+    # allow 1.7× input so we don't truncate longer target renderings.
+    max_output = _budget_max_tokens(used_model, messages, output_ratio=1.7)
+
+    started = time.monotonic()
+    resp = await client().chat.completions.create(
+        model=used_model,
+        messages=messages,
+        temperature=0.2,
+        max_tokens=max_output,
+        response_format={"type": "json_object"},
+    )
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    raw_content = resp.choices[0].message.content or ""
+    translated: str
+    try:
+        parsed = json.loads(raw_content)
+        translated = (parsed.get("text") or "").strip()
+        if not translated:
+            log.warning("Empty 'text' in translate response, falling back to input")
+            translated = text
+    except json.JSONDecodeError:
+        log.warning("Translate response was not JSON, falling back to input. Got: %r", raw_content[:200])
+        translated = text
+
+    return CleanupResult(
+        text=translated,
+        model=used_model,
+        mode=target_lang,
+        elapsed_ms=elapsed_ms,
+    )

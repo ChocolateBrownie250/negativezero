@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     )
     polish_strong_model: str = Field("openai/gpt-oss-120b", alias="POLISH_STRONG_MODEL")
 
+    # Translation model — Llama 3.3 70B is the strongest multilingual chat
+    # model on the free tier (12K TPM) and handles RU<->EN and the major
+    # European/Asian languages well. Override via env if needed.
+    translate_model: str = Field("llama-3.3-70b-versatile", alias="TRANSLATE_MODEL")
+
     data_dir: Path = Field(Path("/data"), alias="DATA_DIR")
     db_path: Path = Field(Path("/data/amethyst.sqlite"), alias="DB_PATH")
     audio_dir: Path = Field(Path("/data/audio"), alias="AUDIO_DIR")

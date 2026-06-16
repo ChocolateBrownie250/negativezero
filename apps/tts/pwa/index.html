@@ -97,10 +97,16 @@
         <div class="seg-block">
           <span class="seg-label">Source</span>
           <div class="seg" role="radiogroup" aria-label="Text source">
+            <button class="seg-btn source-btn ac" data-source="translated">Translated</button>
             <button class="seg-btn source-btn ac" data-source="polished">Polished</button>
             <button class="seg-btn source-btn ac" data-source="cleaned">Cleaned</button>
             <button class="seg-btn source-btn ac" data-source="raw">Raw</button>
           </div>
+        </div>
+
+        <div class="seg-block">
+          <span class="seg-label">Translate to</span>
+          <select id="translateLang" class="selectbox"><option value="English">English</option><option value="Russian">Russian</option><option value="Ukrainian">Ukrainian</option><option value="Spanish">Spanish</option><option value="German">German</option><option value="French">French</option><option value="Italian">Italian</option><option value="Portuguese">Portuguese</option><option value="Polish">Polish</option><option value="Dutch">Dutch</option><option value="Turkish">Turkish</option><option value="Arabic">Arabic</option><option value="Chinese (Simplified)">Chinese (Simplified)</option><option value="Japanese">Japanese</option><option value="Korean">Korean</option><option value="Hindi">Hindi</option></select>
         </div>
 
         <div class="seg-block">
@@ -116,6 +122,7 @@
           <button id="copyBtn" class="btn btn-primary span2"><svg class="ic"><use href="#i-copy"/></svg><span>Copy</span></button>
           <button id="reCleanBtn" class="btn btn-ghost" title="Fix recognition errors only, preserves wording"><svg class="ic"><use href="#i-broom"/></svg><span>Cleanup</span></button>
           <button id="polishBtn" class="btn btn-ghost" title="Rewrite for readability, removes filler and fixes flow"><svg class="ic"><use href="#i-sparkles"/></svg><span>Polish</span></button>
+          <button id="translateBtn" class="btn btn-ghost span2" title="Translate the selected text into the chosen language"><svg class="ic"><use href="#i-globe"/></svg><span>Translate</span></button>
           <button id="reTranscribeBtn" class="btn btn-ghost span2" title="Re-run audio through whisper-large-v3"><svg class="ic"><use href="#i-refresh"/></svg><span>Re-transcribe</span></button>
         </div>
       </article>
@@ -321,6 +328,10 @@
         <div class="field">
           <label class="field-label" for="defCleanup">Cleanup</label>
           <select id="defCleanup" class="selectbox"><option value="off">Off — raw only</option><option value="on:light">On — light (gentlest)</option><option value="on:standard">On — standard (recommended)</option><option value="on:aggressive">On — aggressive (strongest)</option></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="defTranslateLang">Translate to <span class="field-hint">default target for the Translate button</span></label>
+          <select id="defTranslateLang" class="selectbox"><option value="English">English</option><option value="Russian">Russian</option><option value="Ukrainian">Ukrainian</option><option value="Spanish">Spanish</option><option value="German">German</option><option value="French">French</option><option value="Italian">Italian</option><option value="Portuguese">Portuguese</option><option value="Polish">Polish</option><option value="Dutch">Dutch</option><option value="Turkish">Turkish</option><option value="Arabic">Arabic</option><option value="Chinese (Simplified)">Chinese (Simplified)</option><option value="Japanese">Japanese</option><option value="Korean">Korean</option><option value="Hindi">Hindi</option></select>
         </div>
         <div class="field">
           <label class="field-label" for="audioBitrate">Audio bitrate</label>

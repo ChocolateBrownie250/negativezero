@@ -38,3 +38,43 @@ Branch: `claude/bottom-nav-positioning-0pb1kr` (PR #71).
   Feature A (true multi-user, `owner_id` scoping) lands.
 - Model-per-task editing intentionally deferred (config is env-driven);
   this feature only edits the *instruction text*, which is the core ask.
+
+---
+
+# Feature C — Translate dictated text to another language
+
+Manual, by-button. Source = a switcher (Polished / Cleaned / Raw) that
+defaults to **Polished** — i.e. translation is a terminal step over the
+best version, reusing the existing "Source" toggle on the result card.
+Reuses Groq LLMs (free), preserves glossary terms, adds a translation as
+an extra output (original kept), persisted like polish.
+
+## Backend
+- [x] `config.py` — `translate_model` (default `llama-3.3-70b-versatile`)
+- [x] `groq_client.py` — `translate()` + `_build_translate_messages`
+      (glossary-preserving, JSON output, do-not-summarise)
+- [x] `schema.sql` + `db.py` migration — `text_translated`,
+      `translate_lang`, `translate_source`, `translate_model`, `translate_ms`
+- [x] `models.py` — translation fields on `TranscriptionResponse`
+- [x] `routes/transcriptions.py` — `POST /transcriptions/{id}/translate`
+      (`target`, optional `source`); include fields in `_row_to_full`
+
+## Frontend (PWA)
+- [x] result card — "Translated" source button + "Translate to" language
+      picker + Translate button (uses current Source as input)
+- [x] Settings — default target language
+- [x] `app.js` — translate handler, source switch to translated view
+
+## Verify
+- [x] Backend imports + migration adds columns to legacy DB
+- [x] Route test with stubbed Groq: default source = polished, explicit
+      source=raw, 401 without auth, 422 on missing target
+- [x] Screenshot result card with translation on simulated iPhone
+      (glossary term preserved in the output)
+
+## Notes
+- Scoped to transcriptions (Record + History). Notes dictation could get
+  the same treatment as a follow-up.
+- Translate prompt is fixed for now (not in the editable-instructions set);
+  could be added there later.
+
