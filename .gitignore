@@ -11,6 +11,12 @@ node_modules/
 dist/
 build/
 
+# Python artefacts
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
 # OS / editor
 .DS_Store
 .vscode/

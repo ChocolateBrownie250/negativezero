@@ -14,6 +14,7 @@ from .models import HealthResponse
 from .polish_queue import start_worker as start_polish_worker
 from .polish_queue import stop_worker as stop_polish_worker
 from .routes.notes import router as notes_router
+from .routes.prompts import router as prompts_router
 from .routes.settings import router as settings_router
 from .routes.transcribe import router as transcribe_router
 from .routes.transcriptions import router as transcriptions_router
@@ -102,6 +103,7 @@ app.include_router(transcribe_router, prefix="/api/v1", tags=["transcribe"])
 app.include_router(transcriptions_router, prefix="/api/v1", tags=["transcriptions"])
 app.include_router(notes_router, prefix="/api/v1", tags=["notes"])
 app.include_router(settings_router, prefix="/api/v1", tags=["settings"])
+app.include_router(prompts_router, prefix="/api/v1", tags=["prompts"])
 app.include_router(usage_router, prefix="/api/v1", tags=["usage"])
 
 

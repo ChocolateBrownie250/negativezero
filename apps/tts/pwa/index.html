@@ -97,10 +97,16 @@
         <div class="seg-block">
           <span class="seg-label">Source</span>
           <div class="seg" role="radiogroup" aria-label="Text source">
+            <button class="seg-btn source-btn ac" data-source="translated">Translated</button>
             <button class="seg-btn source-btn ac" data-source="polished">Polished</button>
             <button class="seg-btn source-btn ac" data-source="cleaned">Cleaned</button>
             <button class="seg-btn source-btn ac" data-source="raw">Raw</button>
           </div>
+        </div>
+
+        <div class="seg-block">
+          <span class="seg-label">Translate to</span>
+          <select id="translateLang" class="selectbox"><option value="English">English</option><option value="Russian">Russian</option><option value="Ukrainian">Ukrainian</option><option value="Spanish">Spanish</option><option value="German">German</option><option value="French">French</option><option value="Italian">Italian</option><option value="Portuguese">Portuguese</option><option value="Polish">Polish</option><option value="Dutch">Dutch</option><option value="Turkish">Turkish</option><option value="Arabic">Arabic</option><option value="Chinese (Simplified)">Chinese (Simplified)</option><option value="Japanese">Japanese</option><option value="Korean">Korean</option><option value="Hindi">Hindi</option></select>
         </div>
 
         <div class="seg-block">
@@ -116,6 +122,7 @@
           <button id="copyBtn" class="btn btn-primary span2"><svg class="ic"><use href="#i-copy"/></svg><span>Copy</span></button>
           <button id="reCleanBtn" class="btn btn-ghost" title="Fix recognition errors only, preserves wording"><svg class="ic"><use href="#i-broom"/></svg><span>Cleanup</span></button>
           <button id="polishBtn" class="btn btn-ghost" title="Rewrite for readability, removes filler and fixes flow"><svg class="ic"><use href="#i-sparkles"/></svg><span>Polish</span></button>
+          <button id="translateBtn" class="btn btn-ghost span2" title="Translate the selected text into the chosen language"><svg class="ic"><use href="#i-globe"/></svg><span>Translate</span></button>
           <button id="reTranscribeBtn" class="btn btn-ghost span2" title="Re-run audio through whisper-large-v3"><svg class="ic"><use href="#i-refresh"/></svg><span>Re-transcribe</span></button>
         </div>
       </article>
@@ -201,7 +208,15 @@
           <p class="lg-sub">What each stage does, its model and limits</p>
         </header>
         <div class="list" style="gap:12px" id="modesList"></div>
-        <div class="glass nav-row" id="glossaryOpen" style="margin-top:14px">
+        <div class="glass nav-row" id="instrOpen" style="margin-top:14px">
+          <span class="lead"><svg class="ic"><use href="#i-doc"/></svg></span>
+          <div>
+            <div style="font-size:15px;font-weight:640">Edit instructions</div>
+            <div class="hint">Customize the cleanup &amp; polish system prompts</div>
+          </div>
+          <span class="chev"><svg class="ic"><use href="#i-chevron"/></svg></span>
+        </div>
+        <div class="glass nav-row" id="glossaryOpen" style="margin-top:10px">
           <span class="lead"><svg class="ic"><use href="#i-book"/></svg></span>
           <div>
             <div style="font-size:15px;font-weight:640">Glossary</div>
@@ -234,6 +249,33 @@
         <ul id="glossaryCore" class="chips hidden" style="margin:0 0 12px"></ul>
         <div class="glass collapse" id="glossaryExtToggle" style="margin-bottom:10px"><span style="font-size:15px;font-weight:600">Built-in extended <span class="hint">~250</span></span><svg class="ic chev"><use href="#i-chevron-d"/></svg></div>
         <ul id="glossaryExtended" class="chips hidden" style="margin:0"></ul>
+      </div>
+
+      <div id="modesInstructions" class="hidden">
+        <div class="navbar"><button id="instrBack" class="nav-btn back" aria-label="Back to Modes"><svg class="ic"><use href="#i-chevron-l"/></svg><span>Modes</span></button></div>
+        <header style="margin-bottom:14px">
+          <h1 class="lg-title">Edit instructions</h1>
+          <p class="lg-sub">The system prompt each model follows, per task and strength</p>
+        </header>
+
+        <div class="glass collapse" id="instrGuideToggle" style="margin-bottom:12px"><span style="font-size:15px;font-weight:600"><svg class="ic" style="vertical-align:-3px;margin-right:6px"><use href="#i-info"/></svg>How to write these</span><svg class="ic chev"><use href="#i-chevron-d"/></svg></div>
+        <div id="instrGuide" class="glass card-pad hidden" style="margin-bottom:14px">
+          <p class="hint" style="margin:0 0 8px">These fields steer the model that rewrites your transcript. The
+          glossary protection, "never translate / never summarise" and the
+          machine-readable output format are always enforced for you and can't
+          be edited here — so a change can adjust <em>style</em> but won't break
+          term protection or the app.</p>
+          <ul class="hint" style="margin:0;padding-left:18px;line-height:1.7">
+            <li><strong>Instruction</strong> — the core behaviour for this strength. Describe what the model may and may not change. Phrase as direct rules ("Fix…", "Do not paraphrase…").</li>
+            <li><strong>Extra rules</strong> — your own additions on top of the default (e.g. "Always write numbers as digits", "Keep British spelling"). Leave the instruction default and just add here when you only want a tweak.</li>
+            <li>It's a <em>transcript editor</em>, not a chatbot — don't ask it questions or request new content; it should only transform the words you spoke.</li>
+            <li>Keep it concise and unambiguous. Conflicting or vague rules make output less predictable.</li>
+            <li>Use <strong>Reset</strong> on any field to restore the shipped default if results get worse.</li>
+          </ul>
+        </div>
+
+        <div id="instrList" class="list" style="gap:14px"></div>
+        <p id="instrStatus" class="hint" style="margin:14px 4px 0" aria-live="polite"></p>
       </div>
     </section>
 
@@ -285,11 +327,15 @@
         </div>
         <div class="field">
           <label class="field-label" for="defCleanup">Cleanup</label>
-          <select id="defCleanup" class="selectbox"><option value="on:standard">On, standard (recommended)</option><option value="on:light">On, light</option><option value="on:aggressive">On, aggressive</option><option value="off">Off (raw only)</option></select>
+          <select id="defCleanup" class="selectbox"><option value="off">Off — raw only</option><option value="on:light">On — light (gentlest)</option><option value="on:standard">On — standard (recommended)</option><option value="on:aggressive">On — aggressive (strongest)</option></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="defTranslateLang">Translate to <span class="field-hint">default target for the Translate button</span></label>
+          <select id="defTranslateLang" class="selectbox"><option value="English">English</option><option value="Russian">Russian</option><option value="Ukrainian">Ukrainian</option><option value="Spanish">Spanish</option><option value="German">German</option><option value="French">French</option><option value="Italian">Italian</option><option value="Portuguese">Portuguese</option><option value="Polish">Polish</option><option value="Dutch">Dutch</option><option value="Turkish">Turkish</option><option value="Arabic">Arabic</option><option value="Chinese (Simplified)">Chinese (Simplified)</option><option value="Japanese">Japanese</option><option value="Korean">Korean</option><option value="Hindi">Hindi</option></select>
         </div>
         <div class="field">
           <label class="field-label" for="audioBitrate">Audio bitrate</label>
-          <select id="audioBitrate" class="selectbox"><option value="24000">24 kbps</option><option value="32000">32 kbps (recommended)</option><option value="48000">48 kbps</option><option value="64000">64 kbps</option></select>
+          <select id="audioBitrate" class="selectbox"><option value="24000">24 kbps — smaller files</option><option value="32000">32 kbps — best for speech (recommended)</option></select>
         </div>
       </div>
 

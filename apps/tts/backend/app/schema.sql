@@ -21,6 +21,13 @@ CREATE TABLE IF NOT EXISTS transcriptions (
     polish_model    TEXT,
     polish_mode     TEXT,
     polish_ms       INTEGER,
+    -- Translation columns. Latest translation only (re-translating overwrites).
+    -- translate_source records which version was translated (raw/cleaned/polished).
+    text_translated  TEXT,
+    translate_lang   TEXT,
+    translate_source TEXT,
+    translate_model  TEXT,
+    translate_ms     INTEGER,
     audio_path      TEXT,
     audio_bytes     INTEGER,
     audio_format    TEXT,

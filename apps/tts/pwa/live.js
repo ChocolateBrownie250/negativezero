@@ -191,6 +191,8 @@ async function startLive() {
     state.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: deviceId ? { exact: deviceId } : undefined,
+        // Mono — Whisper downmixes anyway; one channel = smaller chunks, same accuracy.
+        channelCount: 1,
         echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       },
     });

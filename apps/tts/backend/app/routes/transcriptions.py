@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -14,6 +15,7 @@ from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
 from ..groq_client import polish as groq_polish
 from ..groq_client import transcribe as groq_transcribe
+from ..groq_client import translate as groq_translate
 from ..groq_client import validate_chat_model, validate_whisper_model
 from ..models import (
     CleanupMode,
@@ -68,6 +70,11 @@ def _row_to_full(row) -> TranscriptionResponse:
         cleanup_mode=row["cleanup_mode"],
         polish_model=_safe(row, "polish_model"),
         polish_mode=_safe(row, "polish_mode"),
+        text_translated=_safe(row, "text_translated"),
+        translate_lang=_safe(row, "translate_lang"),
+        translate_source=_safe(row, "translate_source"),
+        translate_model=_safe(row, "translate_model"),
+        translate_ms=_safe(row, "translate_ms"),
         whisper_ms=row["whisper_ms"],
         cleanup_ms=row["cleanup_ms"],
         polish_ms=_safe(row, "polish_ms"),
@@ -366,6 +373,87 @@ async def polish_transcription(
             WHERE id = ?
             """,
             (po.text, po.model, po.mode, po.elapsed_ms, tid),
+        )
+        await conn.commit()
+        async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
+            updated = await cur.fetchone()
+    return _row_to_full(updated)
+
+
+@router.post("/transcriptions/{tid}/translate", response_model=TranscriptionResponse)
+async def translate_transcription(
+    tid: str,
+    target: str = Query(..., min_length=1, max_length=40, description="Target language name, e.g. 'English'"),
+    source: Literal["raw", "cleaned", "polished"] | None = Query(
+        None,
+        description="Which version to translate. Default: best available (polished ?? cleaned ?? raw).",
+    ),
+    translate_model: str | None = Query(None),
+) -> TranscriptionResponse:
+    """Translate the transcript into `target` language. Translates the best
+    available version by default; pass `source` to pick raw/cleaned/polished.
+    Stores the latest translation only (re-translating overwrites it)."""
+    try:
+        validate_chat_model(translate_model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    target_clean = target.strip().replace("\n", " ")
+    if not target_clean:
+        raise HTTPException(400, "Empty target language")
+
+    async with get_db() as conn:
+        async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
+            row = await cur.fetchone()
+    if not row:
+        raise HTTPException(404, "Not found")
+
+    # Resolve which version to translate.
+    variants = {
+        "polished": _safe(row, "text_polished"),
+        "cleaned": row["text_clean"],
+        "raw": row["text_raw"],
+    }
+    if source:
+        chosen = source
+        source_text = variants[source]
+        if not source_text:
+            raise HTTPException(400, f"No {source} text to translate")
+    else:
+        chosen = (
+            "polished" if variants["polished"]
+            else "cleaned" if variants["cleaned"]
+            else "raw"
+        )
+        source_text = variants[chosen]
+    if not source_text:
+        raise HTTPException(400, "No text to translate")
+
+    glossary = await load_glossary()
+    try:
+        tr = await groq_translate(
+            text=source_text,
+            glossary=glossary,
+            target_lang=target_clean,
+            source_lang=row["language"],
+            model=translate_model,
+        )
+    except ValueError as exc:
+        log.info("Translate refused (input too long): %s", exc)
+        raise HTTPException(413, str(exc)) from exc
+    except Exception as exc:
+        log.exception("Translate call failed")
+        raise HTTPException(502, "Translation upstream failed") from exc
+
+    async with get_db() as conn:
+        await conn.execute(
+            """
+            UPDATE transcriptions
+            SET text_translated = ?, translate_lang = ?, translate_source = ?,
+                translate_model = ?, translate_ms = ?
+            WHERE id = ?
+            """,
+            (tr.text, target_clean, chosen, tr.model, tr.elapsed_ms, tid),
         )
         await conn.commit()
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:

@@ -5,6 +5,7 @@ const defaultSettings = {
   apiKey: "",
   defLang: "auto",
   defCleanup: "on:standard",
+  defTranslateLang: "English",   // default target for the Translate button
   audioBitrate: 32000,   // up from 24k — more headroom for noisy environments
 };
 function loadSettings() {
@@ -167,7 +168,10 @@ async function startRecording() {
 
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      // channelCount:1 — Whisper downmixes to mono anyway, so capturing a
+      // single channel sends the whole bitrate budget to one voice track and
+      // halves upload size on stereo inputs (no transcription-accuracy cost).
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
   } catch (err) {
     console.error("getUserMedia failed:", err);
@@ -304,7 +308,8 @@ function paintSourceButtons() {
     const available = lastResult && (
       (src === "raw" && !!lastResult.text_raw) ||
       (src === "cleaned" && !!lastResult.text_clean) ||
-      (src === "polished" && !!lastResult.text_polished)
+      (src === "polished" && !!lastResult.text_polished) ||
+      (src === "translated" && !!lastResult.text_translated)
     );
     btn.disabled = !available;
     btn.setAttribute("aria-checked", String(src === currentSource && available));
@@ -314,7 +319,8 @@ function paintSourceButtons() {
 function applySource() {
   if (!lastResult) return;
   let text = lastResult.text;
-  if (currentSource === "polished" && lastResult.text_polished) text = lastResult.text_polished;
+  if (currentSource === "translated" && lastResult.text_translated) text = lastResult.text_translated;
+  else if (currentSource === "polished" && lastResult.text_polished) text = lastResult.text_polished;
   else if (currentSource === "cleaned" && lastResult.text_clean) text = lastResult.text_clean;
   else if (currentSource === "raw" && lastResult.text_raw) text = lastResult.text_raw;
   resultText.textContent = text;
@@ -336,11 +342,16 @@ function showResult(r) {
   if (r.whisper_ms != null) t.push(`Whisper ${r.whisper_ms} ms`);
   if (r.cleanup_ms != null) t.push(`cleanup ${r.cleanup_ms} ms`);
   if (r.polish_ms != null)  t.push(`polish ${r.polish_ms} ms`);
+  if (r.translate_ms != null) t.push(`translate ${r.translate_ms} ms`);
   resultTimings.textContent = t.join(" · ");
   const modeBits = [];
   if (r.cleanup_mode) modeBits.push(`cleanup: ${r.cleanup_mode}`);
   if (r.polish_mode)  modeBits.push(`polish: ${r.polish_mode}`);
+  if (r.translate_lang) modeBits.push(`→ ${r.translate_lang}`);
   resultMode.textContent = modeBits.join(" · ");
+  // Reflect the last-used target language in the picker, if any.
+  const tlSel = document.getElementById("translateLang");
+  if (tlSel && r.translate_lang) tlSel.value = r.translate_lang;
 
   // Show the "Done" row with formatted duration
   const doneRow = document.getElementById("resultDoneRow");
@@ -453,6 +464,36 @@ document.getElementById("polishBtn").addEventListener("click", async (ev) => {
     } else {
       recStatus.textContent = `Polish failed: ${e.message}`;
     }
+  } finally {
+    if (span) span.textContent = orig;
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("translateBtn").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  if (!lastResult || btn.disabled) return;
+  const lang = document.getElementById("translateLang").value;
+  // Translate whatever base version is currently selected (Polished by
+  // default). If the translated view is showing, fall back to best-available
+  // on the server (omit source).
+  const src = ["polished", "cleaned", "raw"].includes(currentSource) ? currentSource : "";
+  const span = btn.querySelector("span");
+  const orig = span ? span.textContent : "";
+  if (span) span.textContent = "Translating…";
+  btn.disabled = true;
+  try {
+    const qs = `target=${encodeURIComponent(lang)}` + (src ? `&source=${src}` : "");
+    const updated = await api(`api/v1/transcriptions/${lastResult.id}/translate?${qs}`, { method: "POST" });
+    showResult(updated);
+    // Switch the view to the fresh translation.
+    if (updated.text_translated) {
+      currentSource = "translated";
+      paintSourceButtons();
+      applySource();
+    }
+  } catch (e) {
+    recStatus.textContent = `Translate failed: ${e.message}`;
   } finally {
     if (span) span.textContent = orig;
     btn.disabled = false;
@@ -724,14 +765,24 @@ function renderModesOnce() {
 function showModesMain() {
   document.getElementById("modesMain")?.classList.remove("hidden");
   document.getElementById("modesGlossary")?.classList.add("hidden");
+  document.getElementById("modesInstructions")?.classList.add("hidden");
 }
 function showModesGlossary() {
   document.getElementById("modesMain")?.classList.add("hidden");
+  document.getElementById("modesInstructions")?.classList.add("hidden");
   document.getElementById("modesGlossary")?.classList.remove("hidden");
   loadGlossary();
 }
+function showModesInstructions() {
+  document.getElementById("modesMain")?.classList.add("hidden");
+  document.getElementById("modesGlossary")?.classList.add("hidden");
+  document.getElementById("modesInstructions")?.classList.remove("hidden");
+  loadPrompts();
+}
 document.getElementById("glossaryOpen")?.addEventListener("click", showModesGlossary);
 document.getElementById("glossaryBack")?.addEventListener("click", showModesMain);
+document.getElementById("instrOpen")?.addEventListener("click", showModesInstructions);
+document.getElementById("instrBack")?.addEventListener("click", showModesMain);
 document.getElementById("settingsModesLink")?.addEventListener("click", () => {
   document.querySelector('nav button[data-tab="modes"]').click();
 });
@@ -745,12 +796,100 @@ function wireCollapse(toggleId, listId) {
 }
 wireCollapse("glossaryCoreToggle", "glossaryCore");
 wireCollapse("glossaryExtToggle", "glossaryExtended");
+wireCollapse("instrGuideToggle", "instrGuide");
+
+// ----- Editable model instructions (cleanup/polish system prompts) -----
+function _esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function setInstrStatus(msg) {
+  const el = document.getElementById("instrStatus");
+  if (el) el.textContent = msg || "";
+}
+let _promptsLoaded = false;
+async function loadPrompts(force) {
+  const host = document.getElementById("instrList");
+  if (!host || (_promptsLoaded && !force)) return;
+  host.innerHTML = `<p class="hint" style="margin:4px">Loading…</p>`;
+  setInstrStatus("");
+  try {
+    const data = await api("api/v1/prompts");
+    host.innerHTML = "";
+    for (const it of data.items) host.appendChild(buildPromptCard(it));
+    _promptsLoaded = true;
+  } catch (e) {
+    host.innerHTML = "";
+    setInstrStatus("Failed to load: " + e.message);
+  }
+}
+function buildPromptCard(it) {
+  const card = document.createElement("article");
+  card.className = "glass card-pad";
+  card.dataset.stage = it.stage;
+  card.dataset.mode = it.mode;
+  const note = it.mode_note ? `<span class="hint">· ${_esc(it.mode_note)}</span>` : "";
+  card.innerHTML = `
+    <div style="font-size:15px;font-weight:640;margin-bottom:2px">${_esc(it.label)} ${note}</div>
+    <div class="hint" style="margin-bottom:10px">${_esc(it.stage_desc)}</div>
+    <label class="field-label">Instruction</label>
+    <textarea class="textarea instr-base" rows="5" spellcheck="false"></textarea>
+    <label class="field-label" style="margin-top:10px">Extra rules <span class="field-hint">added on top — optional</span></label>
+    <textarea class="textarea instr-extra" rows="3" spellcheck="false" placeholder="e.g. Always spell out numbers under ten"></textarea>
+    <div class="row gap-s" style="margin-top:10px;align-items:center">
+      <button class="btn btn-primary instr-save"><svg class="ic"><use href="#i-check"/></svg><span>Save</span></button>
+      <button class="btn btn-ghost instr-reset"><svg class="ic"><use href="#i-refresh"/></svg><span>Reset</span></button>
+      <span class="hint instr-state"></span>
+    </div>`;
+  const baseTa = card.querySelector(".instr-base");
+  baseTa.value = it.base ?? it.default_base;
+  baseTa.dataset.default = it.default_base;
+  card.querySelector(".instr-extra").value = it.extra || "";
+  card.querySelector(".instr-save").addEventListener("click", () => savePromptCard(card));
+  card.querySelector(".instr-reset").addEventListener("click", () => resetPromptCard(card));
+  return card;
+}
+async function savePromptCard(card) {
+  const { stage, mode } = card.dataset;
+  const state = card.querySelector(".instr-state");
+  state.textContent = "Saving…";
+  try {
+    await api(`api/v1/prompts/${stage}/${mode}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        base: card.querySelector(".instr-base").value,
+        extra: card.querySelector(".instr-extra").value,
+      }),
+    });
+    state.textContent = "Saved.";
+    setTimeout(() => (state.textContent = ""), 1500);
+  } catch (e) {
+    state.textContent = "Failed: " + e.message;
+  }
+}
+async function resetPromptCard(card) {
+  const { stage, mode } = card.dataset;
+  const state = card.querySelector(".instr-state");
+  state.textContent = "Resetting…";
+  try {
+    await api(`api/v1/prompts/${stage}/${mode}/reset`, { method: "POST" });
+    const baseTa = card.querySelector(".instr-base");
+    baseTa.value = baseTa.dataset.default;
+    card.querySelector(".instr-extra").value = "";
+    state.textContent = "Reset to default.";
+    setTimeout(() => (state.textContent = ""), 1500);
+  } catch (e) {
+    state.textContent = "Failed: " + e.message;
+  }
+}
 
 // ----- Settings UI -----
 const apiBase = document.getElementById("apiBase");
 const apiKey  = document.getElementById("apiKey");
 const defLang = document.getElementById("defLang");
 const defCleanup = document.getElementById("defCleanup");
+const defTranslateLang = document.getElementById("defTranslateLang");
 const audioBitrate = document.getElementById("audioBitrate");
 const settingsStatus = document.getElementById("settingsStatus");
 
@@ -759,7 +898,16 @@ function paintSettings() {
   apiKey.value  = settings.apiKey;
   defLang.value = settings.defLang;
   defCleanup.value = settings.defCleanup;
+  if (defTranslateLang) defTranslateLang.value = settings.defTranslateLang;
+  // Whisper resamples to 16 kHz mono, so bitrate above ~32 kbps buys no
+  // transcription quality. We now only offer 24/32; coerce any legacy
+  // 48k/64k preference down to the recommended 32k.
+  const ALLOWED_BITRATES = new Set([24000, 32000]);
+  if (!ALLOWED_BITRATES.has(settings.audioBitrate)) settings.audioBitrate = 32000;
   audioBitrate.value = String(settings.audioBitrate);
+  // Default the result-card target-language picker to the saved preference.
+  const tlSel = document.getElementById("translateLang");
+  if (tlSel) tlSel.value = settings.defTranslateLang;
 }
 paintSettings();
 
@@ -770,6 +918,7 @@ document.getElementById("settingsSave").addEventListener("click", () => {
     apiKey: apiKey.value.trim(),
     defLang: defLang.value,
     defCleanup: defCleanup.value,
+    defTranslateLang: defTranslateLang ? defTranslateLang.value : settings.defTranslateLang,
     audioBitrate: Number(audioBitrate.value),
   };
   saveSettings(settings);
@@ -1235,7 +1384,9 @@ function notesDictateStart() {
 async function beginDictation() {
   try {
     notesState.recDictate.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      // Mono capture — see beginRecording(): Whisper is mono, so one channel
+      // is optimal and keeps uploads small.
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
   } catch (err) {
     alert("Mic error: " + describeMediaError(err));
