@@ -63,6 +63,30 @@ class HealthResponse(BaseModel):
     version: str
 
 
+# ---------- Editable model instructions ----------
+
+class PromptItem(BaseModel):
+    stage: str                 # cleanup | polish
+    mode: str                  # light | standard | aggressive | strong
+    label: str                 # "Cleanup — standard"
+    stage_desc: str
+    mode_note: str             # gentlest | recommended | strongest
+    default_base: str          # the shipped default block
+    base: str | None           # user override; None => using default
+    extra: str                 # appended extra rules ("" when none)
+    using_default: bool
+
+
+class PromptList(BaseModel):
+    items: list[PromptItem]
+
+
+class PromptUpdate(BaseModel):
+    # base: None or "" => revert to shipped default. extra: None or "" => clear.
+    base: str | None = None
+    extra: str | None = None
+
+
 # ---------- Notes ----------
 
 class NoteResponse(BaseModel):

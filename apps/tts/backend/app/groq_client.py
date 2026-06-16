@@ -7,6 +7,7 @@ from groq import AsyncGroq
 
 from .config import settings
 from .glossary import Glossary
+from .prompts import resolve_instructions
 
 log = logging.getLogger(__name__)
 
@@ -120,38 +121,18 @@ async def transcribe(
     )
 
 
-CLEANUP_INSTRUCTIONS = {
-    "light": (
-        "Fix ONLY misrecognized terms (especially those in the protected glossary), "
-        "obvious homophones, and clearly garbled tokens. "
-        "Do not touch punctuation, casing, word choice, filler words, or anything else."
-    ),
-    "standard": (
-        "Fix misrecognized terms (especially those in the protected glossary) "
-        "and obvious homophones. Add or correct sentence-level punctuation and "
-        "capitalization where they are clearly missing or wrong. "
-        "Do not paraphrase, do not shorten, do not add content, do not translate, "
-        "do not change word choice unless it is clearly a recognition error."
-    ),
-    "aggressive": (
-        "Fix misrecognized terms (especially those in the protected glossary), "
-        "homophones, and recognition errors. Correct punctuation, capitalization, "
-        "and obvious grammatical agreement issues. Remove disfluencies "
-        "('uh', 'um', 'эээ'), false starts, and immediate word repetitions caused "
-        "by hesitation. Preserve meaning, structure, and the speaker's voice. "
-        "Do not paraphrase, do not summarize, do not translate, do not add new content."
-    ),
-}
+# The per-mode instruction text lives in prompts.py (it is user-editable);
+# the surrounding scaffolding below is NOT editable so a custom instruction
+# can never break term protection or the strict JSON output contract.
 
 
 def _build_cleanup_messages(
     *,
     raw_text: str,
     glossary: Glossary,
-    mode: str,
+    instructions: str,
     language: str | None,
 ) -> list[dict]:
-    instructions = CLEANUP_INSTRUCTIONS.get(mode, CLEANUP_INSTRUCTIONS["standard"])
     whitelist = glossary.whitelist_for_cleanup()
     anti_correct = glossary.anti_correct
 
@@ -195,8 +176,9 @@ async def cleanup(
     model: str | None = None,
 ) -> CleanupResult:
     used_model = model or settings.cleanup_model
+    instructions = await resolve_instructions("cleanup", mode)
     messages = _build_cleanup_messages(
-        raw_text=raw_text, glossary=glossary, mode=mode, language=language
+        raw_text=raw_text, glossary=glossary, instructions=instructions, language=language
     )
     # Cleanup output is roughly the same length as input (just fixing
     # mishears + punctuation, no rewording). 1.10× input gives a small
@@ -237,51 +219,13 @@ async def cleanup(
 # polish actively rewrites for readability of a SPOKEN transcript.
 # ============================================================================
 
-POLISH_INSTRUCTIONS = {
-    "light": (
-        "Improve readability of a SPOKEN transcript without changing meaning "
-        "or removing information. Allowed: remove disfluencies (uh, um, э-э, "
-        "ну вот, типа, как бы), false starts, immediate word repetitions "
-        "caused by hesitation, and trivial filler. "
-        "Forbidden: rewording phrases, reordering sentences, paraphrasing, "
-        "translating, summarising, adding or removing facts. "
-        "Keep the speaker's word choice and sentence structure."
-    ),
-    "standard": (
-        "Improve readability of a SPOKEN transcript while preserving meaning "
-        "and the speaker's voice. Allowed: remove disfluencies, false starts, "
-        "and immediate word repetitions; tighten obvious run-on sentences; "
-        "fix glaring tautology; gently restructure broken syntax where the "
-        "speaker corrected mid-sentence (e.g., 'я хотел... в общем, я решил "
-        "пойти' → 'я решил пойти'). "
-        "Forbidden: paraphrasing for style, reordering ideas, merging "
-        "separate sentences into a different one, adding new content, "
-        "translating, summarising. Keep the speaker's word choice."
-    ),
-    "strong": (
-        "Turn a SPOKEN transcript into readable prose while preserving every "
-        "fact, intent, and key term. The output should read like it was "
-        "written, not transcribed. Allowed: remove disfluencies and filler; "
-        "reorder words within a sentence for clarity; merge fragmentary "
-        "sentences that belong together; add paragraph breaks where the "
-        "speaker shifts topic; lightly rephrase awkward syntax; remove "
-        "redundancy. "
-        "Forbidden: introducing facts, opinions, or information not present "
-        "in the source; translating; summarising; making the text shorter "
-        "than ~85% of the original; changing the meaning of any sentence. "
-        "The reader should still recognise the speaker's voice and tone."
-    ),
-}
-
-
 def _build_polish_messages(
     *,
     text: str,
     glossary: Glossary,
-    mode: str,
+    instructions: str,
     language: str | None,
 ) -> list[dict]:
-    instructions = POLISH_INSTRUCTIONS.get(mode, POLISH_INSTRUCTIONS["standard"])
     # Polish uses a slimmer whitelist than cleanup (core + personal only,
     # no extended) — the long tail of niche tech terms isn't load-bearing
     # for rewording, and dropping it brings the system prompt under
@@ -391,8 +335,9 @@ async def polish(
     else:
         used_model = settings.polish_model_default
 
+    instructions = await resolve_instructions("polish", mode)
     messages = _build_polish_messages(
-        text=text, glossary=glossary, mode=mode, language=language
+        text=text, glossary=glossary, instructions=instructions, language=language
     )
     # Polish reword ≈ same length as input; allow 30 % growth to handle
     # mild expansion (clarifying restructures) without bloating the budget.

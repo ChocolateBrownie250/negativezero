@@ -120,6 +120,12 @@ async def set_setting(key: str, value: str) -> None:
         await conn.commit()
 
 
+async def delete_setting(key: str) -> None:
+    async with get_db() as conn:
+        await conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+        await conn.commit()
+
+
 async def get_json_setting(key: str, default):
     raw = await get_setting(key)
     if raw is None:
