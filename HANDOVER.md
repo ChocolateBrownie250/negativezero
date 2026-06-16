@@ -195,6 +195,46 @@ negativezero-compose.service*.
 5. Give the plaintext code to the new user; they register at the
    service's login screen.
 
+### Bring up the redirector (first deploy + registration)
+
+The `redirector` service (short-link redirects, mounted at
+`/services/redirector/`) merged to `main` in PR #72 but is **not live until
+`deploy.sh` runs on the VPS**. To deploy it:
+
+1. From the operator's mac, sync `main` to the VPS and run the deployer (same
+   commands as *Deploy an update from the operator's mac* above). `deploy.sh`
+   is idempotent and leaves the other services untouched; it auto-seeds
+   `REDIRECTOR_SESSION_SECRET` + `REDIRECTOR_SETUP_CODE_HASH`, picks a free
+   loopback port (~3026), builds the container, and wires the nginx location.
+2. **Save the one-time setup code.** On the run that first seeds the
+   redirector's secrets, `deploy.sh` prints:
+   ```
+   Redirector setup code (save this — it won't be shown again):
+     redirector:        XXXX-XXXX-XXXX
+   ```
+   It won't be shown again. If you miss it and no passkey is registered yet,
+   re-issue one via admin (see *Issue a new registration code via admin*,
+   service = `redirector`) rather than regenerating `.env`.
+
+Registering the first passkey — three ways, easiest first:
+
+- **SSO (no code needed).** On the redirector login page click *Sign in with
+  negativezero*. It bounces through `/services/admin/`; once you're signed in
+  to admin, the shared apex `nz_session` cookie authenticates you to the
+  redirector directly (`requireAuth` accepts it). No redirector-specific code
+  or passkey required.
+- **deploy.sh setup code.** Use the code from step 2 on the redirector's
+  *Register for the first time* screen to register a redirector-local passkey
+  (the fallback that works even if SSO is down). Save the backup code it shows
+  once.
+- **admin-issued code.** Only if you want a local passkey but missed the
+  printed code — generate one for `redirector` in admin, paste the hash into
+  `platform/.env` (`REDIRECTOR_SETUP_CODE_HASH=`, `$`→`$$`), restart the
+  container, then register with the plaintext code.
+
+Sanity check after registering: create a redirect in the UI, open its
+`…/services/redirector/<hash>` link, confirm the 302 to your destination.
+
 ### Rotate the tts API key
 
 ```bash
