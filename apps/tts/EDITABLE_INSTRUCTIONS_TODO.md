@@ -20,15 +20,18 @@ Branch: `claude/bottom-nav-positioning-0pb1kr` (PR #71).
 - [x] register `prompts_router` in `main.py`
 
 ## Frontend (PWA)
-- [ ] `index.html` — "Edit instructions" entry on Modes screen + a
+- [x] `index.html` — "Edit instructions" entry on Modes screen + a
       `#modesInstructions` sub-screen (guidelines panel + editor list)
-- [ ] `app.js` — load/render editor cards, per-card Save + Reset, wire nav
-- [ ] Guidelines copy: what the field expects so users don't break output
+- [x] `app.js` — load/render editor cards, per-card Save + Reset, wire nav
+- [x] Guidelines copy: what the field expects so users don't break output
 
 ## Verify
-- [ ] Backend imports cleanly; existing tests still pass
-- [ ] Screenshot the new editor screen on simulated iPhone
-- [ ] Confirm reset restores the shipped default text
+- [x] Backend imports cleanly; existing tests still pass (chunker 16/16)
+- [x] Screenshot the new editor screen on simulated iPhone
+- [x] Confirm reset restores the shipped default text
+- [x] End-to-end: UI save → settings table → `resolve_instructions` uses
+      custom base + appended extra rules; reset clears; 404 on unknown
+      stage/mode; 401 without auth
 
 ## Notes
 - This is per-`owner` today; it becomes per-user automatically once

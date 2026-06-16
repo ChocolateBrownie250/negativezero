@@ -201,7 +201,15 @@
           <p class="lg-sub">What each stage does, its model and limits</p>
         </header>
         <div class="list" style="gap:12px" id="modesList"></div>
-        <div class="glass nav-row" id="glossaryOpen" style="margin-top:14px">
+        <div class="glass nav-row" id="instrOpen" style="margin-top:14px">
+          <span class="lead"><svg class="ic"><use href="#i-doc"/></svg></span>
+          <div>
+            <div style="font-size:15px;font-weight:640">Edit instructions</div>
+            <div class="hint">Customize the cleanup &amp; polish system prompts</div>
+          </div>
+          <span class="chev"><svg class="ic"><use href="#i-chevron"/></svg></span>
+        </div>
+        <div class="glass nav-row" id="glossaryOpen" style="margin-top:10px">
           <span class="lead"><svg class="ic"><use href="#i-book"/></svg></span>
           <div>
             <div style="font-size:15px;font-weight:640">Glossary</div>
@@ -234,6 +242,33 @@
         <ul id="glossaryCore" class="chips hidden" style="margin:0 0 12px"></ul>
         <div class="glass collapse" id="glossaryExtToggle" style="margin-bottom:10px"><span style="font-size:15px;font-weight:600">Built-in extended <span class="hint">~250</span></span><svg class="ic chev"><use href="#i-chevron-d"/></svg></div>
         <ul id="glossaryExtended" class="chips hidden" style="margin:0"></ul>
+      </div>
+
+      <div id="modesInstructions" class="hidden">
+        <div class="navbar"><button id="instrBack" class="nav-btn back" aria-label="Back to Modes"><svg class="ic"><use href="#i-chevron-l"/></svg><span>Modes</span></button></div>
+        <header style="margin-bottom:14px">
+          <h1 class="lg-title">Edit instructions</h1>
+          <p class="lg-sub">The system prompt each model follows, per task and strength</p>
+        </header>
+
+        <div class="glass collapse" id="instrGuideToggle" style="margin-bottom:12px"><span style="font-size:15px;font-weight:600"><svg class="ic" style="vertical-align:-3px;margin-right:6px"><use href="#i-info"/></svg>How to write these</span><svg class="ic chev"><use href="#i-chevron-d"/></svg></div>
+        <div id="instrGuide" class="glass card-pad hidden" style="margin-bottom:14px">
+          <p class="hint" style="margin:0 0 8px">These fields steer the model that rewrites your transcript. The
+          glossary protection, "never translate / never summarise" and the
+          machine-readable output format are always enforced for you and can't
+          be edited here — so a change can adjust <em>style</em> but won't break
+          term protection or the app.</p>
+          <ul class="hint" style="margin:0;padding-left:18px;line-height:1.7">
+            <li><strong>Instruction</strong> — the core behaviour for this strength. Describe what the model may and may not change. Phrase as direct rules ("Fix…", "Do not paraphrase…").</li>
+            <li><strong>Extra rules</strong> — your own additions on top of the default (e.g. "Always write numbers as digits", "Keep British spelling"). Leave the instruction default and just add here when you only want a tweak.</li>
+            <li>It's a <em>transcript editor</em>, not a chatbot — don't ask it questions or request new content; it should only transform the words you spoke.</li>
+            <li>Keep it concise and unambiguous. Conflicting or vague rules make output less predictable.</li>
+            <li>Use <strong>Reset</strong> on any field to restore the shipped default if results get worse.</li>
+          </ul>
+        </div>
+
+        <div id="instrList" class="list" style="gap:14px"></div>
+        <p id="instrStatus" class="hint" style="margin:14px 4px 0" aria-live="polite"></p>
       </div>
     </section>
 

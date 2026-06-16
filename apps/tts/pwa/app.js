@@ -727,14 +727,24 @@ function renderModesOnce() {
 function showModesMain() {
   document.getElementById("modesMain")?.classList.remove("hidden");
   document.getElementById("modesGlossary")?.classList.add("hidden");
+  document.getElementById("modesInstructions")?.classList.add("hidden");
 }
 function showModesGlossary() {
   document.getElementById("modesMain")?.classList.add("hidden");
+  document.getElementById("modesInstructions")?.classList.add("hidden");
   document.getElementById("modesGlossary")?.classList.remove("hidden");
   loadGlossary();
 }
+function showModesInstructions() {
+  document.getElementById("modesMain")?.classList.add("hidden");
+  document.getElementById("modesGlossary")?.classList.add("hidden");
+  document.getElementById("modesInstructions")?.classList.remove("hidden");
+  loadPrompts();
+}
 document.getElementById("glossaryOpen")?.addEventListener("click", showModesGlossary);
 document.getElementById("glossaryBack")?.addEventListener("click", showModesMain);
+document.getElementById("instrOpen")?.addEventListener("click", showModesInstructions);
+document.getElementById("instrBack")?.addEventListener("click", showModesMain);
 document.getElementById("settingsModesLink")?.addEventListener("click", () => {
   document.querySelector('nav button[data-tab="modes"]').click();
 });
@@ -748,6 +758,93 @@ function wireCollapse(toggleId, listId) {
 }
 wireCollapse("glossaryCoreToggle", "glossaryCore");
 wireCollapse("glossaryExtToggle", "glossaryExtended");
+wireCollapse("instrGuideToggle", "instrGuide");
+
+// ----- Editable model instructions (cleanup/polish system prompts) -----
+function _esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function setInstrStatus(msg) {
+  const el = document.getElementById("instrStatus");
+  if (el) el.textContent = msg || "";
+}
+let _promptsLoaded = false;
+async function loadPrompts(force) {
+  const host = document.getElementById("instrList");
+  if (!host || (_promptsLoaded && !force)) return;
+  host.innerHTML = `<p class="hint" style="margin:4px">Loading…</p>`;
+  setInstrStatus("");
+  try {
+    const data = await api("api/v1/prompts");
+    host.innerHTML = "";
+    for (const it of data.items) host.appendChild(buildPromptCard(it));
+    _promptsLoaded = true;
+  } catch (e) {
+    host.innerHTML = "";
+    setInstrStatus("Failed to load: " + e.message);
+  }
+}
+function buildPromptCard(it) {
+  const card = document.createElement("article");
+  card.className = "glass card-pad";
+  card.dataset.stage = it.stage;
+  card.dataset.mode = it.mode;
+  const note = it.mode_note ? `<span class="hint">· ${_esc(it.mode_note)}</span>` : "";
+  card.innerHTML = `
+    <div style="font-size:15px;font-weight:640;margin-bottom:2px">${_esc(it.label)} ${note}</div>
+    <div class="hint" style="margin-bottom:10px">${_esc(it.stage_desc)}</div>
+    <label class="field-label">Instruction</label>
+    <textarea class="textarea instr-base" rows="5" spellcheck="false"></textarea>
+    <label class="field-label" style="margin-top:10px">Extra rules <span class="field-hint">added on top — optional</span></label>
+    <textarea class="textarea instr-extra" rows="3" spellcheck="false" placeholder="e.g. Always spell out numbers under ten"></textarea>
+    <div class="row gap-s" style="margin-top:10px;align-items:center">
+      <button class="btn btn-primary instr-save"><svg class="ic"><use href="#i-check"/></svg><span>Save</span></button>
+      <button class="btn btn-ghost instr-reset"><svg class="ic"><use href="#i-refresh"/></svg><span>Reset</span></button>
+      <span class="hint instr-state"></span>
+    </div>`;
+  const baseTa = card.querySelector(".instr-base");
+  baseTa.value = it.base ?? it.default_base;
+  baseTa.dataset.default = it.default_base;
+  card.querySelector(".instr-extra").value = it.extra || "";
+  card.querySelector(".instr-save").addEventListener("click", () => savePromptCard(card));
+  card.querySelector(".instr-reset").addEventListener("click", () => resetPromptCard(card));
+  return card;
+}
+async function savePromptCard(card) {
+  const { stage, mode } = card.dataset;
+  const state = card.querySelector(".instr-state");
+  state.textContent = "Saving…";
+  try {
+    await api(`api/v1/prompts/${stage}/${mode}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        base: card.querySelector(".instr-base").value,
+        extra: card.querySelector(".instr-extra").value,
+      }),
+    });
+    state.textContent = "Saved.";
+    setTimeout(() => (state.textContent = ""), 1500);
+  } catch (e) {
+    state.textContent = "Failed: " + e.message;
+  }
+}
+async function resetPromptCard(card) {
+  const { stage, mode } = card.dataset;
+  const state = card.querySelector(".instr-state");
+  state.textContent = "Resetting…";
+  try {
+    await api(`api/v1/prompts/${stage}/${mode}/reset`, { method: "POST" });
+    const baseTa = card.querySelector(".instr-base");
+    baseTa.value = baseTa.dataset.default;
+    card.querySelector(".instr-extra").value = "";
+    state.textContent = "Reset to default.";
+    setTimeout(() => (state.textContent = ""), 1500);
+  } catch (e) {
+    state.textContent = "Failed: " + e.message;
+  }
+}
 
 // ----- Settings UI -----
 const apiBase = document.getElementById("apiBase");
