@@ -3,7 +3,16 @@ import logging
 import time
 from dataclasses import dataclass
 
-from groq import AsyncGroq
+from groq import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncGroq,
+    AuthenticationError,
+    BadRequestError,
+    PermissionDeniedError,
+    RateLimitError,
+)
 
 from .config import settings
 from .glossary import Glossary
@@ -19,6 +28,54 @@ def client() -> AsyncGroq:
     if _client is None:
         _client = AsyncGroq(api_key=settings.groq_api_key)
     return _client
+
+
+def _groq_message(exc: APIStatusError) -> str:
+    """Best-effort extraction of Groq's human-readable error message.
+
+    Groq returns ``{"error": {"message": "..."}}``; the SDK parses it into
+    ``exc.body`` and usually also ``exc.message``. Fall back to ``str(exc)``.
+    """
+    try:
+        body = exc.body
+        if isinstance(body, dict):
+            err = body.get("error")
+            if isinstance(err, dict) and isinstance(err.get("message"), str):
+                return err["message"]
+    except Exception:  # pragma: no cover - defensive
+        pass
+    return getattr(exc, "message", None) or str(exc)
+
+
+def map_upstream_error(exc: Exception, *, action: str) -> tuple[int, str]:
+    """Map a Groq SDK exception to an ``(http_status, client_detail)`` pair.
+
+    The routes used to collapse every Groq failure into an opaque
+    ``502 "<action> upstream failed"``, which made a recurring failure
+    impossible to diagnose from the client (it just shows "Bad Gateway").
+    This names the real upstream cause — rate limit, rejected key, bad
+    request, timeout — so the next failure is self-explanatory while still
+    keeping the API key out of the response.
+
+    ``action`` is a short verb phrase like "Transcription" or "Polish".
+    """
+    if isinstance(exc, RateLimitError):
+        # 429 so the client can tell the user to retry rather than treating
+        # it as a hard server fault. Groq's message carries the reset window.
+        return 429, f"{action} rate-limited by Groq: {_groq_message(exc)}"
+    if isinstance(exc, (AuthenticationError, PermissionDeniedError)):
+        # Don't echo the upstream auth message (can hint at key material);
+        # a fixed, actionable line is enough.
+        return 502, f"{action} failed: Groq rejected the API key (check GROQ_API_KEY)"
+    if isinstance(exc, BadRequestError):
+        # e.g. an unsupported/decommissioned model or a malformed audio file.
+        return 400, f"{action} rejected by Groq: {_groq_message(exc)}"
+    if isinstance(exc, (APITimeoutError, APIConnectionError)):
+        return 504, f"{action} upstream unreachable (Groq connection/timeout)"
+    if isinstance(exc, APIStatusError):
+        return 502, f"{action} upstream failed (Groq {exc.status_code}): {_groq_message(exc)}"
+    # Non-Groq / unknown error — keep the old generic message.
+    return 502, f"{action} upstream failed"
 
 
 # Allowlists of Groq model ids we are willing to forward. Callers accept a

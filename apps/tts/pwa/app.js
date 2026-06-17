@@ -74,6 +74,29 @@ function handleAuthError(e) {
   return false;
 }
 
+// Turn an API error into a short, human status line. The backend now names
+// the real upstream cause (rate limit, rejected key, timeout, …); translate
+// those into something a user can act on. Falls back to the raw message.
+function friendlyError(e) {
+  const status = e && e.status;
+  const detail = (e && e.detail) || "";
+  if (status === 429) {
+    // Groq rate limit. Surface the retry window if the upstream message
+    // carried one ("…try again in 12s" / "…in 1m2.3s").
+    const m = detail.match(/try again in ([\dhms.]+)/i);
+    return m
+      ? `Groq rate limit — try again in ${m[1]}`
+      : "Groq rate limit reached — wait a moment and try again";
+  }
+  if (status === 502 && /API key/i.test(detail)) {
+    return "Transcription unavailable — Groq API key rejected (ask the operator)";
+  }
+  if (status === 504) return "Groq timed out — try again";
+  if (status === 413) return detail || "Recording too long — try a shorter clip";
+  if (status === 400 && /rejected by Groq/i.test(detail)) return detail;
+  return (e && e.message) || "Something went wrong";
+}
+
 // ----- Tabs -----
 document.querySelectorAll("nav button").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -249,7 +272,7 @@ async function onStopped() {
     showResult(result);
     recStatus.textContent = "Tap to dictate";
   } catch (e) {
-    recStatus.textContent = "Error: " + e.message;
+    recStatus.textContent = friendlyError(e);
   }
 }
 
@@ -1448,7 +1471,7 @@ async function onDictateStopped() {
     });
     insertDictation(res.text);
   } catch (e) {
-    alert("Dictation failed: " + e.message);
+    alert("Dictation failed: " + friendlyError(e));
   } finally {
     notesElem.overlay.classList.add("hidden");
   }
