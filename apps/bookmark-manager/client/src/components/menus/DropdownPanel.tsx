@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { COLORS, RING_STRONG } from '../../lib/colors';
 
 interface Props {
   anchorEl: HTMLElement | null;
@@ -67,13 +66,11 @@ export default function DropdownPanel({
     <div
       ref={ref}
       role="menu"
-      className="fixed z-50 rounded-xl py-1 overflow-hidden"
+      className="glass-surface fixed z-50 rounded-xl py-1 overflow-hidden"
       style={{
         top: pos.top,
         left: pos.left,
         width,
-        background: COLORS.surface,
-        boxShadow: `0 0 0 1px ${RING_STRONG}, 0 12px 28px rgba(0,0,0,0.55)`,
       }}
     >
       {children}

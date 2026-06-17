@@ -35,7 +35,6 @@ import {
   LABEL_PRIMARY,
   LABEL_SECONDARY,
   LABEL_TERTIARY,
-  RING_SUBTLE,
 } from '../lib/colors';
 import { externalLinkHref, IS_IOS } from '../lib/platform';
 import ItemRow from './ItemRow';
@@ -901,10 +900,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
   const ctxIsBulk = ctxMenu?.kind === 'row' && selected.size > 1;
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: COLORS.bg, color: LABEL_PRIMARY }}
-    >
+    <div className="min-h-screen" style={{ color: LABEL_PRIMARY }}>
       <div className="max-w-2xl mx-auto px-4 pt-[max(env(safe-area-inset-top),16px)] pb-12">
         {selected.size > 0 ? (
           <SelectionToolbar
@@ -980,12 +976,8 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
           ref={(el) => {
             listRef.current = el;
           }}
-          className="rounded-2xl overflow-hidden relative"
-          style={{
-            background: COLORS.card,
-            boxShadow: `0 0 0 1px ${RING_SUBTLE}`,
-            minHeight: 80,
-          }}
+          className="glass-card rounded-2xl overflow-hidden relative"
+          style={{ minHeight: 80 }}
           onPointerDown={onListPointerDown}
           onPointerMove={onListPointerMove}
           onPointerUp={onListPointerUp}
@@ -1047,8 +1039,8 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
                 top: Math.min(marquee.startY, marquee.endY),
                 width: Math.abs(marquee.endX - marquee.startX),
                 height: Math.abs(marquee.endY - marquee.startY),
-                background: 'rgba(0,122,255,0.15)',
-                boxShadow: '0 0 0 1px rgba(0,122,255,0.55)',
+                background: 'rgba(91,147,240,0.18)',
+                boxShadow: '0 0 0 1px rgba(91,147,240,0.55)',
                 zIndex: 40,
               }}
             />
@@ -1168,7 +1160,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
               setCtxMenu(null);
             }}
           />
-          <div className="my-1 mx-3 h-px" style={{ background: 'rgba(255,255,255,0.10)' }} />
+          <div className="my-1 mx-3 h-px" style={{ background: 'rgba(150,178,235,0.12)' }} />
           <MenuItem
             icon={<Trash2 size={18} />}
             label="Delete"
