@@ -24,6 +24,11 @@ export const config = {
   sessionSecret: Buffer.from(sessionSecretHex, 'hex'),
   setupCodeHash,
   ssoSecret: process.env.SSO_SESSION_SECRET ?? '',
+  // Admin's internal base URL for per-service authorization checks. Empty
+  // disables the check (legacy "any valid SSO = full access") for incremental
+  // rollout; docker-compose sets it to http://admin:3000.
+  adminAuthzUrl: (process.env.ADMIN_AUTHZ_URL ?? '').replace(/\/+$/, ''),
+  serviceName: 'redirector',
   publicUrl: process.env.PUBLIC_URL ?? '',
   dataDir: process.env.DATA_DIR ?? path.resolve(process.cwd(), 'data'),
   clientDist: path.resolve(process.cwd(), '../client/dist'),

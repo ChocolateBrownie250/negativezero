@@ -21,12 +21,23 @@ export async function mintSsoSession(secret: string): Promise<string> {
     .sign(key(secret));
 }
 
-export async function verifySsoSession(token: string, secret: string): Promise<boolean> {
+export type SsoClaims = { sub: string; name?: string; iat?: number };
+
+// Returns the account claims for a valid token, or null. Authentication (a
+// valid signature) is separate from authorization (which services the account
+// may use) — the latter is enforced per-service via the admin authz endpoint.
+export async function verifySsoSession(
+  token: string,
+  secret: string,
+): Promise<SsoClaims | null> {
   try {
     const { payload } = await jwtVerify(token, key(secret), { algorithms: [ALG] });
-    return payload.sub === 'owner';
+    if (typeof payload.sub !== 'string' || !payload.sub) return null;
+    const name = typeof payload.name === 'string' ? payload.name : undefined;
+    const iat = typeof payload.iat === 'number' ? payload.iat : undefined;
+    return { sub: payload.sub, name, iat };
   } catch {
-    return false;
+    return null;
   }
 }
 

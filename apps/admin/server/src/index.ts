@@ -7,8 +7,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config, isProd } from './config.js';
 import { requireAuth } from './middleware/auth.js';
+import { ensureOwnerAccount } from './lib/accounts.js';
 import authRoutes from './routes/auth.js';
 import codeRoutes from './routes/codes.js';
+import accountRoutes from './routes/accounts.js';
+import internalRoutes from './routes/internal.js';
 
 async function main() {
   const app = Fastify({
@@ -50,12 +53,20 @@ async function main() {
 
   app.get('/api/health', async () => ({ ok: true }));
 
+  // Seed the owner account / adopt legacy single-owner passkeys.
+  ensureOwnerAccount();
+
   app.register(authRoutes, { prefix: '/api' });
+
+  // Service-to-service authorization endpoint. Bearer-guarded inside the
+  // handler; never exposed through nginx. NOT behind requireAuth.
+  app.register(internalRoutes, { prefix: '/api' });
 
   app.register(
     async (instance) => {
       instance.addHook('onRequest', requireAuth);
       instance.register(codeRoutes);
+      instance.register(accountRoutes);
     },
     { prefix: '/api' },
   );

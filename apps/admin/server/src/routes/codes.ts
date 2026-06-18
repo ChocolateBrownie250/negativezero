@@ -3,31 +3,37 @@ import bcrypt from 'bcrypt';
 import type { FastifyInstance } from 'fastify';
 import { db, type GeneratedCodeRow } from '../db.js';
 import { generateRegistrationCode } from '../lib/codes.js';
-
-// Whitelist of services the admin can issue codes for. Adding a service to
-// the platform means adding it here too — otherwise the dropdown in the UI
-// silently accepts any string, which is bad form for an admin tool.
-// Passkey-protected services that consume a *_SETUP_CODE_HASH. tts is omitted
-// on purpose: it authenticates via the shared SSO session + an API key, not a
-// per-service setup code, so a generated code would be a no-op there.
-const SERVICES = ['bookmark-manager', 'admin', 'video-downloader', 'redirector'] as const;
-type Service = typeof SERVICES[number];
-
-function isService(v: unknown): v is Service {
-  return typeof v === 'string' && (SERVICES as readonly string[]).includes(v);
-}
+import { GATED_SERVICES, isGatedService } from '../lib/accounts.js';
 
 export default async function codeRoutes(app: FastifyInstance) {
-  app.get('/codes/services', async () => ({ services: SERVICES }));
+  // The services a setup code can grant access to.
+  app.get('/codes/services', async () => ({ services: GATED_SERVICES }));
 
   app.post('/codes/generate', async (req, reply) => {
-    const body = (req.body ?? {}) as { service?: unknown; label?: unknown };
-    if (!isService(body.service)) {
-      return reply.code(400).send({ error: 'validation', field: 'service' });
+    const body = (req.body ?? {}) as {
+      services?: unknown;
+      service?: unknown; // legacy single-service form, still accepted
+      name?: unknown;
+      label?: unknown;
+    };
+
+    // Accept either `services: string[]` (new) or `service: string` (legacy).
+    let services: string[] = [];
+    if (Array.isArray(body.services)) {
+      services = body.services.filter(isGatedService);
+    } else if (isGatedService(body.service)) {
+      services = [body.service];
     }
-    const label =
-      typeof body.label === 'string' && body.label.trim()
-        ? body.label.trim().slice(0, 80)
+    if (services.length === 0) {
+      return reply.code(400).send({ error: 'validation', field: 'services' });
+    }
+    // De-duplicate while preserving the canonical order.
+    services = GATED_SERVICES.filter((s) => services.includes(s));
+
+    const rawName = typeof body.name === 'string' ? body.name : body.label;
+    const name =
+      typeof rawName === 'string' && rawName.trim()
+        ? rawName.trim().slice(0, 80)
         : null;
 
     const code = generateRegistrationCode();
@@ -35,37 +41,50 @@ export default async function codeRoutes(app: FastifyInstance) {
 
     const codeId = randomUUID();
     db.prepare(
-      `INSERT INTO generated_codes (id, service, code_hash, label, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    ).run(codeId, body.service, hash, label, Date.now());
+      `INSERT INTO generated_codes
+         (id, service, code_hash, label, created_at, granted_services, name)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      codeId,
+      services[0], // keep `service` populated for backwards-compatible reads
+      hash,
+      name,
+      Date.now(),
+      JSON.stringify(services),
+      name,
+    );
 
     db.prepare(
       'INSERT INTO audit_log (ts, event, detail, ip) VALUES (?, ?, ?, ?)',
     ).run(
       Date.now(),
       'code_generate',
-      `service=${body.service} id=${codeId}`,
+      `services=${services.join(',')} id=${codeId}`,
       req.ip ?? null,
     );
 
-    return { service: body.service, label, code, hash };
+    return { services, name, code };
   });
 
   app.get('/codes/log', async () => {
     const rows = db
       .prepare(
-        `SELECT id, service, label, created_at
+        `SELECT id, service, label, created_at, granted_services, name, used_at, account_id
            FROM generated_codes
           ORDER BY created_at DESC
           LIMIT 100`,
       )
-      .all() as Pick<GeneratedCodeRow, 'id' | 'service' | 'label' | 'created_at'>[];
+      .all() as GeneratedCodeRow[];
     return {
       codes: rows.map((r) => ({
         id: r.id,
-        service: r.service,
-        label: r.label,
+        services: r.granted_services
+          ? (JSON.parse(r.granted_services) as string[])
+          : [r.service],
+        name: r.name ?? r.label,
         createdAt: r.created_at,
+        usedAt: r.used_at,
+        accountId: r.account_id,
       })),
     };
   });

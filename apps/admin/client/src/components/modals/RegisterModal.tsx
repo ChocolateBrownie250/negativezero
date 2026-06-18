@@ -14,6 +14,7 @@ interface Props {
 
 export default function RegisterModal({ mode, onClose, onDone }: Props) {
   const [code, setCode] = useState('');
+  const [name, setName] = useState('');
   const [deviceName, setDeviceName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -24,10 +25,11 @@ export default function RegisterModal({ mode, onClose, onDone }: Props) {
     setError(null);
     setSubmitting(true);
     try {
+      const trimmedName = name.trim() || undefined;
       const args =
         mode === 'first'
-          ? { setupCode: code.trim() }
-          : { backupCode: code.trim() };
+          ? { setupCode: code.trim(), name: trimmedName }
+          : { backupCode: code.trim(), name: trimmedName };
       const options = await api.passkey.registerOptions(args);
       const att = await startRegistration({ optionsJSON: options as never });
       const result = await api.passkey.registerVerify(
@@ -111,6 +113,21 @@ export default function RegisterModal({ mode, onClose, onDone }: Props) {
         value={code}
         onChange={(e) => setCode(e.target.value)}
         className="w-full rounded-xl px-3 py-2 mb-4 font-mono"
+        style={{
+          background: COLORS.surface,
+          color: COLORS.ink,
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+      />
+      <label className="block text-[13px] mb-1" style={{ color: LABEL_SECONDARY }}>
+        Your name (optional)
+      </label>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="e.g. Igor"
+        className="w-full rounded-xl px-3 py-2 mb-4"
         style={{
           background: COLORS.surface,
           color: COLORS.ink,

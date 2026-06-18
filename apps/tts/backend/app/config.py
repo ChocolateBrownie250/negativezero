@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     # Empty (default) disables the cookie path — only Bearer works.
     sso_session_secret: str = Field("", alias="SSO_SESSION_SECRET")
 
+    # Admin service base URL used to authorize an SSO-authenticated account for
+    # the `tts` service:
+    #   GET {admin_authz_url}/api/internal/authz?account=<sub>&service=tts
+    #   Authorization: Bearer <sso_session_secret>  → {"allowed": bool}
+    # Empty (default) SKIPS the authz check so any valid SSO is accepted —
+    # lets the per-service authorization roll out incrementally.
+    admin_authz_url: str = Field("", alias="ADMIN_AUTHZ_URL")
+
     public_host: str = Field("localhost", alias="PUBLIC_HOST")
     acme_email: str = Field("", alias="ACME_EMAIL")
 

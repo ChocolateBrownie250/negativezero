@@ -51,14 +51,40 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export type GeneratedCodeLogEntry = {
   id: string;
+  services: string[];
+  name: string | null;
+  createdAt: number;
+  usedAt: number | null;
+  accountId: string | null;
+};
+
+export type Account = {
+  id: string;
+  name: string;
+  status: 'active' | 'disabled';
+  isOwner: boolean;
+  createdAt: number;
+  services: Record<string, boolean>;
+};
+
+export type TokenInfo = {
+  id: string;
   service: string;
   label: string | null;
   createdAt: number;
+  lastUsed: number | null;
+  revoked: boolean;
 };
 
 export const api = {
   me: () =>
-    request<{ authenticated: boolean; hasPasskey: boolean }>('/api/auth/me'),
+    request<{
+      authenticated: boolean;
+      hasPasskey: boolean;
+      isOwner: boolean;
+      name: string | null;
+      canAdmin: boolean;
+    }>('/api/auth/me'),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   passkey: {
     loginOptions: () =>
@@ -69,7 +95,7 @@ export const api = {
         body: JSON.stringify({ response }),
       }),
     registerOptions: (
-      args: { setupCode?: string; backupCode?: string } = {},
+      args: { setupCode?: string; backupCode?: string; name?: string } = {},
     ) =>
       request<unknown>('/api/auth/passkey/register/options', {
         method: 'POST',
@@ -104,15 +130,59 @@ export const api = {
     }),
   codes: {
     services: () => request<{ services: string[] }>('/api/codes/services'),
-    generate: (service: string, label?: string) =>
-      request<{ service: string; label: string | null; code: string; hash: string }>(
+    generate: (services: string[], name?: string) =>
+      request<{ services: string[]; name: string | null; code: string }>(
         '/api/codes/generate',
         {
           method: 'POST',
-          body: JSON.stringify({ service, label }),
+          body: JSON.stringify({ services, name }),
         },
       ),
     log: () =>
       request<{ codes: GeneratedCodeLogEntry[] }>('/api/codes/log'),
+  },
+  accounts: {
+    list: () => request<{ accounts: Account[] }>('/api/accounts'),
+    setService: (id: string, service: string, enabled: boolean) =>
+      request<{ ok: true }>(
+        `/api/accounts/${encodeURIComponent(id)}/service`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ service, enabled }),
+        },
+      ),
+    setStatus: (id: string, status: 'active' | 'disabled') =>
+      request<{ ok: true }>(
+        `/api/accounts/${encodeURIComponent(id)}/status`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ status }),
+        },
+      ),
+    remove: (id: string) =>
+      request<{ ok: true }>(`/api/accounts/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+    listTokens: (id: string) =>
+      request<{ tokens: TokenInfo[] }>(
+        `/api/accounts/${encodeURIComponent(id)}/tokens`,
+      ),
+    createToken: (id: string, label?: string) =>
+      request<{
+        id: string;
+        service: string;
+        label: string | null;
+        token: string;
+      }>(`/api/accounts/${encodeURIComponent(id)}/tokens`, {
+        method: 'POST',
+        body: JSON.stringify({ service: 'tts', label }),
+      }),
+    revokeToken: (id: string, tokenId: string) =>
+      request<{ ok: true }>(
+        `/api/accounts/${encodeURIComponent(id)}/tokens/${encodeURIComponent(
+          tokenId,
+        )}`,
+        { method: 'DELETE' },
+      ),
   },
 };

@@ -7,27 +7,27 @@ import {
   LABEL_TERTIARY,
   RING_STRONG,
 } from '../lib/colors';
+import Accounts from '../components/Accounts';
 
 interface Props {
   onUnauthorized: () => void;
 }
 
 type Generated = {
-  service: string;
-  label: string | null;
+  services: string[];
+  name: string | null;
   code: string;
-  hash: string;
 };
 
 export default function Dashboard({ onUnauthorized }: Props) {
   const [services, setServices] = useState<string[]>([]);
-  const [service, setService] = useState<string>('');
-  const [label, setLabel] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generated, setGenerated] = useState<Generated | null>(null);
   const [log, setLog] = useState<GeneratedCodeLogEntry[]>([]);
-  const [copiedField, setCopiedField] = useState<'code' | 'hash' | null>(null);
+  const [copied, setCopied] = useState(false);
 
   function handleErr(err: unknown) {
     if (err instanceof UnauthorizedError) onUnauthorized();
@@ -50,7 +50,6 @@ export default function Dashboard({ onUnauthorized }: Props) {
       .then((r) => {
         if (cancelled) return;
         setServices(r.services);
-        if (r.services.length > 0) setService(r.services[0]);
       })
       .catch(handleErr);
     refreshLog();
@@ -60,15 +59,22 @@ export default function Dashboard({ onUnauthorized }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function toggleService(s: string) {
+    setSelected((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+    );
+  }
+
   async function onGenerate() {
-    if (!service || submitting) return;
+    if (selected.length === 0 || submitting) return;
     setError(null);
     setGenerated(null);
     setSubmitting(true);
     try {
-      const r = await api.codes.generate(service, label.trim() || undefined);
+      const r = await api.codes.generate(selected, name.trim() || undefined);
       setGenerated(r);
-      setLabel('');
+      setName('');
+      setSelected([]);
       refreshLog();
     } catch (err) {
       handleErr(err);
@@ -86,11 +92,11 @@ export default function Dashboard({ onUnauthorized }: Props) {
     onUnauthorized();
   }
 
-  function copy(field: 'code' | 'hash', value: string) {
+  function copy(value: string) {
     navigator.clipboard.writeText(value).then(
       () => {
-        setCopiedField(field);
-        setTimeout(() => setCopiedField(null), 1400);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1400);
       },
       () => setError('Clipboard write failed'),
     );
@@ -145,36 +151,50 @@ export default function Dashboard({ onUnauthorized }: Props) {
             className="block text-[12px] mb-1"
             style={{ color: LABEL_SECONDARY }}
           >
-            Service
+            Services
           </label>
-          <select
-            value={service}
-            onChange={(e) => setService(e.target.value)}
-            className="w-full rounded-xl px-3 py-2 mb-3 text-[14px]"
+          <div
+            className="rounded-xl px-3 py-2 mb-3 flex flex-wrap gap-3"
             style={{
               background: COLORS.surface,
-              color: COLORS.ink,
               border: '1px solid rgba(255,255,255,0.08)',
             }}
           >
-            {services.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+            {services.length === 0 ? (
+              <span className="text-[13px]" style={{ color: LABEL_TERTIARY }}>
+                No services available.
+              </span>
+            ) : (
+              services.map((s) => (
+                <label
+                  key={s}
+                  className="flex items-center gap-1.5 text-[13px] cursor-pointer"
+                  style={{
+                    color: selected.includes(s) ? COLORS.ink : LABEL_TERTIARY,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(s)}
+                    onChange={() => toggleService(s)}
+                  />
+                  {s}
+                </label>
+              ))
+            )}
+          </div>
 
           <label
             className="block text-[12px] mb-1"
             style={{ color: LABEL_SECONDARY }}
           >
-            Label (optional — for the audit log)
+            Name (the person/account this code is for)
           </label>
           <input
             type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="e.g. 'igor laptop' or 'guest sept-22'"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. 'igor' or 'guest sept-22'"
             className="w-full rounded-xl px-3 py-2 mb-4 text-[14px]"
             style={{
               background: COLORS.surface,
@@ -186,7 +206,7 @@ export default function Dashboard({ onUnauthorized }: Props) {
           <button
             type="button"
             onClick={onGenerate}
-            disabled={submitting || !service}
+            disabled={submitting || selected.length === 0}
             className="w-full rounded-xl py-3 text-white font-semibold disabled:opacity-50"
             style={{
               background: COLORS.blue,
@@ -214,7 +234,7 @@ export default function Dashboard({ onUnauthorized }: Props) {
                 boxShadow: `0 0 0 1px ${RING_STRONG}`,
               }}
             >
-              <div className="mb-3">
+              <div>
                 <div
                   className="text-[11px] uppercase tracking-wider mb-1"
                   style={{ color: LABEL_TERTIARY }}
@@ -230,7 +250,7 @@ export default function Dashboard({ onUnauthorized }: Props) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => copy('code', generated.code)}
+                    onClick={() => copy(generated.code)}
                     className="rounded-lg px-2 py-1 text-[12px] flex items-center gap-1"
                     style={{
                       background: COLORS.card,
@@ -238,42 +258,24 @@ export default function Dashboard({ onUnauthorized }: Props) {
                     }}
                   >
                     <Copy size={12} />
-                    {copiedField === 'code' ? 'Copied' : 'Copy'}
+                    {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
-              </div>
-
-              <div>
-                <div
-                  className="text-[11px] uppercase tracking-wider mb-1"
-                  style={{ color: LABEL_TERTIARY }}
-                >
-                  Bcrypt hash (paste as {generated.service.toUpperCase().replace(/-/g, '_')}_SETUP_CODE_HASH in platform/.env, then docker compose restart {generated.service})
-                </div>
-                <div className="flex items-center gap-2">
+                {generated.services.length > 0 && (
                   <div
-                    className="flex-1 font-mono text-[11px] break-all select-all"
-                    style={{ color: COLORS.ink }}
+                    className="text-[12px] mt-2"
+                    style={{ color: LABEL_TERTIARY }}
                   >
-                    {generated.hash}
+                    Services: {generated.services.join(', ')}
+                    {generated.name ? ` · ${generated.name}` : ''}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => copy('hash', generated.hash)}
-                    className="rounded-lg px-2 py-1 text-[12px] flex items-center gap-1 shrink-0"
-                    style={{
-                      background: COLORS.card,
-                      color: LABEL_SECONDARY,
-                    }}
-                  >
-                    <Copy size={12} />
-                    {copiedField === 'hash' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           )}
         </section>
+
+        <Accounts services={services} onUnauthorized={onUnauthorized} />
 
         <section
           className="rounded-2xl p-5"
@@ -313,24 +315,37 @@ export default function Dashboard({ onUnauthorized }: Props) {
                   key={entry.id}
                   className="flex items-center justify-between py-2 border-t border-white/5 first:border-t-0"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <div
                       className="text-[14px]"
                       style={{ color: COLORS.ink }}
                     >
-                      {entry.service}
-                      {entry.label && (
+                      {entry.services.join(', ') || '—'}
+                      {entry.name && (
                         <span
                           className="ml-2 text-[12px]"
                           style={{ color: LABEL_TERTIARY }}
                         >
-                          · {entry.label}
+                          · {entry.name}
                         </span>
+                      )}
+                    </div>
+                    <div className="text-[11px]" style={{ color: LABEL_TERTIARY }}>
+                      {entry.usedAt ? (
+                        <span style={{ color: COLORS.green }}>
+                          used{' '}
+                          {new Date(entry.usedAt)
+                            .toISOString()
+                            .replace('T', ' ')
+                            .slice(0, 16)}
+                        </span>
+                      ) : (
+                        'unused'
                       )}
                     </div>
                   </div>
                   <div
-                    className="text-[12px] font-mono"
+                    className="text-[12px] font-mono shrink-0 ml-2"
                     style={{ color: LABEL_TERTIARY }}
                   >
                     {new Date(entry.createdAt).toISOString().replace('T', ' ').slice(0, 16)}

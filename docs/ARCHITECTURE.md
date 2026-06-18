@@ -255,6 +255,15 @@ DECISIONS.md.
   its own passkey + setup-code flow. Simpler than OIDC at single-user
   scale; if multi-user becomes a real need, re-introduce an identity
   layer. See DECISIONS.md 2026-05-28 "Logto removed from the platform".
+- **Multi-account + per-service authorization (admin-owned).** The
+  single-owner model was extended (2026-06-18) so the owner can invite
+  friends via admin-generated setup keys and toggle each account's
+  access per service. Admin owns the `accounts` table and is the SSO
+  hub; the `nz_session` cookie carries the account id; gated services
+  verify the cookie then ask admin `GET /api/internal/authz` (cached
+  ~30s) whether the account may use that service. Amethyst's PWA dropped
+  its API-key field in favour of this (the iPhone Shortcut Bearer key
+  stays). See DECISIONS.md 2026-06-18.
 - **Python + FastAPI exception for tts.** Net-new services still
   default to TS + Fastify; tts is the documented exception because
   rewriting a working imported service would burn weeks for no

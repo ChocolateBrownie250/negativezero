@@ -45,7 +45,64 @@ db.exec(`
     ip     TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log(ts DESC);
+
+  -- Multi-account model. One row per user; 'owner' is the seeded super-account.
+  CREATE TABLE IF NOT EXISTS accounts (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'disabled'
+    is_owner   INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+
+  -- Per-account, per-service access grant. Absence of a row == no access.
+  CREATE TABLE IF NOT EXISTS account_services (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    service    TEXT NOT NULL,
+    enabled    INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (account_id, service)
+  );
+
+  -- Long-lived per-account API tokens (machine clients, e.g. the iPhone
+  -- Shortcut). The token is a JWT carrying this row id as its jti; only the
+  -- metadata lives here. Revoking sets revoked_at so the JWT stops working.
+  CREATE TABLE IF NOT EXISTS api_tokens (
+    id         TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    service    TEXT NOT NULL,
+    label      TEXT,
+    created_at INTEGER NOT NULL,
+    last_used  INTEGER,
+    revoked_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_tokens_account ON api_tokens(account_id);
 `);
+
+// ── Lightweight migrations for columns added after the initial schema ────────
+function hasColumn(table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return rows.some((r) => r.name === column);
+}
+
+function addColumn(table: string, column: string, decl: string): void {
+  if (!hasColumn(table, column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+  }
+}
+
+// Passkeys belong to an account. Pre-existing rows are the single owner.
+addColumn('credentials', 'account_id', "TEXT NOT NULL DEFAULT 'owner'");
+// Revocation timestamps (ms). A session whose token was issued before the
+// relevant revoke time is forced to re-authenticate. `sessions_revoked_at` on
+// the account invalidates every session (e.g. on disable); `revoked_at` on a
+// grant invalidates sessions only for that one service.
+addColumn('accounts', 'sessions_revoked_at', 'INTEGER');
+addColumn('account_services', 'revoked_at', 'INTEGER');
+// Setup codes carry which services they grant and who redeemed them.
+addColumn('generated_codes', 'granted_services', 'TEXT'); // JSON array of service ids
+addColumn('generated_codes', 'name', 'TEXT'); // name for the account the code will create
+addColumn('generated_codes', 'used_at', 'INTEGER');
+addColumn('generated_codes', 'account_id', 'TEXT'); // set when redeemed
 
 export type CredentialRow = {
   id: string;
@@ -55,6 +112,7 @@ export type CredentialRow = {
   device_name: string | null;
   created_at: number;
   last_used: number | null;
+  account_id: string;
 };
 
 export type GeneratedCodeRow = {
@@ -63,6 +121,10 @@ export type GeneratedCodeRow = {
   code_hash: string;
   label: string | null;
   created_at: number;
+  granted_services: string | null;
+  name: string | null;
+  used_at: number | null;
+  account_id: string | null;
 };
 
 export type AuditLogRow = {
@@ -71,4 +133,30 @@ export type AuditLogRow = {
   event: string;
   detail: string | null;
   ip: string | null;
+};
+
+export type AccountRow = {
+  id: string;
+  name: string;
+  status: 'active' | 'disabled';
+  is_owner: number;
+  created_at: number;
+  sessions_revoked_at: number | null;
+};
+
+export type AccountServiceRow = {
+  account_id: string;
+  service: string;
+  enabled: number;
+  revoked_at: number | null;
+};
+
+export type ApiTokenRow = {
+  id: string;
+  account_id: string;
+  service: string;
+  label: string | null;
+  created_at: number;
+  last_used: number | null;
+  revoked_at: number | null;
 };
