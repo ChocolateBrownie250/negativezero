@@ -1,6 +1,6 @@
 # HANDOVER
 
-State of the `negativezero` platform as of 2026-05-28. This file
+State of the `negativezero` platform as of 2026-06-18. This file
 contains zero secrets by design — secret material lives only in
 `/srv/negativezero/platform/.env` on the VPS (chmod 600) and in the
 operator's password manager.
@@ -8,6 +8,14 @@ operator's password manager.
 The predecessor `url-vault/HANDOVER.md` was excluded from the monorepo
 merge because it had committed a plaintext VPS root password and bookmark
 setup code. This file is the no-secrets replacement.
+
+> **Live status (2026-06-18):** the full multi-account + per-service
+> authorization rollout (PR #76) plus the salvaged landing / bookmark-manager
+> redesigns and the new `redirector` service (PR #77) are now **deployed and
+> verified in production** — all seven containers `Up`, HTTPS green on
+> `negativezero.one`, the box (`/srv/negativezero`) fast-forwarded from the
+> pre-#76 state to current `main`. `main` is the single branch and the live
+> prod source of truth. Deploy procedure + gotchas: `docs/DEPLOY.md`.
 
 ---
 
@@ -326,6 +334,20 @@ over a unix socket. Defer until there's a concrete need.
 ---
 
 ## Known things to be aware of
+
+- **Deploying code to the box = push over SSH, not pull.** The VPS has no
+  GitHub credentials for this private repo, so `git pull` on the box fails.
+  Reach it as `ssh wellfit` (key `~/.ssh/id_ed25519_wellfit_agent`), and
+  `git push 'ssh://wellfit/srv/negativezero' main:main` — the box has
+  `receive.denyCurrentBranch=updateInstead` so the push updates its working
+  tree (must be clean). Full detail in `docs/DEPLOY.md`.
+
+- **Deploy can silently drop HTTPS if certbot hiccups (fixed 2026-06-18).**
+  `deploy.sh` rewrites the apex nginx file from an HTTP-only template each run
+  and relies on certbot to re-add the `443` block; a transient certbot failure
+  once left `:443` serving another tenant's cert (`isgroup.one`) with a 0 exit
+  code. `deploy.sh` now retries 3× and fails loudly. Symptom + manual recovery:
+  `docs/DEPLOY.md` → Troubleshooting.
 
 - **Dependabot major-bump backlog — cleared.** `undici 6 → 8` landed
   in #24 (manual redirect handling in `fetcher.ts`). The nine
