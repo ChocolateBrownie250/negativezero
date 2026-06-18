@@ -9,7 +9,9 @@ Nothing here needs secrets in the repo; the only secret to supply is the Groq ke
 > UI. There is **no auto-deploy** — CI only validates; the box is updated here.
 
 ## 0. Preconditions
-- You have the deploy key `~/.ssh/wellfit_prod_ed25519` (VPS root@45.76.88.245).
+- You reach the VPS as `ssh wellfit` (= root@45.76.88.245). The operator's key on
+  the desktop is `~/.ssh/id_ed25519_wellfit_agent`, wired via a `Host wellfit`
+  alias in `~/.ssh/config`. (Older notes name `~/.ssh/wellfit_prod_ed25519` — same box.)
 - You have the owner's **Groq API key** (`gsk_…`) from https://console.groq.com/keys.
 - Local repo is on the latest `main` (`git fetch origin && git checkout main && git pull`).
 
@@ -17,12 +19,15 @@ Nothing here needs secrets in the repo; the only secret to supply is the Groq ke
 Either `git pull` on the box, or rsync from the desktop (matches HANDOVER):
 
 ```bash
-# Option A — pull on the VPS (repo already checked out at /srv/negativezero)
-ssh -i ~/.ssh/wellfit_prod_ed25519 root@45.76.88.245 \
-  'cd /srv/negativezero && git fetch origin && git checkout main && git pull --ff-only origin main'
+# Option A — push from the desktop over SSH. The VPS has NO GitHub credentials
+# (private repo, https remote), so a `git pull` ON the box fails. Push to it
+# instead. One-time setup on the box so a push updates its checked-out tree:
+#   ssh wellfit 'cd /srv/negativezero && git config receive.denyCurrentBranch updateInstead'
+# Then, from the desktop repo on main (working tree on the box must be clean):
+git push 'ssh://wellfit/srv/negativezero' main:main
 
 # Option B — rsync the working tree (excludes secrets/state)
-rsync -av -e "ssh -i ~/.ssh/wellfit_prod_ed25519" \
+rsync -av -e "ssh -i ~/.ssh/id_ed25519_wellfit_agent" \
   --exclude='.git/' --exclude='node_modules/' --exclude='dist/' --exclude='.venv/' \
   --exclude='platform/.env' --exclude='platform/.env.local' --exclude='platform/data/' \
   --delete-after ./ root@45.76.88.245:/srv/negativezero/
@@ -32,7 +37,7 @@ rsync -av -e "ssh -i ~/.ssh/wellfit_prod_ed25519" \
 The browser PWA no longer takes a key; transcription uses the server-side key.
 
 ```bash
-ssh -i ~/.ssh/wellfit_prod_ed25519 root@45.76.88.245
+ssh wellfit
 cd /srv/negativezero
 grep -q '^GROQ_API_KEY=gsk_' platform/.env || $EDITOR platform/.env   # set GROQ_API_KEY=gsk_...
 ```
