@@ -78,6 +78,12 @@ function addColumn(table: string, column: string, decl: string): void {
 
 // Passkeys belong to an account. Pre-existing rows are the single owner.
 addColumn('credentials', 'account_id', "TEXT NOT NULL DEFAULT 'owner'");
+// Revocation timestamps (ms). A session whose token was issued before the
+// relevant revoke time is forced to re-authenticate. `sessions_revoked_at` on
+// the account invalidates every session (e.g. on disable); `revoked_at` on a
+// grant invalidates sessions only for that one service.
+addColumn('accounts', 'sessions_revoked_at', 'INTEGER');
+addColumn('account_services', 'revoked_at', 'INTEGER');
 // Setup codes carry which services they grant and who redeemed them.
 addColumn('generated_codes', 'granted_services', 'TEXT'); // JSON array of service ids
 addColumn('generated_codes', 'name', 'TEXT'); // name for the account the code will create
@@ -121,10 +127,12 @@ export type AccountRow = {
   status: 'active' | 'disabled';
   is_owner: number;
   created_at: number;
+  sessions_revoked_at: number | null;
 };
 
 export type AccountServiceRow = {
   account_id: string;
   service: string;
   enabled: number;
+  revoked_at: number | null;
 };

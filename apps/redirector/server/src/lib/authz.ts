@@ -1,44 +1,48 @@
 // authz.ts — per-service authorization against the admin service.
 //
-// Admin is the source of truth for "may account X use service Y". We ask it over
-// the internal docker network (guarded by the shared SSO secret) and cache the
-// answer briefly so a toggle in admin takes effect within ~TTL seconds without a
-// network round-trip on every request.
+// Admin is the source of truth for "may account X use service Y, and is this
+// session still valid". We ask it over the internal docker network (guarded by
+// the shared SSO secret) on EVERY protected request — no positive caching — so
+// a revoke in admin takes effect immediately. We keep only a brief "last good"
+// answer per key to ride out a transient admin blip; past that we fail closed.
 import { config } from '../config.js';
 
-const TTL_MS = 30_000;
-// On an admin outage we keep serving the last good answer up to this long so a
-// transient blip doesn't lock everyone out; after that we fail closed.
-const STALE_MS = 10 * 60_000;
+export type AuthzDecision = 'allow' | 'deny' | 'reauth';
 
-type Entry = { allowed: boolean; fetchedAt: number };
-const cache = new Map<string, Entry>();
+const lastGood = new Map<string, { decision: AuthzDecision; at: number }>();
+const STALE_MS = 15_000;
 
-export async function isServiceAllowed(accountId: string, service: string): Promise<boolean> {
-  // Not configured → preserve the pre-authz behaviour (any valid SSO is allowed).
-  if (!config.adminAuthzUrl) return true;
+export async function authorizeService(
+  accountId: string,
+  service: string,
+  iatSeconds: number | undefined,
+): Promise<AuthzDecision> {
+  // Not configured → preserve the pre-authz behaviour (any valid SSO allowed).
+  if (!config.adminAuthzUrl) return 'allow';
 
-  const k = `${accountId}:${service}`;
-  const now = Date.now();
-  const hit = cache.get(k);
-  if (hit && now - hit.fetchedAt < TTL_MS) return hit.allowed;
-
+  const k = `${accountId}:${service}:${iatSeconds ?? ''}`;
   try {
     const url =
       `${config.adminAuthzUrl}/api/internal/authz` +
-      `?account=${encodeURIComponent(accountId)}&service=${encodeURIComponent(service)}`;
+      `?account=${encodeURIComponent(accountId)}&service=${encodeURIComponent(service)}` +
+      (iatSeconds ? `&iat=${iatSeconds}` : '');
     const res = await fetch(url, {
       headers: { authorization: `Bearer ${config.ssoSecret}` },
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) throw new Error(`authz ${res.status}`);
-    const body = (await res.json()) as { allowed?: boolean };
-    const allowed = body.allowed === true;
-    cache.set(k, { allowed, fetchedAt: now });
-    return allowed;
+    const body = (await res.json()) as { decision?: AuthzDecision };
+    const decision: AuthzDecision =
+      body.decision === 'allow' || body.decision === 'deny' || body.decision === 'reauth'
+        ? body.decision
+        : 'deny';
+    lastGood.set(k, { decision, at: Date.now() });
+    return decision;
   } catch {
-    // Serve a recent cached answer through a brief outage; otherwise deny.
-    if (hit && now - hit.fetchedAt < STALE_MS) return hit.allowed;
-    return false;
+    // Brief admin blip → serve the last good answer; otherwise fail closed with
+    // 'deny' (block but keep the session, so it recovers without a re-login).
+    const hit = lastGood.get(k);
+    if (hit && Date.now() - hit.at < STALE_MS) return hit.decision;
+    return 'deny';
   }
 }

@@ -1,7 +1,15 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { config } from '../config.js';
+import { config, isProd } from '../config.js';
 import { readSsoCookie, verifySsoSession } from '../lib/ssoSession.js';
-import { isServiceAllowed } from '../lib/authz.js';
+import { authorizeService } from '../lib/authz.js';
+
+// Clear the apex SSO cookie without needing @fastify/cookie registered.
+function clearSsoCookie(reply: FastifyReply) {
+  reply.header(
+    'set-cookie',
+    `nz_session=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax${isProd ? '; Secure' : ''}`,
+  );
+}
 
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   // Primary: this service's own @fastify/secure-session (owner who signed in
@@ -9,14 +17,18 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   if (req.session.get('userId') === 'owner') return;
 
   // Fallback: the apex-wide nz_session SSO cookie minted by admin. It carries
-  // the account id; admin decides whether that account may use this service.
+  // the account id + issued-at; admin decides allow / deny / reauth live.
   const token = readSsoCookie(req.headers.cookie);
   if (token) {
     const claims = await verifySsoSession(token, config.ssoSecret);
     if (claims) {
-      // Do NOT promote to a local 'owner' session — that would skip the authz
-      // check on later requests. Re-check each request (cached ~30s).
-      if (await isServiceAllowed(claims.sub, config.serviceName)) return;
+      const decision = await authorizeService(claims.sub, config.serviceName, claims.iat);
+      if (decision === 'allow') return;
+      if (decision === 'reauth') {
+        // Account/session was revoked → drop the dead cookie, force re-login.
+        clearSsoCookie(reply);
+        return reply.code(401).send({ error: 'session_revoked' });
+      }
       return reply.code(403).send({ error: 'forbidden', service: config.serviceName });
     }
   }

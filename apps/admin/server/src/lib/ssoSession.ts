@@ -13,7 +13,7 @@ export const SSO_COOKIE = 'nz_session';
 const ALG = 'HS256';
 export const SSO_MAX_AGE_S = 60 * 60 * 24 * 30; // 30 days
 
-export type SsoClaims = { sub: string; name?: string };
+export type SsoClaims = { sub: string; name?: string; iat?: number };
 
 function key(secret: string): Uint8Array {
   return new TextEncoder().encode(secret);
@@ -38,7 +38,8 @@ export async function verifySsoSession(
     const { payload } = await jwtVerify(token, key(secret), { algorithms: [ALG] });
     if (typeof payload.sub !== 'string' || !payload.sub) return null;
     const name = typeof payload.name === 'string' ? payload.name : undefined;
-    return { sub: payload.sub, name };
+    const iat = typeof payload.iat === 'number' ? payload.iat : undefined;
+    return { sub: payload.sub, name, iat };
   } catch {
     return null;
   }

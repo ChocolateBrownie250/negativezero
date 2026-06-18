@@ -25,124 +25,123 @@ def verify_api_key(authorization: str | None = Header(None)) -> None:
 
 
 def _bearer_ok(authorization: str | None) -> bool:
-    """Constant-time check of the Authorization: Bearer <key> header."""
+    """Constant-time check of the Authorization: Bearer <key> header (the legacy
+    single owner key, kept for the iPhone Shortcut)."""
     if not authorization or not authorization.startswith("Bearer "):
         return False
     presented = authorization.removeprefix("Bearer ").strip()
     return hmac.compare_digest(presented, settings.amethyst_api_key)
 
 
-def _session_ok(nz_session: str | None) -> str | None:
-    """Validate the shared `nz_session` HS256 JWT cookie.
+def _session_claims(nz_session: str | None) -> tuple[str, int | None] | None:
+    """Validate the shared `nz_session` HS256 JWT cookie and return
+    ``(account_id, issued_at_seconds)`` for any valid signature with a non-empty
+    `sub`, else None.
 
-    The HMAC key is settings.sso_session_secret used VERBATIM as a string
-    (PyJWT encodes it to UTF-8 bytes internally) — matching the Node services'
-    `new TextEncoder().encode(secret)`. When the secret is unset, the cookie
-    path is disabled so only Bearer auth works.
-
-    Returns the account id (`sub`) for any valid signature with a non-empty
-    `sub`, else None. The account no longer has to be `"owner"` — multi-account
-    SSO carries the account id in `sub`.
+    The HMAC key is settings.sso_session_secret used VERBATIM (PyJWT encodes to
+    UTF-8 internally) — byte-for-byte matching the Node services' `jose` setup.
+    When the secret is unset the cookie path is disabled.
     """
     if not settings.sso_session_secret or not nz_session:
         return None
     try:
-        payload = jwt.decode(
-            nz_session,
-            settings.sso_session_secret,
-            algorithms=["HS256"],
-        )
+        payload = jwt.decode(nz_session, settings.sso_session_secret, algorithms=["HS256"])
     except jwt.InvalidTokenError:
         return None
     sub = payload.get("sub")
-    if isinstance(sub, str) and sub:
-        return sub
-    return None
+    if not (isinstance(sub, str) and sub):
+        return None
+    iat = payload.get("iat")
+    iat_s = int(iat) if isinstance(iat, (int, float)) else None
+    return sub, iat_s
 
 
 # ---------------------------------------------------------------------------
-# Per-service authorization (admin service).
+# Per-service authorization (admin service is the source of truth).
 #
-# Decision for "is account <sub> allowed to use service <service>?" is owned by
-# the admin service. We cache decisions briefly (TTL ~30s) to avoid hammering
-# admin on every request, and serve a recent stale value (≤10 min) if admin is
-# temporarily unreachable — failing open only within that recent window, else
-# denying.
+# The decision ("allow" | "deny" | "reauth") is owned by admin and checked LIVE
+# on every request — no positive caching — so a revoke in admin takes effect
+# immediately. We keep only a brief "last good" answer per key to ride out a
+# transient admin blip; past that we fail closed with "deny".
 # ---------------------------------------------------------------------------
-_AUTHZ_TTL = 30.0          # seconds a fresh value is trusted without refetch
-_AUTHZ_STALE_MAX = 600.0   # seconds a cached value may be served on admin error
+_AUTHZ_STALE_MAX = 15.0  # seconds a cached decision may be served on admin error
 
-# key "account:service" -> (allowed: bool, fetched_at: float)
-_authz_cache: dict[str, tuple[bool, float]] = {}
+# key "account:service:iat" -> (decision, fetched_at monotonic)
+_authz_last_good: dict[str, tuple[str, float]] = {}
 
 
 def _authz_cache_clear() -> None:
-    """Test helper — drop all cached authorization decisions."""
-    _authz_cache.clear()
+    """Test helper — drop all remembered authorization decisions."""
+    _authz_last_good.clear()
 
 
-async def _fetch_authz(account: str, service: str) -> bool:
-    """Ask the admin service whether `account` may use `service`."""
+async def _fetch_decision(account: str, service: str, iat: int | None) -> str:
+    """Ask admin for the live decision for (account, service, token iat)."""
     url = settings.admin_authz_url.rstrip("/") + "/api/internal/authz"
+    params: dict[str, str] = {"account": account, "service": service}
+    if iat is not None:
+        params["iat"] = str(iat)
     async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.get(
             url,
-            params={"account": account, "service": service},
+            params=params,
             headers={"Authorization": f"Bearer {settings.sso_session_secret}"},
         )
         resp.raise_for_status()
         data = resp.json()
-    return bool(data.get("allowed"))
+    decision = data.get("decision")
+    return decision if decision in ("allow", "deny", "reauth") else "deny"
 
 
-async def is_authorized(account: str, service: str) -> bool:
-    """Cached per-service authorization check.
+async def authorize(account: str, service: str, iat: int | None) -> str:
+    """Live per-service authorization decision: 'allow' | 'deny' | 'reauth'.
 
-    - When `admin_authz_url` is unset → return True (skip, incremental rollout).
-    - Fresh cache hit (≤TTL) → return cached value.
-    - Otherwise query admin; on success cache & return.
-    - On admin error: serve a recent cached value (≤10 min) if present,
-      else deny (False).
+    - `admin_authz_url` unset → 'allow' (skip; incremental rollout).
+    - Otherwise query admin every time; on success remember & return.
+    - On admin error: serve a recent remembered decision (≤15s) else 'deny'.
     """
     if not settings.admin_authz_url:
-        return True
+        return "allow"
 
-    cache_key = f"{account}:{service}"
+    key = f"{account}:{service}:{iat if iat is not None else ''}"
     now = time.monotonic()
-    cached = _authz_cache.get(cache_key)
-    if cached is not None and (now - cached[1]) <= _AUTHZ_TTL:
-        return cached[0]
-
     try:
-        allowed = await _fetch_authz(account, service)
+        decision = await _fetch_decision(account, service, iat)
     except Exception:
-        if cached is not None and (now - cached[1]) <= _AUTHZ_STALE_MAX:
-            return cached[0]
-        return False
-
-    _authz_cache[cache_key] = (allowed, now)
-    return allowed
+        hit = _authz_last_good.get(key)
+        if hit is not None and (now - hit[1]) <= _AUTHZ_STALE_MAX:
+            return hit[0]
+        return "deny"
+    _authz_last_good[key] = (decision, now)
+    return decision
 
 
 async def verify_auth(
     authorization: str | None = Header(None),
     nz_session: str | None = Cookie(None),
 ) -> None:
-    """Authenticate via EITHER the Bearer API key (machine clients / iPhone
-    Shortcut) OR the shared `nz_session` JWT cookie (browser PWA).
+    """Authenticate via EITHER the Bearer API key (iPhone Shortcut / owner) OR
+    the shared `nz_session` JWT cookie (browser PWA), then authorize for "tts".
 
-    - Bearer matches AMETHYST_API_KEY → allow (treated as owner, full access,
-      no per-service authz check).
-    - Valid SSO cookie resolving to an account → check per-service authz for
-      "tts"; allow if authorized, else 403.
+    - Bearer matches AMETHYST_API_KEY → allow (owner, full access, no authz).
+    - Valid SSO cookie → live authz for "tts": allow → ok; deny → 403;
+      reauth (revoked/disabled session) → 401 so the client logs in again.
     - Neither → 401.
     """
     if _bearer_ok(authorization):
         return
-    account = _session_ok(nz_session)
-    if account is not None:
-        if await is_authorized(account, "tts"):
+    claims = _session_claims(nz_session)
+    if claims is not None:
+        account, iat = claims
+        decision = await authorize(account, "tts", iat)
+        if decision == "allow":
             return
+        if decision == "reauth":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="session_revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="tts access not enabled for this account",

@@ -6,6 +6,8 @@ env vars are set in conftest before the app package is imported.
 """
 from __future__ import annotations
 
+import time
+
 import jwt
 import pytest
 from fastapi import Depends, FastAPI
@@ -29,8 +31,11 @@ def _make_client() -> TestClient:
     return TestClient(app)
 
 
-def _sso_cookie(sub: str) -> str:
-    return jwt.encode({"sub": sub}, SECRET, algorithm="HS256")
+def _sso_cookie(sub: str, iat: int | None = None) -> str:
+    payload: dict = {"sub": sub}
+    if iat is not None:
+        payload["iat"] = iat
+    return jwt.encode(payload, SECRET, algorithm="HS256")
 
 
 @pytest.fixture(autouse=True)
@@ -75,12 +80,6 @@ def test_sso_allowed_when_authz_unset(client, monkeypatch):
     assert r.status_code == 200
 
 
-def test_sso_owner_still_works(client, monkeypatch):
-    monkeypatch.setattr(settings, "admin_authz_url", "")
-    r = client.get("/protected", cookies={"nz_session": _sso_cookie("owner")})
-    assert r.status_code == 200
-
-
 def test_invalid_sso_signature_401(client, monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "")
     bad = jwt.encode({"sub": "owner"}, "wrong-secret", algorithm="HS256")
@@ -89,84 +88,128 @@ def test_invalid_sso_signature_401(client, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# SSO cookie path with authz enabled — account must be authorized for "tts".
+# SSO cookie path with authz enabled — admin returns a decision.
 # --------------------------------------------------------------------------
-def test_sso_without_tts_access_403(client, monkeypatch):
+def test_sso_deny_returns_403(client, monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def fake_fetch(account, service):
-        return False
+    async def fake(account, service, iat):
+        return "deny"
 
-    monkeypatch.setattr(auth_mod, "_fetch_authz", fake_fetch)
+    monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
     r = client.get("/protected", cookies={"nz_session": _sso_cookie("acct-no-tts")})
     assert r.status_code == 403
     assert "tts access not enabled" in r.json()["detail"]
 
 
-def test_sso_with_tts_access_allowed(client, monkeypatch):
+def test_sso_allow_returns_200(client, monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def fake_fetch(account, service):
+    async def fake(account, service, iat):
         assert service == "tts"
-        return True
+        return "allow"
 
-    monkeypatch.setattr(auth_mod, "_fetch_authz", fake_fetch)
+    monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
     r = client.get("/protected", cookies={"nz_session": _sso_cookie("acct-tts")})
     assert r.status_code == 200
 
 
+def test_sso_reauth_returns_401(client, monkeypatch):
+    # A revoked/stale session → admin says 'reauth' → 401 so the client re-logs.
+    monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
+
+    async def fake(account, service, iat):
+        return "reauth"
+
+    monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
+    r = client.get("/protected", cookies={"nz_session": _sso_cookie("acct-revoked", iat=1)})
+    assert r.status_code == 401
+
+
+def test_iat_is_forwarded(client, monkeypatch):
+    monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
+    seen = {}
+
+    async def fake(account, service, iat):
+        seen["iat"] = iat
+        return "allow"
+
+    monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
+    r = client.get("/protected", cookies={"nz_session": _sso_cookie("a", iat=1234567)})
+    assert r.status_code == 200
+    assert seen["iat"] == 1234567
+
+
 # --------------------------------------------------------------------------
-# Authz caching / stale-on-error behavior.
+# authorize(): live checks, stale-on-error, fail-closed, skip-when-unset.
 # --------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_authz_cache_hit_avoids_refetch(monkeypatch):
+async def test_authorize_is_live_no_positive_cache(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
     calls = {"n": 0}
 
-    async def fake_fetch(account, service):
+    async def fake(account, service, iat):
         calls["n"] += 1
-        return True
+        return "allow"
 
-    monkeypatch.setattr(auth_mod, "_fetch_authz", fake_fetch)
-    assert await auth_mod.is_authorized("a", "tts") is True
-    assert await auth_mod.is_authorized("a", "tts") is True
-    assert calls["n"] == 1
+    monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
+    assert await auth_mod.authorize("a", "tts", 1) == "allow"
+    assert await auth_mod.authorize("a", "tts", 1) == "allow"
+    # No positive caching — admin is consulted every time so a revoke is instant.
+    assert calls["n"] == 2
 
 
 @pytest.mark.asyncio
-async def test_authz_serves_recent_stale_on_error(monkeypatch):
+async def test_authorize_serves_recent_stale_on_error(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    # Prime the cache with an allowed=True value.
-    async def ok(account, service):
-        return True
+    async def ok(account, service, iat):
+        return "allow"
 
-    monkeypatch.setattr(auth_mod, "_fetch_authz", ok)
-    assert await auth_mod.is_authorized("a", "tts") is True
+    monkeypatch.setattr(auth_mod, "_fetch_decision", ok)
+    assert await auth_mod.authorize("a", "tts", 1) == "allow"
 
-    # Force the TTL to have elapsed but stay within the stale window.
-    allowed, fetched_at = auth_mod._authz_cache["a:tts"]
-    auth_mod._authz_cache["a:tts"] = (allowed, fetched_at - (auth_mod._AUTHZ_TTL + 1))
-
-    async def boom(account, service):
+    async def boom(account, service, iat):
         raise RuntimeError("admin down")
 
-    monkeypatch.setattr(auth_mod, "_fetch_authz", boom)
-    assert await auth_mod.is_authorized("a", "tts") is True
+    monkeypatch.setattr(auth_mod, "_fetch_decision", boom)
+    # Within the stale window the last good decision is served.
+    assert await auth_mod.authorize("a", "tts", 1) == "allow"
 
 
 @pytest.mark.asyncio
-async def test_authz_denies_when_no_cache_and_error(monkeypatch):
+async def test_authorize_denies_when_no_cache_and_error(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def boom(account, service):
+    async def boom(account, service, iat):
         raise RuntimeError("admin down")
 
-    monkeypatch.setattr(auth_mod, "_fetch_authz", boom)
-    assert await auth_mod.is_authorized("nobody", "tts") is False
+    monkeypatch.setattr(auth_mod, "_fetch_decision", boom)
+    assert await auth_mod.authorize("nobody", "tts", 1) == "deny"
 
 
 @pytest.mark.asyncio
-async def test_authz_skipped_when_url_unset(monkeypatch):
+async def test_authorize_stale_expires(monkeypatch):
+    monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
+
+    async def ok(account, service, iat):
+        return "allow"
+
+    monkeypatch.setattr(auth_mod, "_fetch_decision", ok)
+    assert await auth_mod.authorize("a", "tts", 1) == "allow"
+
+    # Age the remembered value past the stale window.
+    dec, _ = auth_mod._authz_last_good["a:tts:1"]
+    auth_mod._authz_last_good["a:tts:1"] = (dec, time.monotonic() - (auth_mod._AUTHZ_STALE_MAX + 1))
+
+    async def boom(account, service, iat):
+        raise RuntimeError("admin down")
+
+    monkeypatch.setattr(auth_mod, "_fetch_decision", boom)
+    assert await auth_mod.authorize("a", "tts", 1) == "deny"
+
+
+@pytest.mark.asyncio
+async def test_authorize_skipped_when_url_unset(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "")
-    assert await auth_mod.is_authorized("whoever", "tts") is True
+    assert await auth_mod.authorize("whoever", "tts", 1) == "allow"

@@ -89,15 +89,39 @@ export function createAccount(opts: {
 }
 
 export function setServiceAccess(accountId: string, service: string, enabled: boolean): void {
+  const now = Date.now();
+  // Disabling stamps revoked_at = now so any session whose token predates this
+  // is forced to re-authenticate (and stays dead even after a later re-grant).
+  // Enabling keeps the existing revoked_at, so the old session is NOT silently
+  // resurrected — the user must log in again.
   db.prepare(
-    `INSERT INTO account_services (account_id, service, enabled)
-     VALUES (?, ?, ?)
-     ON CONFLICT(account_id, service) DO UPDATE SET enabled = excluded.enabled`,
-  ).run(accountId, service, enabled ? 1 : 0);
+    `INSERT INTO account_services (account_id, service, enabled, revoked_at)
+     VALUES (@acct, @svc, @enabled, @insertRevoked)
+     ON CONFLICT(account_id, service) DO UPDATE SET
+       enabled = excluded.enabled,
+       revoked_at = CASE WHEN excluded.enabled = 0 THEN @now ELSE account_services.revoked_at END`,
+  ).run({
+    acct: accountId,
+    svc: service,
+    enabled: enabled ? 1 : 0,
+    insertRevoked: enabled ? null : now,
+    now,
+  });
 }
 
 export function setAccountStatus(accountId: string, status: 'active' | 'disabled'): void {
-  db.prepare('UPDATE accounts SET status = ? WHERE id = ?').run(status, accountId);
+  if (status === 'disabled') {
+    // Invalidate every live session for this account immediately.
+    db.prepare('UPDATE accounts SET status = ?, sessions_revoked_at = ? WHERE id = ?').run(
+      'disabled',
+      Date.now(),
+      accountId,
+    );
+  } else {
+    // Re-enabling does not clear sessions_revoked_at: pre-disable tokens stay
+    // dead, so the user must log in again.
+    db.prepare('UPDATE accounts SET status = ? WHERE id = ?').run('active', accountId);
+  }
 }
 
 export function deleteAccount(accountId: string): void {
@@ -109,8 +133,8 @@ export function deleteAccount(accountId: string): void {
   tx();
 }
 
-// The authorization decision used both by admin's own middleware and by the
-// internal endpoint other services call.
+// Whether an account currently holds a service grant (ignores session timing).
+// Used for admin's own gate and the UI's `canAdmin`.
 export function isAllowed(accountId: string, service: string): boolean {
   const acct = getAccount(accountId);
   if (!acct || acct.status !== 'active') return false;
@@ -120,6 +144,30 @@ export function isAllowed(accountId: string, service: string): boolean {
     .prepare('SELECT enabled FROM account_services WHERE account_id = ? AND service = ?')
     .get(accountId, service) as { enabled: number } | undefined;
   return row?.enabled === 1;
+}
+
+export type AuthzDecision = 'allow' | 'deny' | 'reauth';
+
+// The per-request decision used by the internal endpoint. `tokenIatMs` is the
+// session token's issued-at in ms. Returns:
+//   allow  — proceed
+//   deny   — authenticated but not permitted this service (→ 403)
+//   reauth — the session is stale/invalid and must log in again (→ 401)
+export function authorize(accountId: string, service: string, tokenIatMs: number): AuthzDecision {
+  const acct = getAccount(accountId);
+  if (!acct) return 'reauth'; // unknown/deleted account → drop the cookie
+  if (acct.status !== 'active') return 'reauth'; // disabled → forced logout
+  if (acct.sessions_revoked_at && tokenIatMs < acct.sessions_revoked_at) return 'reauth';
+  if (acct.is_owner === 1) return 'allow';
+  if (!isGatedService(service)) return 'deny';
+  const row = db
+    .prepare(
+      'SELECT enabled, revoked_at FROM account_services WHERE account_id = ? AND service = ?',
+    )
+    .get(accountId, service) as { enabled: number; revoked_at: number | null } | undefined;
+  if (!row || row.enabled !== 1) return 'deny';
+  if (row.revoked_at && tokenIatMs < row.revoked_at) return 'reauth';
+  return 'allow';
 }
 
 // Idempotent: make sure an owner account exists. If passkeys predate the

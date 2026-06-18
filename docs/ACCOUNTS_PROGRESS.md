@@ -79,7 +79,26 @@
 - [x] Commit, push, open draft PR — **PR #76** (draft) ✅
 - [ ] CI green on PR #76 (watching)
 
-## Status: feature complete, verified, committed & pushed (PR #76)
+## Status: phase 1-5 in PR #76; phase 6 (owner refinements) in progress
+
+### Phase 6 — refinements from owner answers (2026-06-18)
+Owner clarified four things; implementing on the same branch/PR:
+
+- [x] **Instant, sticky revocation.** ✅ admin: `revoked_at`/`sessions_revoked_at`
+      cols, `authorize()` → allow/deny/reauth, internal endpoint takes `iat`,
+      SSO carries `iat`. Consumers switched to live check (no positive cache,
+      15s stale-on-error, fail-closed). bookmark-manager + redirector +
+      video-downloader (live, reauth clears cookie→401) + tts (live, 401 reauth).
+      Tests: admin 16, tts 30, redirector/video 10 each, bookmark 15.
+- [ ] **Per-account API tokens for tts.** Replace the single global
+      `AMETHYST_API_KEY` for normal use with account-scoped tokens the owner
+      mints in admin (only for `tts` for now). Implemented as long-lived
+      admin-signed JWTs so they ride the same authz + revocation path. Admin UI
+      to create/list/revoke; tts accepts them as Bearer.
+- [x] **Identity model confirmed** — accounts created only via owner-issued
+      keys; no open self-registration. Current enroll flow already matches. ✅
+- [ ] **Production e2e** — scripted HTTP test booting admin + a consumer,
+      proving allow → instant 403 on revoke → 401 reauth semantics.
 All five requirements met. tts `test_integration.py` (49) talk to the live
 production host and fail identically on baseline (pre-existing; not in scope).
 

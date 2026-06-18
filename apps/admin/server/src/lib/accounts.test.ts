@@ -70,3 +70,41 @@ test('SSO verify rejects a bad signature', async () => {
   const claims = await sso.verifySsoSession(token, 'secret-b');
   assert.equal(claims, null);
 });
+
+test('authorize: owner is always allowed regardless of iat', () => {
+  assert.equal(accounts.authorize(accounts.OWNER_ACCOUNT_ID, 'tts', 1), 'allow');
+});
+
+test('authorize: unknown account → reauth', () => {
+  assert.equal(accounts.authorize('ghost', 'bookmark-manager', Date.now()), 'reauth');
+});
+
+test('authorize: instant deny on revoke, reauth on re-grant for old tokens', () => {
+  accounts.createAccount({ id: 'rev1', name: 'Rev', services: ['bookmark-manager'] });
+  const oldToken = Date.now() - 1000; // issued 1s ago
+  assert.equal(accounts.authorize('rev1', 'bookmark-manager', oldToken), 'allow');
+
+  // Revoke → the very next check denies immediately (no waiting).
+  accounts.setServiceAccess('rev1', 'bookmark-manager', false);
+  assert.equal(accounts.authorize('rev1', 'bookmark-manager', oldToken), 'deny');
+
+  // Re-grant → the OLD session must re-auth; a freshly-issued token is allowed.
+  accounts.setServiceAccess('rev1', 'bookmark-manager', true);
+  assert.equal(accounts.authorize('rev1', 'bookmark-manager', oldToken), 'reauth');
+  const freshToken = Date.now() + 5000;
+  assert.equal(accounts.authorize('rev1', 'bookmark-manager', freshToken), 'allow');
+});
+
+test('authorize: a service the account never had → deny', () => {
+  assert.equal(accounts.authorize('rev1', 'tts', Date.now() + 5000), 'deny');
+});
+
+test('authorize: disabling an account forces reauth for all sessions', () => {
+  accounts.createAccount({ id: 'rev2', name: 'Rev2', services: ['tts'] });
+  assert.equal(accounts.authorize('rev2', 'tts', Date.now() + 5000), 'allow');
+  accounts.setAccountStatus('rev2', 'disabled');
+  assert.equal(accounts.authorize('rev2', 'tts', Date.now() + 9999), 'reauth');
+  // Re-enabling still forces a fresh login for pre-disable tokens.
+  accounts.setAccountStatus('rev2', 'active');
+  assert.equal(accounts.authorize('rev2', 'tts', 1), 'reauth');
+});
