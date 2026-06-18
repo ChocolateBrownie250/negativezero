@@ -143,9 +143,9 @@ export default function ItemRow({
   // Drop-target highlight wins over selection visual: it's the foreground
   // signal during a drag.
   const background = dropHighlight
-    ? 'rgba(0,122,255,0.28)'
+    ? 'rgba(91,147,240,0.30)'
     : selected
-      ? 'rgba(0,122,255,0.16)'
+      ? 'rgba(91,147,240,0.18)'
       : 'transparent';
 
   return (

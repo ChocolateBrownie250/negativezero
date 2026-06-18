@@ -7,7 +7,6 @@ import {
 import { api } from '../api';
 import {
   COLORS,
-  RING_STRONG,
   LABEL_SECONDARY,
   LABEL_TERTIARY,
 } from '../lib/colors';
@@ -62,27 +61,15 @@ export default function Login({ onLoggedIn }: Props) {
 
   if (hasPasskey === null) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center text-white/40 text-sm"
-        style={{ background: COLORS.bg }}
-      >
+      <div className="min-h-screen flex items-center justify-center text-white/40 text-sm">
         Loading...
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: COLORS.bg }}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl p-6"
-        style={{
-          background: COLORS.card,
-          boxShadow: `0 0 0 1px ${RING_STRONG}, 0 8px 28px rgba(0,0,0,0.55)`,
-        }}
-      >
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="glass-card w-full max-w-sm rounded-2xl p-6">
         <div className="flex items-center justify-center mb-4">
           <div
             className="w-12 h-12 rounded-full flex items-center justify-center"
