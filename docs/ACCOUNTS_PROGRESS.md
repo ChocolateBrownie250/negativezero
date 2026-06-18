@@ -90,12 +90,17 @@ Owner clarified four things; implementing on the same branch/PR:
       15s stale-on-error, fail-closed). bookmark-manager + redirector +
       video-downloader (live, reauth clears cookie→401) + tts (live, 401 reauth).
       Tests: admin 16, tts 30, redirector/video 10 each, bookmark 15.
-- [~] **Per-account API tokens for tts.** Backend DONE: admin `api_tokens`
-      table + `lib/apiTokens.ts` (mint/list/revoke/state), owner-gated routes
+- [x] **Per-account API tokens for tts.** ✅ admin `api_tokens` table +
+      `lib/apiTokens.ts` (mint/list/revoke/state), owner-gated routes
       `POST|GET|DELETE /api/accounts/:id/tokens` (tts-only), internal authz
       checks `jti` for instant token revocation, tts accepts the token as Bearer
-      (scope `api`). Tests: admin 19, tts 33. Owner legacy key still works.
-      ⏳ Admin client token UI in progress (background agent).
+      (scope `api`). Admin client UI (`AccountTokens.tsx`) to create (shown
+      once) / list / revoke. Tests: admin 19, tts 33. Owner legacy key intact.
+
+## Phase 6 COMPLETE — pushed (commits e588104 instant revocation, ca68b9b API tokens)
+Everything the owner asked for is implemented, tested, and on PR #76:
+instant+sticky per-service revocation, per-account tts API tokens, accounts-only
+identity, and a real cross-service e2e. Watching CI on #76.
 - [x] **Identity model confirmed** — accounts created only via owner-issued
       keys; no open self-registration. Current enroll flow already matches. ✅
 - [x] **Production e2e** — `platform/e2e/authz-e2e.sh` boots REAL admin +
