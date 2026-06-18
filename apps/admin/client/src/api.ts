@@ -67,6 +67,15 @@ export type Account = {
   services: Record<string, boolean>;
 };
 
+export type TokenInfo = {
+  id: string;
+  service: string;
+  label: string | null;
+  createdAt: number;
+  lastUsed: number | null;
+  revoked: boolean;
+};
+
 export const api = {
   me: () =>
     request<{
@@ -154,5 +163,26 @@ export const api = {
       request<{ ok: true }>(`/api/accounts/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       }),
+    listTokens: (id: string) =>
+      request<{ tokens: TokenInfo[] }>(
+        `/api/accounts/${encodeURIComponent(id)}/tokens`,
+      ),
+    createToken: (id: string, label?: string) =>
+      request<{
+        id: string;
+        service: string;
+        label: string | null;
+        token: string;
+      }>(`/api/accounts/${encodeURIComponent(id)}/tokens`, {
+        method: 'POST',
+        body: JSON.stringify({ service: 'tts', label }),
+      }),
+    revokeToken: (id: string, tokenId: string) =>
+      request<{ ok: true }>(
+        `/api/accounts/${encodeURIComponent(id)}/tokens/${encodeURIComponent(
+          tokenId,
+        )}`,
+        { method: 'DELETE' },
+      ),
   },
 };

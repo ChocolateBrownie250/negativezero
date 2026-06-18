@@ -93,7 +93,7 @@ def test_invalid_sso_signature_401(client, monkeypatch):
 def test_sso_deny_returns_403(client, monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def fake(account, service, iat):
+    async def fake(account, service, iat, jti=None):
         return "deny"
 
     monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
@@ -105,7 +105,7 @@ def test_sso_deny_returns_403(client, monkeypatch):
 def test_sso_allow_returns_200(client, monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def fake(account, service, iat):
+    async def fake(account, service, iat, jti=None):
         assert service == "tts"
         return "allow"
 
@@ -118,7 +118,7 @@ def test_sso_reauth_returns_401(client, monkeypatch):
     # A revoked/stale session → admin says 'reauth' → 401 so the client re-logs.
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def fake(account, service, iat):
+    async def fake(account, service, iat, jti=None):
         return "reauth"
 
     monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
@@ -130,7 +130,7 @@ def test_iat_is_forwarded(client, monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
     seen = {}
 
-    async def fake(account, service, iat):
+    async def fake(account, service, iat, jti=None):
         seen["iat"] = iat
         return "allow"
 
@@ -148,7 +148,7 @@ async def test_authorize_is_live_no_positive_cache(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
     calls = {"n": 0}
 
-    async def fake(account, service, iat):
+    async def fake(account, service, iat, jti=None):
         calls["n"] += 1
         return "allow"
 
@@ -163,13 +163,13 @@ async def test_authorize_is_live_no_positive_cache(monkeypatch):
 async def test_authorize_serves_recent_stale_on_error(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def ok(account, service, iat):
+    async def ok(account, service, iat, jti=None):
         return "allow"
 
     monkeypatch.setattr(auth_mod, "_fetch_decision", ok)
     assert await auth_mod.authorize("a", "tts", 1) == "allow"
 
-    async def boom(account, service, iat):
+    async def boom(account, service, iat, jti=None):
         raise RuntimeError("admin down")
 
     monkeypatch.setattr(auth_mod, "_fetch_decision", boom)
@@ -181,7 +181,7 @@ async def test_authorize_serves_recent_stale_on_error(monkeypatch):
 async def test_authorize_denies_when_no_cache_and_error(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def boom(account, service, iat):
+    async def boom(account, service, iat, jti=None):
         raise RuntimeError("admin down")
 
     monkeypatch.setattr(auth_mod, "_fetch_decision", boom)
@@ -192,17 +192,17 @@ async def test_authorize_denies_when_no_cache_and_error(monkeypatch):
 async def test_authorize_stale_expires(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
 
-    async def ok(account, service, iat):
+    async def ok(account, service, iat, jti=None):
         return "allow"
 
     monkeypatch.setattr(auth_mod, "_fetch_decision", ok)
     assert await auth_mod.authorize("a", "tts", 1) == "allow"
 
     # Age the remembered value past the stale window.
-    dec, _ = auth_mod._authz_last_good["a:tts:1"]
-    auth_mod._authz_last_good["a:tts:1"] = (dec, time.monotonic() - (auth_mod._AUTHZ_STALE_MAX + 1))
+    dec, _ = auth_mod._authz_last_good["a:tts:1:"]
+    auth_mod._authz_last_good["a:tts:1:"] = (dec, time.monotonic() - (auth_mod._AUTHZ_STALE_MAX + 1))
 
-    async def boom(account, service, iat):
+    async def boom(account, service, iat, jti=None):
         raise RuntimeError("admin down")
 
     monkeypatch.setattr(auth_mod, "_fetch_decision", boom)
@@ -213,3 +213,44 @@ async def test_authorize_stale_expires(monkeypatch):
 async def test_authorize_skipped_when_url_unset(monkeypatch):
     monkeypatch.setattr(settings, "admin_authz_url", "")
     assert await auth_mod.authorize("whoever", "tts", 1) == "allow"
+
+
+def _api_token(sub: str, jti: str = "tok1", iat: int | None = 1) -> str:
+    payload: dict = {"sub": sub, "scope": "api", "svc": "tts", "jti": jti}
+    if iat is not None:
+        payload["iat"] = iat
+    return jwt.encode(payload, SECRET, algorithm="HS256")
+
+
+def test_api_token_allow_returns_200(client, monkeypatch):
+    monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
+    seen = {}
+
+    async def fake(account, service, iat, jti=None):
+        seen["jti"] = jti
+        return "allow"
+
+    monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
+    r = client.get("/protected", headers={"Authorization": f"Bearer {_api_token('acct-x')}"})
+    assert r.status_code == 200
+    assert seen["jti"] == "tok1"
+
+
+def test_api_token_revoked_returns_401(client, monkeypatch):
+    monkeypatch.setattr(settings, "admin_authz_url", "https://admin.example")
+
+    async def fake(account, service, iat, jti=None):
+        return "reauth"  # admin reports the token revoked/missing
+
+    monkeypatch.setattr(auth_mod, "_fetch_decision", fake)
+    r = client.get("/protected", headers={"Authorization": f"Bearer {_api_token('acct-x')}"})
+    assert r.status_code == 401
+
+
+def test_non_api_jwt_bearer_is_not_accepted_as_token(client, monkeypatch):
+    # A plain SSO-style JWT (no scope=api) sent as Bearer must NOT authenticate
+    # via the API-token path; with no cookie it falls through to 401.
+    monkeypatch.setattr(settings, "admin_authz_url", "")
+    plain = jwt.encode({"sub": "acct-x"}, SECRET, algorithm="HS256")
+    r = client.get("/protected", headers={"Authorization": f"Bearer {plain}"})
+    assert r.status_code == 401

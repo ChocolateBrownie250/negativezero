@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw, Trash2, Power, Crown } from 'lucide-react';
 import { api, UnauthorizedError, type Account } from '../api';
 import { COLORS, LABEL_SECONDARY, LABEL_TERTIARY, RING_STRONG } from '../lib/colors';
+import AccountTokens from './AccountTokens';
 
 interface Props {
   services: string[];
@@ -239,6 +240,7 @@ export default function Accounts({ services, onUnauthorized }: Props) {
                   );
                 })}
               </div>
+              <AccountTokens accountId={acc.id} onUnauthorized={onUnauthorized} />
             </li>
           ))}
         </ul>

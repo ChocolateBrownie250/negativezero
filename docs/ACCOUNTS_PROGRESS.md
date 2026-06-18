@@ -90,15 +90,17 @@ Owner clarified four things; implementing on the same branch/PR:
       15s stale-on-error, fail-closed). bookmark-manager + redirector +
       video-downloader (live, reauth clears cookie→401) + tts (live, 401 reauth).
       Tests: admin 16, tts 30, redirector/video 10 each, bookmark 15.
-- [ ] **Per-account API tokens for tts.** Replace the single global
-      `AMETHYST_API_KEY` for normal use with account-scoped tokens the owner
-      mints in admin (only for `tts` for now). Implemented as long-lived
-      admin-signed JWTs so they ride the same authz + revocation path. Admin UI
-      to create/list/revoke; tts accepts them as Bearer.
+- [~] **Per-account API tokens for tts.** Backend DONE: admin `api_tokens`
+      table + `lib/apiTokens.ts` (mint/list/revoke/state), owner-gated routes
+      `POST|GET|DELETE /api/accounts/:id/tokens` (tts-only), internal authz
+      checks `jti` for instant token revocation, tts accepts the token as Bearer
+      (scope `api`). Tests: admin 19, tts 33. Owner legacy key still works.
+      ⏳ Admin client token UI in progress (background agent).
 - [x] **Identity model confirmed** — accounts created only via owner-issued
       keys; no open self-registration. Current enroll flow already matches. ✅
-- [ ] **Production e2e** — scripted HTTP test booting admin + a consumer,
-      proving allow → instant 403 on revoke → 401 reauth semantics.
+- [x] **Production e2e** — `platform/e2e/authz-e2e.sh` boots REAL admin +
+      bookmark-manager and proves: access→200, revoke→403 (instant),
+      re-grant + old session→401 (sticky reauth), fresh session→200. 4/4 ✅
 All five requirements met. tts `test_integration.py` (49) talk to the live
 production host and fail identically on baseline (pre-existing; not in scope).
 

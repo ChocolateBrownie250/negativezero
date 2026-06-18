@@ -33,6 +33,33 @@ def _bearer_ok(authorization: str | None) -> bool:
     return hmac.compare_digest(presented, settings.amethyst_api_key)
 
 
+def _api_token_claims(authorization: str | None) -> tuple[str, int | None, str | None] | None:
+    """Parse a per-account API token from the Authorization header.
+
+    These are admin-minted JWTs (scope "api", svc "tts") signed with the same
+    SSO secret. Returns ``(account_id, iat_seconds, jti)`` or None. The legacy
+    owner Bearer key is handled separately by `_bearer_ok` and is not a JWT.
+    """
+    if not settings.sso_session_secret or not authorization:
+        return None
+    if not authorization.startswith("Bearer "):
+        return None
+    presented = authorization.removeprefix("Bearer ").strip()
+    try:
+        payload = jwt.decode(presented, settings.sso_session_secret, algorithms=["HS256"])
+    except jwt.InvalidTokenError:
+        return None
+    if payload.get("scope") != "api" or payload.get("svc") != "tts":
+        return None
+    sub = payload.get("sub")
+    if not (isinstance(sub, str) and sub):
+        return None
+    iat = payload.get("iat")
+    iat_s = int(iat) if isinstance(iat, (int, float)) else None
+    jti = payload.get("jti")
+    return sub, iat_s, (jti if isinstance(jti, str) else None)
+
+
 def _session_claims(nz_session: str | None) -> tuple[str, int | None] | None:
     """Validate the shared `nz_session` HS256 JWT cookie and return
     ``(account_id, issued_at_seconds)`` for any valid signature with a non-empty
@@ -75,12 +102,16 @@ def _authz_cache_clear() -> None:
     _authz_last_good.clear()
 
 
-async def _fetch_decision(account: str, service: str, iat: int | None) -> str:
-    """Ask admin for the live decision for (account, service, token iat)."""
+async def _fetch_decision(
+    account: str, service: str, iat: int | None, jti: str | None = None
+) -> str:
+    """Ask admin for the live decision for (account, service, token iat[, jti])."""
     url = settings.admin_authz_url.rstrip("/") + "/api/internal/authz"
     params: dict[str, str] = {"account": account, "service": service}
     if iat is not None:
         params["iat"] = str(iat)
+    if jti is not None:
+        params["jti"] = jti
     async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.get(
             url,
@@ -93,7 +124,7 @@ async def _fetch_decision(account: str, service: str, iat: int | None) -> str:
     return decision if decision in ("allow", "deny", "reauth") else "deny"
 
 
-async def authorize(account: str, service: str, iat: int | None) -> str:
+async def authorize(account: str, service: str, iat: int | None, jti: str | None = None) -> str:
     """Live per-service authorization decision: 'allow' | 'deny' | 'reauth'.
 
     - `admin_authz_url` unset → 'allow' (skip; incremental rollout).
@@ -103,10 +134,10 @@ async def authorize(account: str, service: str, iat: int | None) -> str:
     if not settings.admin_authz_url:
         return "allow"
 
-    key = f"{account}:{service}:{iat if iat is not None else ''}"
+    key = f"{account}:{service}:{iat if iat is not None else ''}:{jti or ''}"
     now = time.monotonic()
     try:
-        decision = await _fetch_decision(account, service, iat)
+        decision = await _fetch_decision(account, service, iat, jti)
     except Exception:
         hit = _authz_last_good.get(key)
         if hit is not None and (now - hit[1]) <= _AUTHZ_STALE_MAX:
@@ -128,8 +159,31 @@ async def verify_auth(
       reauth (revoked/disabled session) → 401 so the client logs in again.
     - Neither → 401.
     """
+    # 1) Legacy single owner key (iPhone Shortcut today) → full access.
     if _bearer_ok(authorization):
         return
+
+    # 2) Per-account API token (admin-minted JWT, scope "api") via Bearer.
+    api = _api_token_claims(authorization)
+    if api is not None:
+        account, iat, jti = api
+        decision = await authorize(account, "tts", iat, jti)
+        if decision == "allow":
+            return
+        # For a machine token there is no interactive re-login: a revoked token
+        # or a dropped grant is simply unauthorized.
+        if decision == "reauth":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="token_revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="tts access not enabled for this account",
+        )
+
+    # 3) Browser PWA via the shared SSO cookie.
     claims = _session_claims(nz_session)
     if claims is not None:
         account, iat = claims

@@ -62,6 +62,20 @@ db.exec(`
     enabled    INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (account_id, service)
   );
+
+  -- Long-lived per-account API tokens (machine clients, e.g. the iPhone
+  -- Shortcut). The token is a JWT carrying this row id as its jti; only the
+  -- metadata lives here. Revoking sets revoked_at so the JWT stops working.
+  CREATE TABLE IF NOT EXISTS api_tokens (
+    id         TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    service    TEXT NOT NULL,
+    label      TEXT,
+    created_at INTEGER NOT NULL,
+    last_used  INTEGER,
+    revoked_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_tokens_account ON api_tokens(account_id);
 `);
 
 // ── Lightweight migrations for columns added after the initial schema ────────
@@ -134,5 +148,15 @@ export type AccountServiceRow = {
   account_id: string;
   service: string;
   enabled: number;
+  revoked_at: number | null;
+};
+
+export type ApiTokenRow = {
+  id: string;
+  account_id: string;
+  service: string;
+  label: string | null;
+  created_at: number;
+  last_used: number | null;
   revoked_at: number | null;
 };

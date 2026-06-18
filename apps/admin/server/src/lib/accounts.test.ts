@@ -12,6 +12,10 @@ process.env.DATA_DIR = mkdtempSync(path.join(os.tmpdir(), 'admin-test-'));
 
 const accounts = await import('./accounts.js');
 const sso = await import('./ssoSession.js');
+const apiTokens = await import('./apiTokens.js');
+const { jwtVerify } = await import('jose');
+
+const TEST_SECRET = 'test-sso-secret';
 
 test('ensureOwnerAccount seeds an owner with every gated service', () => {
   accounts.ensureOwnerAccount();
@@ -107,4 +111,46 @@ test('authorize: disabling an account forces reauth for all sessions', () => {
   // Re-enabling still forces a fresh login for pre-disable tokens.
   accounts.setAccountStatus('rev2', 'active');
   assert.equal(accounts.authorize('rev2', 'tts', 1), 'reauth');
+});
+
+test('api token: mint embeds account + jti and is verifiable', async () => {
+  accounts.createAccount({ id: 'tok-acct', name: 'Tok', services: ['tts'] });
+  const { id, token } = await apiTokens.mintApiToken({
+    accountId: 'tok-acct',
+    name: 'Tok',
+    service: 'tts',
+    label: 'shortcut',
+    secret: TEST_SECRET,
+  });
+  const { payload } = await jwtVerify(token, new TextEncoder().encode(TEST_SECRET));
+  assert.equal(payload.sub, 'tok-acct');
+  assert.equal(payload.jti, id);
+  assert.equal(payload.scope, 'api');
+  assert.equal(payload.svc, 'tts');
+
+  const list = apiTokens.listApiTokens('tok-acct');
+  assert.equal(list.length, 1);
+  assert.equal(list[0].revoked, false);
+  assert.equal(apiTokens.apiTokenState(id), 'active');
+});
+
+test('api token: revoke flips state and is reflected in the list', async () => {
+  const { id } = await apiTokens.mintApiToken({
+    accountId: 'tok-acct',
+    name: 'Tok',
+    service: 'tts',
+    label: null,
+    secret: TEST_SECRET,
+  });
+  assert.equal(apiTokens.apiTokenState(id), 'active');
+  assert.equal(apiTokens.revokeApiToken('tok-acct', id), true);
+  assert.equal(apiTokens.apiTokenState(id), 'revoked');
+  const revoked = apiTokens.listApiTokens('tok-acct').find((t) => t.id === id);
+  assert.equal(revoked?.revoked, true);
+  // Re-revoking is a no-op.
+  assert.equal(apiTokens.revokeApiToken('tok-acct', id), false);
+});
+
+test('api token: unknown jti reports missing', () => {
+  assert.equal(apiTokens.apiTokenState('does-not-exist'), 'missing');
 });

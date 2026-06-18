@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db.js';
+import { config } from '../config.js';
 import {
   OWNER_ACCOUNT_ID,
   deleteAccount,
@@ -9,6 +10,12 @@ import {
   setAccountStatus,
   setServiceAccess,
 } from '../lib/accounts.js';
+import { listApiTokens, mintApiToken, revokeApiToken } from '../lib/apiTokens.js';
+
+// Services for which the owner can mint per-account API tokens. Only tts for now
+// (machine clients like the iPhone Shortcut). Widen as other services grow a
+// Bearer path.
+const API_TOKEN_SERVICES = new Set(['tts']);
 
 function audit(ip: string | null, event: string, detail: string): void {
   try {
@@ -67,6 +74,47 @@ export default async function accountRoutes(app: FastifyInstance) {
     if (!acct) return reply.code(404).send({ error: 'not_found' });
     deleteAccount(id);
     audit(req.ip ?? null, 'account_delete', id);
+    return { ok: true };
+  });
+
+  // ── Per-account API tokens (machine clients, e.g. iPhone Shortcut) ────────
+  app.get('/accounts/:id/tokens', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!getAccount(id)) return reply.code(404).send({ error: 'not_found' });
+    return { tokens: listApiTokens(id) };
+  });
+
+  app.post('/accounts/:id/tokens', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as { service?: unknown; label?: unknown };
+    const service = typeof body.service === 'string' ? body.service : 'tts';
+    if (!API_TOKEN_SERVICES.has(service)) {
+      return reply.code(400).send({ error: 'service_not_supported' });
+    }
+    const acct = getAccount(id);
+    if (!acct) return reply.code(404).send({ error: 'not_found' });
+    const label =
+      typeof body.label === 'string' && body.label.trim()
+        ? body.label.trim().slice(0, 80)
+        : null;
+    const { id: tokenId, token } = await mintApiToken({
+      accountId: id,
+      name: acct.name,
+      service,
+      label,
+      secret: config.ssoSecret,
+    });
+    audit(req.ip ?? null, 'api_token_mint', `account=${id} service=${service} token=${tokenId}`);
+    // The token is shown exactly once.
+    return { id: tokenId, service, label, token };
+  });
+
+  app.delete('/accounts/:id/tokens/:tokenId', async (req, reply) => {
+    const { id, tokenId } = req.params as { id: string; tokenId: string };
+    if (!getAccount(id)) return reply.code(404).send({ error: 'not_found' });
+    const ok = revokeApiToken(id, tokenId);
+    if (!ok) return reply.code(404).send({ error: 'token_not_found' });
+    audit(req.ip ?? null, 'api_token_revoke', `account=${id} token=${tokenId}`);
     return { ok: true };
   });
 }
