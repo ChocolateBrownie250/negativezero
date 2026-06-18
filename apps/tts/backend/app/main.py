@@ -1,15 +1,16 @@
 import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_db
+from .groq_client import verify_credentials
 from .models import HealthResponse
 from .polish_queue import start_worker as start_polish_worker
 from .polish_queue import stop_worker as stop_polish_worker
@@ -22,6 +23,8 @@ from .routes.usage import router as usage_router
 from .storage import audio_purge_loop
 
 VERSION = "0.1.0"
+
+log = logging.getLogger("app.main")
 
 
 def _resolve_pwa_dir() -> Path | None:
@@ -48,6 +51,15 @@ async def lifespan(app: FastAPI):
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     await init_db()
+    # Verify the Groq key at boot so a rejected/expired key shows up in
+    # `docker logs` immediately — rather than as a user-facing 503 on the
+    # first recording. This was the root cause of the recurring "502 when a
+    # recording finishes" outage.
+    ok, detail = await verify_credentials(force=True)
+    if ok:
+        log.info("Groq credentials verified — %s", detail)
+    else:
+        log.error("GROQ KEY PROBLEM — transcription will fail: %s", detail)
     purge_task = asyncio.create_task(audio_purge_loop())
     start_polish_worker()
     try:
@@ -55,10 +67,8 @@ async def lifespan(app: FastAPI):
     finally:
         stop_polish_worker()
         purge_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await purge_task
-        except asyncio.CancelledError:
-            pass
 
 
 # OpenAPI / Swagger / ReDoc are disabled in production — they leak the
@@ -96,7 +106,22 @@ app.add_middleware(
 
 @app.get("/api/v1/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
+    # Liveness only — cheap, no upstream calls. Use /ready for dependency health.
     return HealthResponse(status="ok", version=VERSION)
+
+
+@app.get("/api/v1/ready")
+async def ready() -> JSONResponse:
+    # Readiness: is the service actually able to transcribe? Reports whether
+    # Groq accepts the configured key (cached ~5 min, so safe to poll). Returns
+    # 503 when degraded so an uptime monitor flags a bad key without a user
+    # having to hit a 503 on a real recording.
+    ok, detail = await verify_credentials()
+    return JSONResponse(
+        {"status": "ready" if ok else "degraded", "version": VERSION,
+         "groq": {"ok": ok, "detail": detail}},
+        status_code=200 if ok else 503,
+    )
 
 
 app.include_router(transcribe_router, prefix="/api/v1", tags=["transcribe"])

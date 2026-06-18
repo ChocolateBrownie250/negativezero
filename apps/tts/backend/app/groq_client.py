@@ -3,6 +3,7 @@ import logging
 import time
 from dataclasses import dataclass
 
+import httpx
 from groq import (
     APIConnectionError,
     APIStatusError,
@@ -28,6 +29,52 @@ def client() -> AsyncGroq:
     if _client is None:
         _client = AsyncGroq(api_key=settings.groq_api_key)
     return _client
+
+
+# ---------------------------------------------------------------------------
+# Credential readiness check
+#
+# The recurring "502 when a recording finishes" outage was a GROQ_API_KEY that
+# Groq rejected (401) — invisible until a user hit it. This verifies the key is
+# accepted by Groq so we can (a) log it loudly at startup and (b) expose it on a
+# /ready probe. It must NOT run on every request/health probe (latency + quota),
+# so the result is cached for _CRED_TTL seconds. It mirrors exactly the call an
+# operator would make by hand: GET /openai/v1/models with the configured key.
+# ---------------------------------------------------------------------------
+_GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
+_CRED_TTL = 300.0
+_cred_cache: tuple[float, bool, str] | None = None  # (checked_at_monotonic, ok, detail)
+
+
+async def verify_credentials(force: bool = False) -> tuple[bool, str]:
+    """Best-effort check that ``GROQ_API_KEY`` is accepted by Groq.
+
+    Returns ``(ok, detail)``; never raises. Cached for ``_CRED_TTL`` seconds so
+    callers (startup log, /ready) can call it freely without hitting Groq each time.
+    """
+    global _cred_cache
+    now = time.monotonic()
+    if not force and _cred_cache is not None and (now - _cred_cache[0]) < _CRED_TTL:
+        return _cred_cache[1], _cred_cache[2]
+
+    key = settings.groq_api_key
+    if not key:
+        ok, detail = False, "GROQ_API_KEY is not set"
+    else:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as hc:
+                resp = await hc.get(_GROQ_MODELS_URL, headers={"Authorization": f"Bearer {key}"})
+            if resp.status_code == 200:
+                ok, detail = True, "Groq API key accepted"
+            elif resp.status_code in (401, 403):
+                ok, detail = False, "Groq rejected the API key — set a valid GROQ_API_KEY"
+            else:
+                ok, detail = False, f"Groq credential check returned HTTP {resp.status_code}"
+        except Exception as exc:  # network/timeout — unknown, not a definitive rejection
+            ok, detail = False, f"could not reach Groq to verify the key ({type(exc).__name__})"
+
+    _cred_cache = (now, ok, detail)
+    return ok, detail
 
 
 def _groq_message(exc: APIStatusError) -> str:
@@ -64,9 +111,13 @@ def map_upstream_error(exc: Exception, *, action: str) -> tuple[int, str]:
         # it as a hard server fault. Groq's message carries the reset window.
         return 429, f"{action} rate-limited by Groq: {_groq_message(exc)}"
     if isinstance(exc, (AuthenticationError, PermissionDeniedError)):
-        # Don't echo the upstream auth message (can hint at key material);
-        # a fixed, actionable line is enough.
-        return 502, f"{action} failed: Groq rejected the API key (check GROQ_API_KEY)"
+        # A rejected key is a SERVER-side misconfiguration, not a bad upstream
+        # gateway response: Groq answered correctly (401), our key is wrong.
+        # Returning 502 made this look like an nginx/proxy fault and sent
+        # operators chasing timeouts; 503 names it honestly. Don't echo the
+        # upstream auth message (can hint at key material) — a fixed,
+        # actionable line is enough.
+        return 503, f"{action} unavailable: Groq rejected the API key (operator must set a valid GROQ_API_KEY)"
     if isinstance(exc, BadRequestError):
         # e.g. an unsupported/decommissioned model or a malformed audio file.
         return 400, f"{action} rejected by Groq: {_groq_message(exc)}"

@@ -21,14 +21,20 @@ import pytest
 
 BASE_URL = os.getenv(
     "AMETHYST_BASE_URL",
-    "https://negativezero.one/vtt-transcriber",
+    "https://negativezero.one/services/tts",
 )
-API_KEY = os.getenv(
-    "AMETHYST_API_KEY",
-    "4cc42371e50891fe935d859fc5ab7f2378bb7e1c043e4bc0aced295c5f26388b",
-)
+# No key is baked in — committing a Bearer key leaks it in git history. Supply a
+# real one via AMETHYST_API_KEY to run these live tests; otherwise they skip.
+# (conftest sets a dummy "test-amethyst-key" for the in-process unit tests; that
+# dummy is treated as "not configured" here so we never fire live calls with it.)
+API_KEY = os.getenv("AMETHYST_API_KEY", "")
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 APEX = "https://" + BASE_URL.split("//", 1)[1].split("/", 1)[0]
+
+pytestmark = pytest.mark.skipif(
+    not API_KEY or API_KEY == "test-amethyst-key",
+    reason="live integration tests need a real AMETHYST_API_KEY (+ optional AMETHYST_BASE_URL)",
+)
 
 
 @pytest.fixture(scope="session")
@@ -616,7 +622,6 @@ def _silent_minimal_wav() -> bytes:
     """Tiny silent WAV — 0.25s, 8 kHz mono. Used where we just need *any*
     valid audio that Whisper will accept without bursting our quota."""
     import io
-    import struct
     import wave
 
     buf = io.BytesIO()

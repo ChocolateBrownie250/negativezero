@@ -89,9 +89,10 @@ function friendlyError(e) {
       ? `Groq rate limit — try again in ${m[1]}`
       : "Groq rate limit reached — wait a moment and try again";
   }
-  if (status === 502 && /API key/i.test(detail)) {
+  if ((status === 502 || status === 503) && /API key/i.test(detail)) {
     return "Transcription unavailable — Groq API key rejected (ask the operator)";
   }
+  if (status === 503) return detail || "Transcription temporarily unavailable — try again shortly";
   if (status === 504) return "Groq timed out — try again";
   if (status === 413) return detail || "Recording too long — try a shorter clip";
   if (status === 400 && /rejected by Groq/i.test(detail)) return detail;
