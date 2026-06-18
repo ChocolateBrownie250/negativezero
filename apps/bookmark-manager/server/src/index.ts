@@ -67,21 +67,24 @@ async function main() {
 
   // static client
   if (fs.existsSync(config.clientDist)) {
+    // The HTML shell + manifest must revalidate every load, or a deploy's new
+    // hashed asset refs stay pinned for up to maxAge (the bundle is cache-busted
+    // by filename hash; this entry document is not). @fastify/static's `maxAge`
+    // wins over its own `setHeaders`, so override at the onSend layer instead —
+    // hashed /assets/* (js/css) keep the long cache since they're immutable.
+    app.addHook('onSend', async (req, reply, payload) => {
+      const ct = String(reply.getHeader('content-type') || '');
+      if (ct.includes('text/html') || req.url.split('?')[0].endsWith('.webmanifest')) {
+        reply.header('Cache-Control', 'no-cache, must-revalidate');
+      }
+      return payload;
+    });
     await app.register(fastifyStatic, {
       root: config.clientDist,
       prefix: '/',
       wildcard: false,
       cacheControl: true,
       maxAge: '1h',
-      // The root index.html (and the manifest) are served by fastifyStatic, not
-      // the SPA fallback below, so they'd otherwise inherit the 1h max-age and
-      // pin old hashed asset refs after a deploy. Force them to revalidate; the
-      // hashed /assets/* bundles keep the long cache (they're immutable).
-      setHeaders: (res, pathName) => {
-        if (pathName.endsWith('index.html') || pathName.endsWith('.webmanifest')) {
-          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-        }
-      },
     });
     // SPA fallback: any non-/api GET -> index.html
     app.setNotFoundHandler(async (req, reply) => {
