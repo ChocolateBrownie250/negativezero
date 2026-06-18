@@ -79,6 +79,11 @@ async function main() {
       if (req.method === 'GET' && !req.url.startsWith('/api/')) {
         const indexPath = path.join(config.clientDist, 'index.html');
         if (fs.existsSync(indexPath)) {
+          // index.html must never be cached: the SPA bundle is cache-busted by
+          // filename hash, but this entry document is not — caching it pins the
+          // OLD asset hashes, so a fresh deploy stays invisible until the static
+          // maxAge (1h) expires. no-cache forces a revalidation every load.
+          reply.header('Cache-Control', 'no-cache, must-revalidate');
           reply.type('text/html');
           return fs.readFileSync(indexPath, 'utf8');
         }

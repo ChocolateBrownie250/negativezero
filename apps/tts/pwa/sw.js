@@ -16,7 +16,7 @@
 //   • The shell file list changes (new file in SHELL[]), or
 //   • You want to forcibly purge ALL clients (e.g., a security fix).
 // Routine CSS/JS edits no longer require a bump — SWR handles them.
-const CACHE = "amethyst-shell-v9";
+const CACHE = "amethyst-shell-v10";
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", e => {

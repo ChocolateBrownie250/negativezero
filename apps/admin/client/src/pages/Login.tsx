@@ -54,7 +54,10 @@ export default function Login({ onLoggedIn }: Props) {
       // nz_session cookie has been set. Guard to same-origin /services/ paths.
       const returnValue = new URLSearchParams(window.location.search).get('return');
       if (returnValue && returnValue.startsWith('/services/')) {
-        window.location.assign(returnValue);
+        // replace() not assign(): the SSO bounce shouldn't leave the admin
+        // login in history, or pressing Back from the destination service
+        // lands back on this login (which re-bounces) or drops out of the app.
+        window.location.replace(returnValue);
         return;
       }
       onLoggedIn();
