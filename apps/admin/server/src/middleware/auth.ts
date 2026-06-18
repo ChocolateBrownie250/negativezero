@@ -1,25 +1,46 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
 import { readSsoCookie, verifySsoSession } from '../lib/ssoSession.js';
+import { isAllowed } from '../lib/accounts.js';
 
-export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
-  if (req.session.get('userId') === 'owner') return;
+// Resolve the calling account id from the local session or the apex SSO cookie.
+// On an SSO hit the local session is primed so later requests skip the JWT work.
+export async function resolveAccount(req: FastifyRequest): Promise<string | null> {
+  const sess = req.session.get('accountId');
+  if (sess) return sess;
 
-  // Fall back to the apex-wide SSO cookie minted by admin on passkey login.
   const ssoToken = readSsoCookie(req.headers.cookie);
-  if (ssoToken && (await verifySsoSession(ssoToken, config.ssoSecret))) {
-    req.session.set('userId', 'owner');
-    return;
+  if (ssoToken) {
+    const claims = await verifySsoSession(ssoToken, config.ssoSecret);
+    if (claims) {
+      req.session.set('accountId', claims.sub);
+      return claims.sub;
+    }
   }
+  return null;
+}
 
-  return reply.code(401).send({ error: 'unauthorized' });
+// Gate for admin management endpoints: the account must be allowed the `admin`
+// service (the owner always is; a friend only if explicitly granted).
+export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
+  const accountId = await resolveAccount(req);
+  if (!accountId) {
+    return reply.code(401).send({ error: 'unauthorized' });
+  }
+  if (!isAllowed(accountId, 'admin')) {
+    return reply.code(403).send({ error: 'forbidden' });
+  }
 }
 
 declare module '@fastify/secure-session' {
   interface SessionData {
-    userId?: 'owner';
+    accountId?: string;
     regChallenge?: string;
-    regMode?: 'first' | 'reset' | 'authenticated';
+    regMode?: 'first' | 'reset' | 'authenticated' | 'enroll';
+    regAccountId?: string;
+    regAccountName?: string;
+    regCodeId?: string;
+    regServices?: string;
     authChallenge?: string;
   }
 }

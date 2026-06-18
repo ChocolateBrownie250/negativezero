@@ -92,6 +92,8 @@ services:
       PORT: "3000"
       SESSION_SECRET: ${BOOKMARK_SESSION_SECRET}
       SSO_SESSION_SECRET: ${SSO_SESSION_SECRET}
+      # admin's internal URL for per-account, per-service authorization checks.
+      ADMIN_AUTHZ_URL: http://admin:3000
       ENCRYPTION_KEY: ${BOOKMARK_ENCRYPTION_KEY}
       SETUP_CODE_HASH: ${BOOKMARK_SETUP_CODE_HASH}
       PUBLIC_URL: ${BOOKMARK_PUBLIC_URL}
@@ -157,6 +159,8 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       AMETHYST_API_KEY: ${TTS_API_KEY}
       SSO_SESSION_SECRET: ${SSO_SESSION_SECRET}
+      # admin's internal URL for per-account authorization (service "tts").
+      ADMIN_AUTHZ_URL: http://admin:3000
       DATA_DIR: /data
       DB_PATH: /data/amethyst.sqlite
       AUDIO_DIR: /data/audio
@@ -189,6 +193,7 @@ services:
       PORT: "3000"
       SESSION_SECRET: ${VIDEO_DOWNLOADER_SESSION_SECRET}
       SSO_SESSION_SECRET: ${SSO_SESSION_SECRET}
+      ADMIN_AUTHZ_URL: http://admin:3000
       SETUP_CODE_HASH: ${VIDEO_DOWNLOADER_SETUP_CODE_HASH}
       PUBLIC_URL: ${VIDEO_DOWNLOADER_PUBLIC_URL}
       DATA_DIR: /app/server/data
@@ -228,6 +233,7 @@ services:
       PORT: "3000"
       SESSION_SECRET: ${REDIRECTOR_SESSION_SECRET}
       SSO_SESSION_SECRET: ${SSO_SESSION_SECRET}
+      ADMIN_AUTHZ_URL: http://admin:3000
       SETUP_CODE_HASH: ${REDIRECTOR_SETUP_CODE_HASH}
       PUBLIC_URL: ${REDIRECTOR_PUBLIC_URL}
       DATA_DIR: /app/server/data

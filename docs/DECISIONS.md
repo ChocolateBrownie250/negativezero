@@ -12,6 +12,54 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-18 — multi-account accounts + per-service authorization
+
+Turned the platform from single-owner into a small multi-account system
+managed entirely from admin. The owner can invite friends with setup
+keys and grant/revoke each friend access to individual services.
+
+What changed:
+
+- **Admin is the identity + authorization authority.** It owns an
+  `accounts` table (+ `account_services` grants) and is the only service
+  that mints the apex `nz_session` SSO cookie. The cookie's `sub` now
+  carries the real account id (the owner is the literal `owner`).
+- **Authentication vs authorization split.** A valid `nz_session`
+  signature only proves *who* you are. *Whether* an account may use a
+  given service is a separate decision owned by admin and exposed at
+  `GET /api/internal/authz?account=&service=` (guarded by the shared
+  `SSO_SESSION_SECRET` as a bearer; 404'd from the public by nginx).
+- **Each gated service enforces authz** after verifying the SSO cookie,
+  caching admin's answer ~30s (stale-served ≤10min on an admin outage,
+  else fail-closed). `ADMIN_AUTHZ_URL` unset ⇒ check skipped, so the
+  change rolls out service-by-service without a flag day.
+- **Setup keys create accounts.** A code generated in admin carries the
+  set of services it grants; redeeming it (passkey registration) creates
+  the account with those grants and consumes the code.
+- **Amethyst (tts) joins the model.** The browser PWA no longer has an
+  API-key field — it relies on the SSO cookie + a `tts` grant. The owner
+  Bearer key (`AMETHYST_API_KEY`) stays for the iPhone Shortcut.
+
+Alternatives considered:
+
+- **Encode the service grants directly in the JWT** (stateless). Rejected
+  as the primary mechanism: a 30-day cookie would make a revoked grant
+  linger until re-login, which defeats the "toggle access off" intent.
+  The live check (cached) makes a toggle effective within ~30s.
+- **A shared DB of grants mounted into every container.** Rejected:
+  couples storage across containers; an HTTP check to the existing SSO
+  hub is cleaner and keeps admin the single writer.
+- **Bring back a central IdP (Logto).** Still rejected for the same
+  reason as 2026-05-28 — overkill at this scale.
+
+What would invalidate this: enough accounts/traffic that the per-request
+authz hop to admin (even cached) becomes a bottleneck or an availability
+risk → move to short-lived JWTs carrying grants with a refresh, or a
+replicated grants store. Also revisit if admin's uptime becomes the
+limiting factor for the other services.
+
+---
+
 ## 2026-06-16 — redirector added (short-link service, no at-rest encryption)
 
 Added `apps/redirector/`, a passkey-protected short-link service mounted

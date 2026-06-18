@@ -27,9 +27,9 @@ function apiUrl(path) {
   return new URL(cleanPath, new URL("./", window.location.href)).href;
 }
 function authHeaders() {
-  // With a pasted key (Shortcut / manual), send Bearer. Otherwise rely on the
-  // apex SSO cookie (nz_session) sent automatically via credentials: "include".
-  return settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {};
+  // The browser PWA never sends a Bearer token — it relies on the apex SSO
+  // cookie (nz_session) sent automatically via credentials: "include".
+  return {};
 }
 
 // ---------- DOM refs ----------

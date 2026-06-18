@@ -94,10 +94,41 @@ not needed again. Use the backup code to add a new device / recover
 from a lost passkey, or have `admin` issue a fresh registration code.
 
 **tts** uses a single Bearer API key (`TTS_API_KEY` in `platform/.env`,
-auto-generated on first deploy). Clients (iPhone Shortcut, PWA
-settings, external scripts) put this in their `Authorization: Bearer
-...` header. To rotate: edit `platform/.env`, `docker compose restart
-tts`, update every client.
+auto-generated on first deploy) for **machine clients only** — the
+iPhone Shortcut and external scripts put it in their `Authorization:
+Bearer ...` header. The **browser PWA no longer takes a key**; it relies
+on the shared SSO session (see below) plus a `tts` grant. To rotate the
+machine key: edit `platform/.env`, `docker compose restart tts`, update
+the Shortcut.
+
+> Common mistake: the "API key" field that used to be in the Amethyst
+> PWA settings was *not* the Groq key. The Groq key lives only in
+> `GROQ_API_KEY` in `platform/.env` (server-side). The PWA key field has
+> been removed; in the browser you just sign in.
+
+## Accounts & inviting people (multi-account, 2026-06-18)
+
+The platform is now multi-account, managed from **admin**:
+
+- The owner account (`owner`) is bootstrapped by the first passkey
+  registration on admin (env `ADMIN_SETUP_CODE_HASH`) and implicitly has
+  every service.
+- To invite someone: open admin → generate a **setup key**, ticking the
+  services they should get (incl. Amethyst/tts). Give them the key; they
+  open admin, register a passkey with it, and an account is created with
+  exactly those services. One account works across every granted service
+  via the apex `nz_session` SSO cookie.
+- To change access later: admin → **Accounts** → toggle a service on/off,
+  or disable/delete the account. Changes take effect within ~30s (each
+  service caches admin's authorization answer briefly).
+
+How enforcement works: admin is the SSO hub and the authorization source
+of truth. Each gated service (bookmark-manager, video-downloader,
+redirector, tts) verifies the SSO cookie, then asks admin
+`GET /api/internal/authz` (over the internal docker network, bearer =
+`SSO_SESSION_SECRET`, never exposed by nginx) whether that account may
+use it. If `ADMIN_AUTHZ_URL` is unset for a service, the check is skipped
+(legacy "any signed-in user" behaviour).
 
 ---
 

@@ -2,7 +2,6 @@
 const LS_KEY = "amethyst.settings.v1";
 const defaultSettings = {
   apiBase: "",       // empty = same origin
-  apiKey: "",
   defLang: "auto",
   defCleanup: "on:standard",
   defTranslateLang: "English",   // default target for the Translate button
@@ -12,7 +11,11 @@ function loadSettings() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return { ...defaultSettings };
-    return { ...defaultSettings, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    // The browser PWA no longer uses an API key — it relies on the SSO cookie.
+    // Drop any stale persisted key so it can never be sent again.
+    delete parsed.apiKey;
+    return { ...defaultSettings, ...parsed };
   } catch {
     return { ...defaultSettings };
   }
@@ -34,10 +37,8 @@ function apiUrl(path) {
   return new URL(cleanPath, new URL("./", window.location.href)).href;
 }
 function authHeaders() {
-  // When a key is set, send it as a Bearer token (iPhone Shortcut / manual
-  // fallback / pasted key). When empty, send no auth header — the browser
-  // relies on the shared `nz_session` SSO cookie instead.
-  if (settings.apiKey) return { Authorization: `Bearer ${settings.apiKey}` };
+  // The browser PWA never sends a Bearer token — it relies entirely on the
+  // shared `nz_session` SSO cookie (sent via credentials: "include").
   return {};
 }
 async function api(path, init = {}) {
@@ -67,7 +68,7 @@ async function api(path, init = {}) {
 // browser has no valid SSO cookie — bounce to the hub login, which returns
 // here once authenticated. Returns true if it handled (redirected) the error.
 function handleAuthError(e) {
-  if (e && e.status === 401 && !settings.apiKey) {
+  if (e && e.status === 401) {
     window.location.assign("/services/admin/?return=/services/tts/");
     return true;
   }
@@ -909,7 +910,6 @@ async function resetPromptCard(card) {
 
 // ----- Settings UI -----
 const apiBase = document.getElementById("apiBase");
-const apiKey  = document.getElementById("apiKey");
 const defLang = document.getElementById("defLang");
 const defCleanup = document.getElementById("defCleanup");
 const defTranslateLang = document.getElementById("defTranslateLang");
@@ -918,7 +918,6 @@ const settingsStatus = document.getElementById("settingsStatus");
 
 function paintSettings() {
   apiBase.value = settings.apiBase;
-  apiKey.value  = settings.apiKey;
   defLang.value = settings.defLang;
   defCleanup.value = settings.defCleanup;
   if (defTranslateLang) defTranslateLang.value = settings.defTranslateLang;
@@ -938,7 +937,6 @@ document.getElementById("settingsSave").addEventListener("click", () => {
   settings = {
     ...settings,
     apiBase: apiBase.value.trim().replace(/\/+$/, ""),
-    apiKey: apiKey.value.trim(),
     defLang: defLang.value,
     defCleanup: defCleanup.value,
     defTranslateLang: defTranslateLang ? defTranslateLang.value : settings.defTranslateLang,
