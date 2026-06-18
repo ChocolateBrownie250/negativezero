@@ -33,9 +33,14 @@ export default function SelectionToolbar({
 
   return (
     <div
-      className="sticky top-0 z-30 -mx-4 px-4 py-2 mb-3 backdrop-blur-sm"
+      className="sticky top-0 z-30 -mx-4 px-4 py-2 mb-3 backdrop-blur-md"
       style={{
-        background: 'rgba(20,20,24,0.85)',
+        // Deep-blue liquid-glass surface matching the app's .glass-surface
+        // primitive (menus/toast). Was a leftover flat grey rgba(20,20,24) from
+        // the pre-blue-theme palette, which clashed with the rest of the UI.
+        // Inlined (not the class) so it can't override `position: sticky`.
+        background:
+          'linear-gradient(177deg, rgba(110,140,205,0.16) 0%, rgba(60,84,152,0.09) 100%), rgba(16,26,52,0.82)',
         boxShadow: `0 1px 0 ${RING_STRONG}`,
       }}
     >
@@ -96,7 +101,10 @@ export default function SelectionToolbar({
           type="button"
           onClick={onDelete}
           className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{ background: COLORS.red, color: '#fff' }}
+          // Destructive idiom used everywhere else in the app: a red glyph on a
+          // translucent red tint (matches the rgba tint language of the other
+          // surfaces) rather than a loud solid-coral fill that broke the theme.
+          style={{ background: 'rgba(255,106,134,0.18)', color: COLORS.red }}
           aria-label={`Delete ${count} item${count === 1 ? '' : 's'}`}
           title={`Delete ${count} item${count === 1 ? '' : 's'}`}
         >
