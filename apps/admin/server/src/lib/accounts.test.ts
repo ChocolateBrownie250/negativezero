@@ -75,6 +75,14 @@ test('SSO verify rejects a bad signature', async () => {
   assert.equal(claims, null);
 });
 
+test('SSO fails closed on an empty secret (no fail-open with empty HMAC key)', async () => {
+  // A real token signed with a real secret must NOT verify when the configured
+  // secret is empty, and minting with an empty secret must refuse outright.
+  const token = await sso.mintSsoSession('secret-a', { sub: 'friend1' });
+  assert.equal(await sso.verifySsoSession(token, ''), null);
+  await assert.rejects(() => sso.mintSsoSession('', { sub: 'x' }), /SSO_SESSION_SECRET/);
+});
+
 test('authorize: owner is always allowed regardless of iat', () => {
   assert.equal(accounts.authorize(accounts.OWNER_ACCOUNT_ID, 'tts', 1), 'allow');
 });

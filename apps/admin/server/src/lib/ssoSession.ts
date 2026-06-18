@@ -20,6 +20,7 @@ function key(secret: string): Uint8Array {
 }
 
 export async function mintSsoSession(secret: string, claims: SsoClaims): Promise<string> {
+  if (!secret) throw new Error('SSO_SESSION_SECRET is not set — refusing to mint a session');
   return new SignJWT({ name: claims.name ?? '' })
     .setProtectedHeader({ alg: ALG })
     .setSubject(claims.sub)
@@ -34,6 +35,9 @@ export async function verifySsoSession(
   token: string,
   secret: string,
 ): Promise<SsoClaims | null> {
+  // Fail closed: with an empty secret, jwtVerify would trust an empty HMAC key
+  // and accept forged cookies. No secret ⇒ SSO cookie auth is disabled here.
+  if (!secret) return null;
   try {
     const { payload } = await jwtVerify(token, key(secret), { algorithms: [ALG] });
     if (typeof payload.sub !== 'string' || !payload.sub) return null;
