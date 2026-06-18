@@ -79,6 +79,23 @@ instant revoke + sticky reauth:
 bash platform/e2e/authz-e2e.sh   # expect "4 passed, 0 failed"
 ```
 
+## Troubleshooting
+
+**HTTPS serves the wrong cert after a deploy** (browser TLS warning;
+`https://negativezero.one/` presents e.g. `CN=isgroup.one`). The nginx site file
+was left HTTP-only, so `:443` falls through to another tenant's server block.
+Cause: `deploy.sh` rewrites the site file from the HTTP-only template every run
+and relies on certbot to re-add the `443` block; if that certbot step fails, TLS
+is gone. `deploy.sh` now retries 3× and fails loudly (no more silent HTTP-only),
+but to fix by hand:
+```bash
+ssh root@45.76.88.245
+certbot install --installer nginx --cert-name negativezero.one --redirect --non-interactive
+systemctl reload nginx
+# verify the right cert is served:
+echo | openssl s_client -connect negativezero.one:443 -servername negativezero.one 2>/dev/null | openssl x509 -noout -subject
+```
+
 ## Rollback
 `deploy.sh` is re-runnable. To roll back code: on the VPS
 `git checkout <previous-good-sha> && bash platform/deploy.sh`. Data dirs under

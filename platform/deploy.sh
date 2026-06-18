@@ -376,15 +376,31 @@ issue_tls() {
         return
     fi
 
+    # certbot's nginx installer can fail transiently right after a reload (it
+    # reparses the freshly-written site file). A single silent failure here
+    # leaves the site HTTP-only — :443 then falls through to another tenant's
+    # server block and serves the WRONG cert (observed 2026-06-18). Retry before
+    # giving up, and treat a failed re-install of an EXISTING cert as fatal: it's
+    # an active regression (a site that had HTTPS just lost it), not a soft warn.
+    local attempt rc=1
     if [ ! -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]; then
         log "Requesting TLS cert for $domain"
-        certbot --nginx -d "$domain" --redirect --non-interactive --agree-tos \
-            -m "admin@$APEX_DOMAIN" \
-            || warn "certbot failed for $domain"
+        for attempt in 1 2 3; do
+            if certbot --nginx -d "$domain" --redirect --non-interactive --agree-tos \
+                -m "admin@$APEX_DOMAIN"; then rc=0; break; fi
+            warn "certbot --nginx attempt $attempt failed for $domain"
+            if [ "$attempt" -lt 3 ]; then sleep 3; fi
+        done
+        [ "$rc" -eq 0 ] || warn "certbot failed for $domain after 3 attempts — site may be HTTP-only until DNS/TLS is fixed; re-run."
     else
         log "Re-installing existing TLS cert into nginx for $domain"
-        certbot install --installer nginx --cert-name "$domain" --redirect --non-interactive \
-            || warn "certbot install failed for $domain"
+        for attempt in 1 2 3; do
+            if certbot install --installer nginx --cert-name "$domain" --redirect \
+                --non-interactive; then rc=0; break; fi
+            warn "certbot install attempt $attempt failed for $domain"
+            if [ "$attempt" -lt 3 ]; then sleep 3; fi
+        done
+        [ "$rc" -eq 0 ] || die "certbot install failed for $domain after 3 attempts; an existing cert is present but nginx was left HTTP-only (:443 will serve the wrong vhost). Recover with: certbot install --installer nginx --cert-name $domain --redirect --non-interactive"
     fi
 }
 
