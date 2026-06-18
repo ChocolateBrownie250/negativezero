@@ -100,7 +100,35 @@ Owner clarified four things; implementing on the same branch/PR:
 ## Phase 6 COMPLETE — pushed (commits e588104 instant revocation, ca68b9b API tokens)
 Everything the owner asked for is implemented, tested, and on PR #76:
 instant+sticky per-service revocation, per-account tts API tokens, accounts-only
-identity, and a real cross-service e2e. Watching CI on #76.
+identity, and a real cross-service e2e.
+
+## Phase 7 — consolidation + deploy prep (2026-06-18)
+- [x] Audited the 8 leftover `claude/*` branches against current main.
+      Stale/already-merged: add-timezones-service, bookmarks-bad-gateway (#74),
+      bottom-nav-positioning (#71), redirect-service (#72), tts-amethyst-redesign,
+      redirector-deploy-notes (#73 — already in HANDOVER).
+      **Useful + unmerged, salvaged via cherry-pick (clean, builds):**
+      landing harmonograph hero (`c440acd`) + bookmark-manager liquid-glass
+      (`e452e1b`, client builds ✅).
+- [x] `docs/DEPLOY.md` — runbook a desktop agent executes (transfer → set
+      GROQ_API_KEY → deploy.sh → verify → accounts/first-login). The box deploy
+      needs SSH, done from the desktop session, not here.
+- [ ] Consolidation PR → merge to main, then desktop agent deploys.
+
+## SHIPPED — PR #76 merged to main (2026-06-18, squash 7a82c06); CI was fully green.
+- Repo cleanup: 13 stale PRs closed; Dependabot auto-deleted its 10 branches.
+  8 `claude/*` branch refs remain — proxy + safety boundary block me from
+  deleting them; operator deletes in UI or via `git push origin --delete …`.
+  (3 of those — #70 landing redesign, #73 redirector notes, #75 bm liquid-glass
+  — were unmerged real work; closed but reopenable.)
+- PROD DEPLOY is still pending and is operator-run on the VPS (no SSH from here):
+    ssh root@45.76.88.245
+    cd /srv/negativezero && git pull origin main
+    # ensure the Groq key is set (this also fixes the live 502):
+    grep -q '^GROQ_API_KEY=gsk_' platform/.env || $EDITOR platform/.env
+    bash platform/deploy.sh
+  After deploy, sign in once via /services/admin/ to mint the SSO cookie
+  (owner account auto-seeds with all services).
 - [x] **Identity model confirmed** — accounts created only via owner-issued
       keys; no open self-registration. Current enroll flow already matches. ✅
 - [x] **Production e2e** — `platform/e2e/authz-e2e.sh` boots REAL admin +

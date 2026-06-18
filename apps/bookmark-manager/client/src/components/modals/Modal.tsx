@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { COLORS, RING_STRONG, LABEL_SECONDARY } from '../../lib/colors';
+import { COLORS, LABEL_SECONDARY } from '../../lib/colors';
 
 interface Props {
   title: string;
@@ -31,12 +31,8 @@ export default function Modal({ title, onClose, children, maxWidth = 380 }: Prop
       }}
     >
       <div
-        className="w-full rounded-2xl overflow-hidden"
-        style={{
-          maxWidth,
-          background: COLORS.card,
-          boxShadow: `0 0 0 1px ${RING_STRONG}, 0 8px 28px rgba(0,0,0,0.55)`,
-        }}
+        className="glass-card w-full rounded-2xl overflow-hidden"
+        style={{ maxWidth }}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <h2 className="text-[17px] font-semibold text-white">{title}</h2>

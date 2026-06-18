@@ -15,6 +15,7 @@ import { config } from '../config.js';
 import { db, type CredentialRow } from '../db.js';
 import { generateRegistrationCode, normalizeCode } from '../lib/codes.js';
 import { readSsoCookie, verifySsoSession } from '../lib/ssoSession.js';
+import { authorizeService } from '../lib/authz.js';
 import {
   RP_ID,
   RP_NAME,
@@ -71,9 +72,21 @@ export default async function authRoutes(app: FastifyInstance) {
   app.get('/auth/me', async (req) => {
     let authenticated = req.session.get('userId') === 'owner';
     if (!authenticated) {
+      // Accept the apex-wide nz_session SSO cookie as an alternative, but only
+      // report authenticated when the account is actually authorized for this
+      // service (mirror the requireAuth middleware): 'allow' → authenticated,
+      // 'deny'/'reauth' → not, so the SPA shows its sign-in screen.
       const token = readSsoCookie(req.headers.cookie);
-      if (token && (await verifySsoSession(token, config.ssoSecret))) {
-        authenticated = true;
+      if (token) {
+        const claims = await verifySsoSession(token, config.ssoSecret);
+        if (claims) {
+          const decision = await authorizeService(
+            claims.sub,
+            config.serviceName,
+            claims.iat,
+          );
+          authenticated = decision === 'allow';
+        }
       }
     }
     return {
