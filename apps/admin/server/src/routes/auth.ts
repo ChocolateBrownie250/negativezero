@@ -157,11 +157,19 @@ async function findUnusedCode(plain: string): Promise<CodeMatch | null> {
   return null;
 }
 
-function markCodeUsed(codeId: string, accountId: string): void {
-  db.prepare(
-    'UPDATE generated_codes SET used_at = ?, account_id = ? WHERE id = ?',
-  ).run(Date.now(), accountId, codeId);
+// Atomically claim a single-use code. Returns false if it was already used
+// (e.g. two browsers raced the same code), so the caller can abort.
+function markCodeUsed(codeId: string, accountId: string): boolean {
+  const res = db
+    .prepare(
+      'UPDATE generated_codes SET used_at = ?, account_id = ? WHERE id = ? AND used_at IS NULL',
+    )
+    .run(Date.now(), accountId, codeId);
+  return res.changes > 0;
 }
+
+// Thrown inside the registration transaction to roll back a raced enrollment.
+class CodeAlreadyUsedError extends Error {}
 
 export default async function authRoutes(app: FastifyInstance) {
   app.get('/auth/me', async (req) => {
@@ -207,10 +215,10 @@ export default async function authRoutes(app: FastifyInstance) {
         regAccountId = sessionAccountId;
         regAccountName = getAccount(sessionAccountId)!.name;
       } else if (typeof body.setupCode === 'string' && body.setupCode.trim()) {
-        if (getSetupFailedCount() >= SETUP_FAILED_LIMIT) {
-          audit(req, 'enrollment_locked', 'setup_code attempt while locked');
-          return reply.code(429).send({ error: 'setup_locked' });
-        }
+        // Validity is checked BEFORE the failed-attempt counter, so a genuine
+        // invite code is never deadlocked by prior bad attempts. The counter
+        // only throttles *invalid* tries (the else branch), and a successful
+        // match clears it.
         if (!ownerExists() && (await isEnvSetupCode(body.setupCode))) {
           // First-ever enrollment bootstraps the owner account.
           mode = 'first';
@@ -219,6 +227,7 @@ export default async function authRoutes(app: FastifyInstance) {
             typeof body.name === 'string' && body.name.trim()
               ? body.name.trim().slice(0, 80)
               : 'Owner';
+          resetSetupFailedCount();
         } else {
           const match = await findUnusedCode(body.setupCode);
           if (match) {
@@ -231,10 +240,12 @@ export default async function authRoutes(app: FastifyInstance) {
                 : 'Member');
             regServices = match.services;
             regCodeId = match.id;
+            resetSetupFailedCount();
           } else {
             const n = bumpSetupFailedCount();
             if (n >= SETUP_FAILED_LIMIT) {
               audit(req, 'enrollment_locked', `setup_code failures reached ${n}`);
+              return reply.code(429).send({ error: 'setup_locked' });
             }
           }
         }
@@ -343,12 +354,16 @@ export default async function authRoutes(app: FastifyInstance) {
         if (mode === 'first') {
           ensureOwnerAccount();
         } else if (mode === 'enroll') {
+          // Claim the single-use code first; if it was already redeemed (a race
+          // between two browsers using the same code) abort the whole tx.
+          if (!regCodeId || !markCodeUsed(regCodeId, regAccountId)) {
+            throw new CodeAlreadyUsedError();
+          }
           createAccount({
             id: regAccountId,
             name: regAccountName,
             services: regServices,
           });
-          if (regCodeId) markCodeUsed(regCodeId, regAccountId);
         } else if (mode === 'reset') {
           db.prepare('DELETE FROM credentials WHERE account_id = ?').run(regAccountId);
         }
@@ -370,7 +385,14 @@ export default async function authRoutes(app: FastifyInstance) {
           setMeta('backup_code_hash', newBackupHash);
         }
       });
-      tx();
+      try {
+        tx();
+      } catch (err) {
+        if (err instanceof CodeAlreadyUsedError) {
+          return reply.code(409).send({ error: 'code_already_used' });
+        }
+        throw err;
+      }
 
       if (mode === 'first') {
         resetSetupFailedCount();
@@ -389,6 +411,7 @@ export default async function authRoutes(app: FastifyInstance) {
       req.session.set('regServices', undefined);
       req.session.set('regCodeId', undefined);
       req.session.set('accountId', regAccountId);
+      req.session.set('accountIat', Math.floor(Date.now() / 1000));
 
       const ssoToken = await mintSsoSession(config.ssoSecret, {
         sub: regAccountId,
@@ -480,6 +503,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     req.session.set('authChallenge', undefined);
     req.session.set('accountId', acct.id);
+    req.session.set('accountIat', Math.floor(Date.now() / 1000));
 
     const ssoToken = await mintSsoSession(config.ssoSecret, {
       sub: acct.id,

@@ -161,11 +161,28 @@ export default function Login({ onLoggedIn }: Props) {
           </div>
         )}
 
+        {/* Invite-code entry. Pre-bootstrap (no passkey) the prominent
+            "Register for the first time" button above already opens the
+            setup-code path; this link adds the same entry once an owner
+            passkey exists, so an invited friend with a setup code can still
+            enroll. */}
+        {hasPasskey && (
+          <button
+            type="button"
+            onClick={() => setModal('first')}
+            disabled={!supported}
+            className="block mx-auto mt-4 text-[13px] disabled:opacity-50"
+            style={{ color: LABEL_TERTIARY, background: 'transparent' }}
+          >
+            Have an invite code? Register
+          </button>
+        )}
+
         {hasPasskey && (
           <button
             type="button"
             onClick={() => setModal('reset')}
-            className="block mx-auto mt-4 text-[13px]"
+            className="block mx-auto mt-3 text-[13px]"
             style={{ color: LABEL_TERTIARY, background: 'transparent' }}
           >
             Lost your passkey? Reset with backup code
