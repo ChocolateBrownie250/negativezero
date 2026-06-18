@@ -283,6 +283,21 @@ if [ "$GROQ_PRESENT" = "1" ]; then
         curl -sf "http://127.0.0.1:$TTS_PORT/api/v1/health" >/dev/null 2>&1 && { log "tts up"; break; }
         sleep 2
     done
+    # Actively verify the Groq key is ACCEPTED, not just present. A present-but-
+    # rejected key (expired/revoked) is the classic cause of "502/503 when a
+    # recording finishes" — catch it here, at deploy time, instead of leaving a
+    # user to discover it on the next recording. Read-only GET; never prints the key.
+    GROQ_KEY="$(grep -E '^GROQ_API_KEY=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
+    groq_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+        -H "Authorization: Bearer $GROQ_KEY" https://api.groq.com/openai/v1/models || echo 000)"
+    if [ "$groq_code" = "200" ]; then
+        log "Groq API key accepted — transcription ready"
+    elif [ "$groq_code" = "401" ] || [ "$groq_code" = "403" ]; then
+        warn "GROQ_API_KEY is set but REJECTED by Groq (HTTP $groq_code) — transcription will fail (503)."
+        warn "Get a valid key at https://console.groq.com/keys, set it in $ENV_FILE, and re-run."
+    else
+        warn "Could not verify GROQ_API_KEY against Groq (HTTP $groq_code) — check connectivity; transcription may be degraded."
+    fi
 fi
 
 # ────────────────────────────────────────────────────────────────────────

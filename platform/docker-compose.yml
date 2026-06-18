@@ -39,6 +39,12 @@ services:
       - ../apps/landing:/usr/share/nginx/html:ro
     ports:
       - "127.0.0.1:${LANDING_HOST_PORT:-3020}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - internal
 
@@ -69,6 +75,12 @@ services:
       - ../apps/timezones:/usr/share/nginx/html:ro
     ports:
       - "127.0.0.1:${TIMEZONES_HOST_PORT:-3024}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - internal
 
@@ -101,6 +113,12 @@ services:
       - ./data/bookmark-manager:/app/server/data
     ports:
       - "127.0.0.1:${BOOKMARK_HOST_PORT:-3021}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - internal
 
@@ -130,6 +148,12 @@ services:
       - ./data/admin:/app/server/data
     ports:
       - "127.0.0.1:${ADMIN_HOST_PORT:-3022}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - internal
 
@@ -168,6 +192,12 @@ services:
       - ./data/tts:/data
     ports:
       - "127.0.0.1:${TTS_HOST_PORT:-3023}:3000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/api/v1/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - internal
 
@@ -205,6 +235,12 @@ services:
       - ./data/video-downloader:/app/server/data
     ports:
       - "127.0.0.1:${VIDEO_DOWNLOADER_HOST_PORT:-3025}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - internal
 
@@ -241,6 +277,12 @@ services:
       - ./data/redirector:/app/server/data
     ports:
       - "127.0.0.1:${REDIRECTOR_HOST_PORT:-3026}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - internal
 
