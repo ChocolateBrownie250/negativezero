@@ -76,9 +76,10 @@
 - [x] Live e2e: booted admin, `/api/internal/authz` returns allowed:true for
       owner, false for unknown, 401 without/with wrong bearer; `/api/accounts`
       401 without auth ✅
-- [ ] Commit, push, open draft PR (in progress)
+- [x] Commit, push, open draft PR — **PR #76** (draft) ✅
+- [ ] CI green on PR #76 (watching)
 
-## Status: feature complete, verified, ready to commit
+## Status: feature complete, verified, committed & pushed (PR #76)
 All five requirements met. tts `test_integration.py` (49) talk to the live
 production host and fail identically on baseline (pre-existing; not in scope).
 
