@@ -33,6 +33,17 @@ operator has to do them in a browser / VPS console.
       `delete_repo` scope: `gh auth refresh -h github.com -s
       delete_repo` then `gh repo delete
       ChocolateBrownie250/negativezero-services --yes`)
+- [ ] **Rotate the temporary Groq key (2026-06-18).** The `GROQ_API_KEY`
+      now in `platform/.env` is a throwaway test key (pasted into a session to
+      verify the 502 fix). Replace it with a fresh key from
+      https://console.groq.com/keys, then `docker compose -f
+      platform/docker-compose.yml up -d --force-recreate tts`. The deploy-time
+      Groq check now confirms validity.
+- [ ] **Rotate the tts Bearer key (`TTS_API_KEY` / `AMETHYST_API_KEY`).** It was
+      committed as a hard-coded fallback in `apps/tts/tests/test_integration.py`
+      (removed 2026-06-18) so it is exposed in **git history** — treat as leaked.
+      Regenerate (admin → API tokens, or HANDOVER "Rotate the tts API key"),
+      update `platform/.env`, recreate tts, and update the iPhone Shortcut header.
 
 ## First deploy — DONE 2026-05-22
 
@@ -127,6 +138,29 @@ and SPA static serving all work under fastify 5.
 
 ## Done
 
+- [x] **2026-06-18** Fixed the Amethyst tts **"502 when a recording finishes"**
+      + a repo-wide hardening pass (main `1596667`→`af685bf`, deployed to the box
+      via targeted `docker compose build && up -d`). Root cause was a
+      *present-but-rejected* `GROQ_API_KEY` (Groq 401) that the code mapped to a
+      misleading 502. Changes (4 commits):
+      - **A (tts):** rejected key now → honest **503** (not 502), surfaced in the
+        PWA; new `GET /api/v1/ready` probe + a loud startup credential log;
+        removed a committed Bearer key from `tests/test_integration.py`.
+      - **B (security):** `verifySsoSession`/`mintSsoSession` now **fail closed on
+        an empty SSO secret** across admin/bookmark-manager/redirector/
+        video-downloader (was fail-open); admin `/api/internal/authz` wrapped in
+        try/catch → 503 instead of crashing the gate.
+      - **C (resilience):** **healthchecks on all 7 compose services**;
+        `deploy.sh` pings Groq at deploy time and warns loudly if the key is
+        rejected.
+      - **D (docs):** new root `README.md` + `apps/landing/README.md`; de-staled
+        the tts (Caddy→monorepo) + bookmark-manager (dropped dead "Logto phase 2")
+        READMEs; HANDOVER records the 502 gotcha.
+      Verified live: 7/7 containers healthy, real transcription → 200, `/ready`
+      ok, HTTPS cert `CN=negativezero.one`, internal authz 404, legacy 308; tts 49
+      + admin 20 tests green; authz e2e 4/4; all 5 images rebuilt clean. Two
+      operator follow-ups added above (rotate the temp Groq key + the leaked tts
+      Bearer key).
 - [x] **2026-06-15** Cross-service SSO (PR #69 + tts Dockerfile fix):
       lightweight single-sign-on — admin mints an apex-wide `nz_session`
       HS256-JWT cookie on passkey login; bookmark-manager,
