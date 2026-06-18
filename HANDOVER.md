@@ -371,6 +371,17 @@ over a unix socket. Defer until there's a concrete need.
   https://console.groq.com/keys (free tier covers the personal-scale
   workload).
 
+- **"502/503 when a recording finishes" = the Groq key is rejected, not nginx.**
+  A *present but invalid* `GROQ_API_KEY` (expired/revoked/typo) makes Groq return
+  401. The tts service now surfaces that as an honest **503** ("Groq rejected the
+  API key — set a valid GROQ_API_KEY"), not a misleading 502 (older code mapped it
+  to 502, which sent people chasing proxy timeouts). To diagnose/fix:
+  `docker logs negativezero-tts` prints a loud line at startup if the key is bad;
+  `GET /services/tts/api/v1/ready` returns 503 + `{"groq":{"ok":false,…}}` when
+  degraded; and `deploy.sh` pings Groq at deploy time and warns if rejected. Fix =
+  set a valid key in `platform/.env`, then
+  `docker compose -f platform/docker-compose.yml up -d --force-recreate tts`.
+
 - **Container uptime clock** on the VPS is reported by Docker against
   the host clock — if the host clock drifts the container "Up X days"
   numbers won't match wall-clock. Not a real issue, just confusing.

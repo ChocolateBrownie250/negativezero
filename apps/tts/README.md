@@ -1,6 +1,16 @@
-# Amethyst
+# tts (Amethyst) — voice-to-text dictation service
 
-[![Deploy](https://github.com/ChocolateBrownie250/amethyst/actions/workflows/deploy.yml/badge.svg)](https://github.com/ChocolateBrownie250/amethyst/actions/workflows/deploy.yml)
+> **Part of the `negativezero` monorepo.** This service lives at `apps/tts/` and
+> runs as a container at `https://negativezero.one/services/tts/`, deployed by
+> [`../../platform/deploy.sh`](../../platform/deploy.sh) — **not** the standalone
+> flow in the lower sections. For the platform shape and current deployed state
+> read [`../../HANDOVER.md`](../../HANDOVER.md),
+> [`../../docs/DEPLOY.md`](../../docs/DEPLOY.md), and
+> [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md). The Python package is
+> still named `amethyst` — a deliberate clean import (see `docs/DECISIONS.md`,
+> 2026-05-28). The **standalone / Caddy / Oracle-migration** sections below are
+> retained from the upstream Amethyst project as historical reference and do not
+> describe how this runs in negativezero.
 
 Voice-to-text dictation service:
 
@@ -79,7 +89,11 @@ All routes except `/health` require `Authorization: Bearer <AMETHYST_API_KEY>`.
 `model`, `cleanup_model`, `source` (free-form tag), `prompt` (extra Whisper
 hint), `keep_audio` (default `true`).
 
-## Deploy on a server you already own (nginx + Docker)
+## Deploy on a server you already own (nginx + Docker) — LEGACY (upstream standalone)
+
+> In negativezero this is handled by [`../../platform/deploy.sh`](../../platform/deploy.sh)
+> + [`../../docs/DEPLOY.md`](../../docs/DEPLOY.md). The steps below are the upstream
+> standalone instructions, kept only for reference.
 
 This is the recommended path: an existing Linux server with nginx in front,
 Docker handling the app container, certbot for TLS. The included `install.sh`

@@ -74,18 +74,25 @@ path-mount at `/services/bookmark-manager/`. State (SQLite + WAL) lives
 on a bind-mounted volume at `platform/data/bookmark-manager/`, owned by
 UID 999 (container `app` user). Backup = snapshot that directory.
 
-## Auth flow (current — WebAuthn, will be replaced)
+## Auth flow (WebAuthn passkeys + apex SSO)
 
-First-time setup: user enters a one-time setup code → registers a passkey
-via WebAuthn → server stores credential in SQLite. Subsequent sessions:
-WebAuthn assertion → server signs a session cookie scoped to
-`/services/bookmark-manager/`. After registration the user gets a
-one-time backup code for recovery from passkey loss.
+First-time setup: the user redeems a one-time setup code (issued by the admin
+service) → registers a passkey via WebAuthn → the server stores the credential
+in SQLite. After registration the user gets a one-time backup code for recovery
+from passkey loss.
 
-**This flow is provisional.** Phase 2 in [`../../docs/PLAN.md`](../../docs/PLAN.md)
-replaces it with Logto-issued JWTs via OIDC. When Phase 2 lands, the
-WebAuthn code in `server/src/routes/auth.ts` and the session middleware
-in `server/src/middleware/auth.ts` will be removed.
+Two session paths are accepted:
+- **Per-service cookie** — a WebAuthn assertion signs a cookie scoped to
+  `/services/bookmark-manager/` (the local fallback).
+- **Apex SSO** — admin is the platform SSO hub; after signing in there the
+  browser carries a shared `nz_session` JWT (HS256 over `SSO_SESSION_SECRET`)
+  that this service verifies. *Whether* an account may use this service is
+  decided per-request by admin's authorization endpoint (`ADMIN_AUTHZ_URL`), so
+  access is granted/revoked centrally and takes effect immediately.
+
+> An earlier plan to move auth onto Logto/OIDC was **reversed** — see
+> [`../../docs/DECISIONS.md`](../../docs/DECISIONS.md) (2026-05-28). The WebAuthn +
+> apex-SSO model above is the durable design, not a placeholder.
 
 ## Environment variables
 
@@ -95,6 +102,8 @@ in `server/src/middleware/auth.ts` will be removed.
 | `ENCRYPTION_KEY`  | yes      | 32-byte hex. AES-256-GCM at-rest encryption of bookmark URLs/names. Rotating = existing data unreadable. |
 | `SETUP_CODE_HASH` | yes      | bcrypt(setup-code, cost 12). Dormant after the first passkey is registered.                              |
 | `PUBLIC_URL`      | yes      | Full URL the app is reached at. Used for cookie scoping and WebAuthn RP origin.                          |
+| `SSO_SESSION_SECRET` | no    | Shared apex-SSO HMAC secret. Set ⇒ accept admin's `nz_session` cookie; empty ⇒ SSO off (local cookie only). |
+| `ADMIN_AUTHZ_URL` | no       | admin's internal base URL (e.g. `http://admin:3000`) for per-account authz. Empty ⇒ check skipped (legacy allow). |
 | `PORT`            | no       | Listen port. Default 3000.                                                                               |
 | `DATA_DIR`        | no       | SQLite directory. Default `/app/data` in container, `./data` locally.                                    |
 
