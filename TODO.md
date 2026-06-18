@@ -138,6 +138,26 @@ and SPA static serving all work under fastify 5.
 
 ## Done
 
+- [x] **2026-06-18** Mobile UI polish — **Batch 1** (commits `db69761`, `57d714c`,
+      `78f518e`; deployed + verified live). Fixed *why fresh UI wasn't reaching the
+      device* and the clear quick wins:
+      - **Caching:** bookmark-manager serves `index.html` + manifest with `no-cache`
+        (via an `onSend` hook — `@fastify/static`'s `maxAge` had overridden
+        `setHeaders`; verified on the wire), so deploys are instant; hashed assets
+        still cached. Fixed the stale PWA manifest paths (`/bookmarks-pro/` →
+        `/services/bookmark-manager/`). tts service-worker cache `v9 → v10`.
+      - **tts:** removed the recording **waves** animation; **blue floating
+        background** so the iOS status-bar / home-indicator safe areas no longer
+        show flat **black bars** (html/body gradient + `theme-color #0d1a44` +
+        manifest); **calmer/slower aurora** (was a cheap "blinking" opacity pulse).
+      - **admin:** SSO return-bounce uses `location.replace` (not `assign`) so
+        **Back** doesn't land on the login and re-bounce / drop out.
+      - **Finding:** the giant red **"Back button pressed"** text is **NOT** in our
+        code (grepped the whole repo) — it's injected on the device (browser
+        extension / iOS automation / debug tool), not a negativezero bug.
+      - **Deferred → Batch 2** (tracked): bookmark dropdown-menu positioning;
+        admin grey→blue theme; tts themed (glass) dropdown replacing native
+        `<select>`; tts simple/advanced cleaning toggle; bookmark iOS layout polish.
 - [x] **2026-06-18** UI: theme-matched the bookmark-manager **selection toolbar**
       (`client/src/components/SelectionToolbar.tsx`, commit `72b367f`, deployed).
       It still used the pre-blue-theme palette — a flat grey `rgba(20,20,24)` bar
