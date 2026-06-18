@@ -138,6 +138,13 @@ and SPA static serving all work under fastify 5.
 
 ## Done
 
+- [x] **2026-06-18** UI: theme-matched the bookmark-manager **selection toolbar**
+      (`client/src/components/SelectionToolbar.tsx`, commit `72b367f`, deployed).
+      It still used the pre-blue-theme palette — a flat grey `rgba(20,20,24)` bar
+      and a loud solid-coral delete button. Re-pointed the bar to the app's
+      deep-blue glass recipe and switched delete to the destructive idiom used
+      everywhere else (red glyph on a translucent red tint). Client build clean;
+      bookmark-manager rebuilt + healthy.
 - [x] **2026-06-18** Fixed the Amethyst tts **"502 when a recording finishes"**
       + a repo-wide hardening pass (main `1596667`→`af685bf`, deployed to the box
       via targeted `docker compose build && up -d`). Root cause was a
