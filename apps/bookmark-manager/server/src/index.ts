@@ -73,6 +73,15 @@ async function main() {
       wildcard: false,
       cacheControl: true,
       maxAge: '1h',
+      // The root index.html (and the manifest) are served by fastifyStatic, not
+      // the SPA fallback below, so they'd otherwise inherit the 1h max-age and
+      // pin old hashed asset refs after a deploy. Force them to revalidate; the
+      // hashed /assets/* bundles keep the long cache (they're immutable).
+      setHeaders: (res, pathName) => {
+        if (pathName.endsWith('index.html') || pathName.endsWith('.webmanifest')) {
+          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        }
+      },
     });
     // SPA fallback: any non-/api GET -> index.html
     app.setNotFoundHandler(async (req, reply) => {
