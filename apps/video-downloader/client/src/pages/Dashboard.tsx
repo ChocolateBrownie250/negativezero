@@ -101,7 +101,13 @@ export default function Dashboard({ onUnauthorized }: Props) {
   }
 
   return (
-    <div className="min-h-screen px-4 py-8" style={{ background: COLORS.bg }}>
+    <div
+      className="min-h-screen px-4 py-8"
+      style={{
+        paddingTop: 'max(2rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+      }}
+    >
       <div className="max-w-3xl mx-auto">
         <header className="flex items-center justify-between mb-8">
           <div>
