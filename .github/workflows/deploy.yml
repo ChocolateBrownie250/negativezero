@@ -1,0 +1,86 @@
+name: Deploy
+
+# Auto-deploy the platform on every merge to main, plus a manual button
+# (Actions tab → Deploy → "Run workflow") for re-runs.
+#
+# Requires these repository secrets (Settings → Secrets and variables → Actions):
+#   SSH_HOST         VPS hostname or IP
+#   SSH_USER         SSH user — must be root, OR a user with passwordless (NOPASSWD) sudo
+#   SSH_KEY          private key (the matching public key is in the VPS user's authorized_keys)
+#   DEPLOY_PATH      absolute path to the repo checkout on the VPS (e.g. /opt/negativezero)
+# Optional:
+#   SSH_PORT         SSH port (defaults to 22)
+#   SSH_KNOWN_HOSTS  pinned host key line(s); if unset, the host key is fetched via ssh-keyscan
+#
+# The VPS checkout keeps platform/.env and platform/data/ (both gitignored), so
+# `git reset --hard origin/main` updates code without touching secrets or data.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two deploys at once; let an in-flight deploy finish rather than cancel it.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          PORT="${SSH_PORT:-22}"
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$PORT" "$SSH_HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          # DEPLOY_PATH is sent as a remote env var; the remote script (quoted
+          # heredoc) runs verbatim on the VPS — $(id -u) etc. evaluate there.
+          ssh -i ~/.ssh/id_deploy -p "$PORT" \
+            -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          echo "==> Updating checkout to origin/main"
+          git fetch --all --quiet
+          git reset --hard origin/main
+          echo "==> Running deploy.sh"
+          if [ "$(id -u)" -eq 0 ]; then
+            bash platform/deploy.sh
+          else
+            sudo -n bash platform/deploy.sh
+          fi
+          REMOTE
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy
