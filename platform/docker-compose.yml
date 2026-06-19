@@ -158,7 +158,7 @@ services:
       - internal
 
   # ── tts (Whisper transcription + LLM cleanup) ─────────────────
-  # Audio dictation pipeline at negativezero.one/services/tts/.
+  # Audio dictation pipeline at negativezero.one/services/amethyst/.
   # FastAPI + uvicorn (Python 3.12), aiosqlite with FTS5, Groq Whisper
   # + Llama. The PWA inside uses relative URLs, so nginx prefix-strip
   # gives the container clean root paths.

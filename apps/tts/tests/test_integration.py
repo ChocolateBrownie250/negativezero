@@ -21,7 +21,7 @@ import pytest
 
 BASE_URL = os.getenv(
     "AMETHYST_BASE_URL",
-    "https://negativezero.one/services/tts",
+    "https://negativezero.one/services/amethyst",
 )
 # No key is baked in — committing a Bearer key leaks it in git history. Supply a
 # real one via AMETHYST_API_KEY to run these live tests; otherwise they skip.

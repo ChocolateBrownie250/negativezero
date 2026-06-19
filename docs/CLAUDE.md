@@ -25,7 +25,7 @@ apps/
   landing/              static landing page (negativezero.one/)
   bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
-  tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/tts/)
+  tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/amethyst/)
   timezones/            static cross-timezone planner (negativezero.one/services/timezones/)
 platform/
   docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones

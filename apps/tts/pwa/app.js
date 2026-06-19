@@ -69,7 +69,7 @@ async function api(path, init = {}) {
 // here once authenticated. Returns true if it handled (redirected) the error.
 function handleAuthError(e) {
   if (e && e.status === 401) {
-    window.location.assign("/services/admin/?return=/services/tts/");
+    window.location.assign("/services/admin/?return=/services/amethyst/");
     return true;
   }
   return false;
@@ -88,7 +88,7 @@ async function gateOnAuth() {
   } catch (e) {
     if (e && e.status === 401) {
       // replace() so the bounced-through login isn't left in history.
-      window.location.replace("/services/admin/?return=/services/tts/");
+      window.location.replace("/services/admin/?return=/services/amethyst/");
       return;
     }
     if (e && e.status === 403) {
