@@ -17,6 +17,9 @@ __pycache__/
 .venv/
 .pytest_cache/
 
+# Agent tooling — transient git worktrees created by background agents
+.claude/
+
 # OS / editor
 .DS_Store
 .vscode/
