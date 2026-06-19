@@ -23,7 +23,8 @@ interface Props {
 // is decided per-service). Map the destination slug to a friendly name so the
 // user knows which service they are signing in to continue to.
 const SERVICE_NAMES: Record<string, string> = {
-  tts: 'Amethyst',
+  amethyst: 'Amethyst',
+  tts: 'Amethyst', // legacy path, kept while old /services/tts/ links redirect
   'bookmark-manager': 'Bookmark Manager',
   'video-downloader': 'Video Downloader',
   redirector: 'Redirector',

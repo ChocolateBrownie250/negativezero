@@ -19,9 +19,9 @@ Self-hosted on a single Vultr VPS. Everything lives under the apex
 - `/services/bookmark-manager/` — bookmark manager (single-user, WebAuthn)
 - `/services/admin/` — platform admin (registration-code generator,
   future per-service settings UI)
-- `/services/tts/` — Whisper transcription + LLM cleanup pipeline
+- `/services/amethyst/` — Whisper transcription + LLM cleanup pipeline
   (Bearer API key)
-- `/vtt-transcriber/` — 301 redirect to `/services/tts/` (legacy URL)
+- `/vtt-transcriber/` — 301 redirect to `/services/amethyst/` (legacy URL)
 
 The repo grew out of merging three predecessor repos under
 `chocolatebrownie250` on 2026-05-21: `negativezero` (design

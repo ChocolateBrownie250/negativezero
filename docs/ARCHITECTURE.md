@@ -52,7 +52,7 @@ apps/
   landing/              static landing page (negativezero.one/)
   bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
-  tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/tts/)
+  tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/amethyst/)
   timezones/            static cross-timezone planner (negativezero.one/services/timezones/)
   video-downloader/     clear-HLS remux tool (negativezero.one/services/video-downloader/)
   redirector/           short-link redirects (negativezero.one/services/redirector/)
@@ -140,13 +140,13 @@ negativezero.one/                              → static landing (apps/landing)
 negativezero.one/services/bookmark-manager/    → bookmark SPA
 negativezero.one/services/bookmark-manager/api/...  → bookmark API
 negativezero.one/services/admin/               → admin SPA + API
-negativezero.one/services/tts/                 → tts PWA + API
-negativezero.one/services/tts/api/v1/...       → tts API (Bearer-authed)
+negativezero.one/services/amethyst/                 → tts PWA + API
+negativezero.one/services/amethyst/api/v1/...       → tts API (Bearer-authed)
 negativezero.one/services/timezones/           → static timezone planner
 negativezero.one/services/video-downloader/    → video-downloader SPA + API
 negativezero.one/services/redirector/          → redirector SPA + API
 negativezero.one/services/redirector/<hash>    → public 302 redirect (16-char hash)
-negativezero.one/vtt-transcriber/              → 301 redirect → /services/tts/
+negativezero.one/vtt-transcriber/              → 301 redirect → /services/amethyst/
                                                   (legacy URL kept for old clients)
 negativezero.one/services/<future>/            → future services (add a location block)
 ```
@@ -198,7 +198,7 @@ code table.
 ## Data flow — tts
 
 1. Client (iPhone Shortcut, PWA, or external script) sends
-   `POST /services/tts/api/v1/transcribe` with `Authorization: Bearer
+   `POST /services/amethyst/api/v1/transcribe` with `Authorization: Bearer
    <TTS_API_KEY>` and a multipart audio body.
 2. nginx strips the prefix; FastAPI receives `POST /api/v1/transcribe`.
 3. Auth middleware checks the Bearer token against `AMETHYST_API_KEY`

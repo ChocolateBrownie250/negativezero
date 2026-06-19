@@ -12,6 +12,39 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-19 — rename the Amethyst public URL /services/tts/ → /services/amethyst/
+
+The transcription service is branded "Amethyst" everywhere in the UI but lived
+at `/services/tts/`. Renamed the **public URL path** to `/services/amethyst/` so
+the address matches the brand.
+
+Scope: **URL path only.** The internal service identifier stays `tts`
+everywhere it already is — the compose service/container name, the
+`GATED_SERVICES`/authz key, the per-account grants, and the `TTS_HOST_PORT`
+env. Renaming those would mean a data migration (account_services rows) and a
+broad refactor for no user-visible benefit, so it was deliberately avoided.
+
+What changed:
+- **nginx** serves the PWA + API at `/services/amethyst/` (same prefix-strip
+  proxy to the unchanged `tts` container). The old `/services/tts/` now
+  **308-redirects** to `/services/amethyst/` (method/body preserving), and the
+  legacy `/vtt-transcriber/` redirect was retargeted to the new path — so
+  existing PWA installs, bookmarks, and the iPhone Shortcut keep working.
+- **PWA** `app.js` bounces to `/services/admin/?return=/services/amethyst/`; the
+  manifest is already relative (`scope: "./"`) so it needs no change.
+- **admin** login `SERVICE_NAMES` maps both `amethyst` and (legacy) `tts` to
+  "Amethyst" for the SSO destination label.
+- Landing link + the integration-test default base URL point at the new path.
+
+Alternatives considered: a full rename to `amethyst` (container, authz key,
+grants) — rejected as above (migration cost, no user benefit); dropping the old
+`/services/tts/` path outright — rejected because deployed standalone PWA
+installs and the Shortcut would break, so it 308-redirects instead.
+
+What would invalidate this: deciding the internal `tts` identifier should also
+become `amethyst` (then do the grants migration in a new entry), or retiring the
+legacy redirects once no client uses the old paths.
+
 ## 2026-06-19 — gate the Amethyst PWA on load + neutral SSO-hub login
 
 A signed-out visit to Amethyst (`/services/tts/`) showed the app shell for a
