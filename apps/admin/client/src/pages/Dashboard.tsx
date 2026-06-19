@@ -103,10 +103,7 @@ export default function Dashboard({ onUnauthorized }: Props) {
   }
 
   return (
-    <div
-      className="min-h-screen px-4 py-8"
-      style={{ background: COLORS.bg }}
-    >
+    <div className="min-h-screen px-4 py-8">
       <div className="max-w-2xl mx-auto">
         <header className="flex items-center justify-between mb-8">
           <div>
