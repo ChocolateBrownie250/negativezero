@@ -109,20 +109,14 @@ export default function Login({ onLoggedIn }: Props) {
 
   if (hasPasskey === null) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center text-white/40 text-sm"
-        style={{ background: COLORS.bg }}
-      >
+      <div className="min-h-screen flex items-center justify-center text-white/40 text-sm">
         Loading...
       </div>
     );
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: COLORS.bg }}
-    >
+    <div className="min-h-screen flex items-center justify-center px-4">
       <div
         className="w-full max-w-sm rounded-2xl p-6"
         style={{
