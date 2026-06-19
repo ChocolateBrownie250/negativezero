@@ -144,7 +144,7 @@ body,
 #root {
   background: var(--bg0);
   color: var(--fg);
-  min-height: 100vh;
+  min-height: 100dvh;
   font-family:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
     'Helvetica Neue', Helvetica, Arial, sans-serif;
