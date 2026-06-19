@@ -19,8 +19,12 @@
 }
 
 html, body, #root { height: 100%; }
-body {
-  background: #0a0a0d;
+html, body {
+  /* Blue-tinted base (not flat black) so iOS safe-area regions — the status
+     bar and home-indicator zones — no longer show flat black bars. */
+  min-height: 100dvh;
+  background: linear-gradient(178deg, #0d1a44 0%, #081026 44%, #060b18 100%);
+  background-attachment: fixed;
   color: #f5f5f7;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
