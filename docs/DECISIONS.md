@@ -12,6 +12,39 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-19 — gate the Amethyst PWA on load + neutral SSO-hub login
+
+A signed-out visit to Amethyst (`/services/tts/`) showed the app shell for a
+moment, then bounced to a passkey screen titled "Admin" that accepted any
+registered account's passkey. Audited the whole authz/account system
+(`docs/AUTH_AUDIT_2026-06-19.md`): WebAuthn verification and the per-service
+grant model are sound; the two symptoms were a UI flash and misleading login
+branding, not a crypto bypass.
+
+What changed:
+
+- **Amethyst PWA verifies the session before revealing the UI.** Added
+  `GET /api/v1/me` (dependency-only `verify_auth`, returns `200/401/403`) and a
+  boot gate in `app.js` that hides the shell behind a "Checking access…" overlay
+  until `/me` succeeds — `401` → SSO login, `403` → access-denied (no loop).
+  Service-worker cache bumped `v10`→`v11`. Previously the static shell rendered
+  to anonymous visitors because the Record tab fires no API call; the API itself
+  was always gated, so this was a presentation bug, not a data leak.
+- **The shared SSO-hub login (`/services/admin/`) is no longer branded
+  "Admin".** It authenticates any account and is reached by every service via
+  `?return=`; rebranded to "negativezero" with a destination-aware subtitle
+  ("Sign in to continue to <service>"). Tightened the `?return=` allow-list
+  against open-redirect tricks.
+
+Alternatives considered: server-rendering an auth check for the PWA shell
+(rejected — the PWA is intentionally a static, cache-first shell; a client gate
+plus the already-gated API is sufficient and keeps the offline story intact).
+
+Invalidated if: the PWA stops being a static same-origin shell, or the hub login
+moves out of the admin app into a dedicated `/login` surface (then revisit the
+branding there). The legacy local `userId==='owner'` path in the other TS
+services (audit O1) remains a separate follow-up.
+
 ## 2026-06-18 — multi-account accounts + per-service authorization
 
 Turned the platform from single-owner into a small multi-account system
