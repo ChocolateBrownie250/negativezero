@@ -4,7 +4,7 @@
   "start_url": "/services/bookmark-manager/",
   "scope": "/services/bookmark-manager/",
   "display": "standalone",
-  "background_color": "#03050d",
+  "background_color": "#0d1a44",
   "theme_color": "#0d1a44",
   "icons": [
     { "src": "/services/bookmark-manager/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
