@@ -14,20 +14,32 @@ but not when to revisit it.
 
 ## 2026-06-19 — CI auto-deploy on merge to main; isolation kept incremental
 
-Set up push-to-deploy: `.github/workflows/deploy.yml` SSHes to the VPS on
-every merge to `main` (plus a manual `workflow_dispatch` button), fast-forwards
-the checkout to `origin/main`, and runs `platform/deploy.sh`. `main` is the
-single source of truth / production branch; day-to-day work happens on
-feature/`development` branches merged into `main` via PR.
+Set up push-to-deploy: `.github/workflows/deploy.yml` runs on every merge to
+`main` (plus a manual `workflow_dispatch` button). The runner checks out `main`,
+**rsyncs the tree to the VPS over SSH, then runs `platform/deploy.sh`** on the
+box. It does NOT have the box pull from GitHub: the VPS has no GitHub credentials
+(private repo, https remote), so a `git pull` on the box fails (see
+docs/DEPLOY.md). `main` is the single source of truth / production branch;
+day-to-day work happens on feature/`development` branches merged into `main` via
+PR. The box always reflects `main` — editing files directly on the box is an
+anti-pattern that a deploy overwrites.
 
-**Deploy auth & key hardening.** The CI uses a dedicated SSH key (repo secrets
-`SSH_HOST/SSH_USER/SSH_KEY/DEPLOY_PATH`, optional `SSH_PORT/SSH_KNOWN_HOSTS`),
-passed via `env:` (never interpolated into the shell) and deleted after each
-run. `deploy.sh` requires root because it writes **host** nginx/systemd/certbot,
-so the key is effectively root on the shared box; recommended mitigation is a
-forced-command entry in `authorized_keys`
-(`command="cd <DEPLOY_PATH> && bash platform/deploy.sh",no-pty,no-port-forwarding`)
-so the key can ONLY deploy.
+Wired up and validated this session: repo secrets `SSH_HOST` (45.76.88.245),
+`SSH_USER` (root), `DEPLOY_PATH` (/srv/negativezero), `SSH_KEY`, and
+`SSH_KNOWN_HOSTS` are set; `main` was deployed to the box and every service
+verified healthy before auto-deploy was enabled.
+
+**Deploy auth & key hardening.** CI uses a DEDICATED ed25519 deploy key (not the
+operator's personal key). The private half lives only in the `SSH_KEY` repo
+secret (passed via `env:`, written to a file, deleted after each run); the public
+half is in the box's `~/.ssh/authorized_keys`, restricted with
+`no-port-forwarding,no-agent-forwarding,no-X11-forwarding`. `deploy.sh` requires
+root because it writes **host** nginx/systemd/certbot, so the key is effectively
+root on the shared box. A `command="…"` forced-command (locking the key to a
+single command) is NOT used: the deploy needs both an `rsync` transfer and a
+`bash` invocation over the same key, and pinning to one command would break the
+file sync. For tighter containment, route both through one wrapper script on the
+box and force-command the key to that.
 
 **Isolation posture (decided deliberately, not by omission).** The owner wants
 negativezero isolated from the other tenants on the shared VPS (wellfit,
@@ -37,22 +49,22 @@ is NOT isolated is the deploy touching **host-level** nginx + systemd + certbot.
 
 Chosen approach: **keep the app containerized + ship auto-deploy now; treat full
 host-level isolation as a separate, server-side project — not done blind.**
-Reasoning: (1) the coding agent has no VPS access, so a host migration can only
-be scripted, not executed/verified by it; (2) executing an LXC/VM or
-rootless-Docker migration on a **live shared production host** with other tenants
-is high-risk and the operator is non-technical; (3) the high-value, low-risk win
-— privilege containment of the CI key — is achievable in-repo via the
-forced-command recommendation above. Blind hardening of `docker-compose.yml`
-(read-only rootfs, cap drops, mem limits) was deliberately NOT applied because it
-can silently break or OOM a live service and can't be verified without the
-server.
+Reasoning: (1) an LXC/VM or rootless-Docker migration on a **live shared
+production host** with other tenants is high-risk and the operator is
+non-technical, so it needs a planned maintenance window — not an incidental
+change folded into a deploy task; (2) the high-value, low-risk win — privilege
+containment of the CI key (dedicated least-privilege key + restrictions instead
+of reusing the operator's key) — is already done; (3) blind hardening of
+`docker-compose.yml` (read-only rootfs, cap drops, mem limits) was deliberately
+NOT applied because it can silently break or OOM a live service and should be
+validated against the running stack, not guessed.
 
 Alternatives considered:
 - **Full isolation now (LXC/VM or rootless Docker under a dedicated user).** The
   "true" isolation: the deploy key would no longer see the rest of the host.
   Deferred — biggest blast radius, requires a stack move + a `deploy.sh` rewrite,
-  and must be driven on the server by the operator. This is the recommended next
-  step when there's appetite for a maintenance window.
+  and a maintenance window. This is the recommended next step when there's
+  appetite for it.
 - **nginx-in-a-container for negativezero.** Reduces host surface, but on a
   shared box a single front proxy must still own :443 and route by domain, so the
   host keeps a small negativezero vhost regardless — partial benefit, real
