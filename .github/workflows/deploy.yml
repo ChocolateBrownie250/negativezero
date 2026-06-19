@@ -3,17 +3,26 @@ name: Deploy
 # Auto-deploy the platform on every merge to main, plus a manual button
 # (Actions tab → Deploy → "Run workflow") for re-runs.
 #
-# Requires these repository secrets (Settings → Secrets and variables → Actions):
-#   SSH_HOST         VPS hostname or IP
-#   SSH_USER         SSH user — must be root, OR a user with passwordless (NOPASSWD) sudo
-#   SSH_KEY          private key (the matching public key is in the VPS user's authorized_keys)
-#   DEPLOY_PATH      absolute path to the repo checkout on the VPS (e.g. /opt/negativezero)
+# HOW THIS WORKS — the VPS has NO GitHub credentials (private repo over an
+# https remote), so the box CANNOT `git pull`. Instead the runner checks out
+# main and PUSHES the tree to the box over SSH (rsync), then runs deploy.sh on
+# the box. This mirrors docs/DEPLOY.md (the proven manual procedure). The box
+# always reflects main; do not edit files directly on the box — a deploy
+# overwrites them.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   SSH_HOST         VPS hostname or IP (e.g. 45.76.88.245)
+#   SSH_USER         SSH user — root (or a user with passwordless sudo for deploy.sh)
+#   SSH_KEY          private key of a DEDICATED deploy key; its public half is in
+#                    the box user's ~/.ssh/authorized_keys
+#   DEPLOY_PATH      absolute path to the checkout on the VPS (/srv/negativezero)
 # Optional:
 #   SSH_PORT         SSH port (defaults to 22)
-#   SSH_KNOWN_HOSTS  pinned host key line(s); if unset, the host key is fetched via ssh-keyscan
+#   SSH_KNOWN_HOSTS  pinned host key line(s); if unset, fetched via ssh-keyscan
 #
-# The VPS checkout keeps platform/.env and platform/data/ (both gitignored), so
-# `git reset --hard origin/main` updates code without touching secrets or data.
+# platform/.env and platform/data/ live on the box, are gitignored, and are
+# EXCLUDED from the rsync — so deploys update code without touching secrets or
+# persisted data.
 
 on:
   push:
@@ -33,6 +42,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
       - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
@@ -52,7 +64,7 @@ jobs:
           fi
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Deploy
+      - name: Sync code to the VPS and run deploy.sh
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
@@ -61,25 +73,25 @@ jobs:
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
-          # DEPLOY_PATH is sent as a remote env var; the remote script (quoted
-          # heredoc) runs verbatim on the VPS — $(id -u) etc. evaluate there.
-          ssh -i ~/.ssh/id_deploy -p "$PORT" \
-            -o StrictHostKeyChecking=yes \
-            -o ServerAliveInterval=30 \
+          # Push the working tree to the box (excludes secrets/state), matching
+          # docs/DEPLOY.md Option B. --delete-after keeps the box in lockstep
+          # with main while never touching the excluded .env / data / .git.
+          rsync -az --delete-after \
+            -e "ssh -i $HOME/.ssh/id_deploy -p $PORT -o StrictHostKeyChecking=yes -o ServerAliveInterval=30" \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='dist/' \
+            --exclude='.venv/' \
+            --exclude='platform/.env' \
+            --exclude='platform/.env.local' \
+            --exclude='platform/data/' \
+            ./ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+          # Run the idempotent deployer on the box (root runs it directly; a
+          # non-root SSH_USER needs passwordless sudo).
+          ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
             "$SSH_USER@$SSH_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' bash -s" <<'REMOTE'
-          set -euo pipefail
-          cd "$DEPLOY_PATH"
-          echo "==> Updating checkout to origin/main"
-          git fetch --all --quiet
-          git reset --hard origin/main
-          echo "==> Running deploy.sh"
-          if [ "$(id -u)" -eq 0 ]; then
-            bash platform/deploy.sh
-          else
-            sudo -n bash platform/deploy.sh
-          fi
-          REMOTE
+            "cd '$DEPLOY_PATH' && if [ \"\$(id -u)\" -eq 0 ]; then bash platform/deploy.sh; else sudo -n bash platform/deploy.sh; fi"
 
       - name: Remove key
         if: always()
