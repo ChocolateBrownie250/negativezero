@@ -75,6 +75,36 @@ function handleAuthError(e) {
   return false;
 }
 
+// Verify the session BEFORE revealing the app. Without this the static shell
+// (the Record tab fires no request) renders to anonymous visitors until they
+// happen to trigger a protected call. On a missing/invalid session we bounce to
+// the SSO hub; on a valid session that simply isn't authorized for tts we show
+// an access-denied message instead of looping through login.
+async function gateOnAuth() {
+  const gate = document.getElementById("authGate");
+  try {
+    await api("/api/v1/me");
+    document.body.classList.add("authed");
+  } catch (e) {
+    if (e && e.status === 401) {
+      // replace() so the bounced-through login isn't left in history.
+      window.location.replace("/services/admin/?return=/services/tts/");
+      return;
+    }
+    if (e && e.status === 403) {
+      if (gate) {
+        gate.innerHTML =
+          '<div class="gate-msg">Your account doesn’t have access to Amethyst.<br>Ask the owner to enable it, then reload.</div>';
+      }
+      return;
+    }
+    // Network/other transient error: don't trap the user behind the gate —
+    // reveal the app and let per-action handlers surface any real failure.
+    document.body.classList.add("authed");
+  }
+}
+gateOnAuth();
+
 // Turn an API error into a short, human status line. The backend now names
 // the real upstream cause (rate limit, rejected key, timeout, …); translate
 // those into something a user can act on. Falls back to the raw message.

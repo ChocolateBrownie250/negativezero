@@ -17,12 +17,47 @@ interface Props {
   onLoggedIn: () => void;
 }
 
+// This page is the shared SSO hub: other services bounce unauthenticated users
+// here with ?return=/services/<svc>/, so the copy must not imply it is an
+// "admin only" gate (any registered account may sign in; what they can then USE
+// is decided per-service). Map the destination slug to a friendly name so the
+// user knows which service they are signing in to continue to.
+const SERVICE_NAMES: Record<string, string> = {
+  tts: 'Amethyst',
+  'bookmark-manager': 'Bookmark Manager',
+  'video-downloader': 'Video Downloader',
+  redirector: 'Redirector',
+  admin: 'Admin',
+};
+
+// Only allow same-origin absolute paths under /services/ as a post-login
+// redirect target — reject scheme/host, protocol-relative (//host) and
+// backslash tricks so ?return= can't be turned into an open redirect.
+function safeReturn(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith('/services/') || raw.startsWith('/services//')) return null;
+  if (raw.includes('://') || raw.includes('\\')) return null;
+  return raw;
+}
+
+function returnServiceName(raw: string | null): string | null {
+  const safe = safeReturn(raw);
+  if (!safe) return null;
+  const slug = safe.match(/^\/services\/([^/]+)/)?.[1];
+  return slug ? (SERVICE_NAMES[slug] ?? slug) : null;
+}
+
 export default function Login({ onLoggedIn }: Props) {
   const [hasPasskey, setHasPasskey] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [modal, setModal] = useState<'first' | 'reset' | null>(null);
   const supported = typeof window !== 'undefined' && browserSupportsWebAuthn();
+  const returnParam =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('return')
+      : null;
+  const destination = returnServiceName(returnParam);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,11 +87,11 @@ export default function Login({ onLoggedIn }: Props) {
       // Cross-service SSO bounce: if another service sent us here with a
       // ?return=/services/... path, return the user there now that the shared
       // nz_session cookie has been set. Guard to same-origin /services/ paths.
-      const returnValue = new URLSearchParams(window.location.search).get('return');
-      if (returnValue && returnValue.startsWith('/services/')) {
-        // replace() not assign(): the SSO bounce shouldn't leave the admin
-        // login in history, or pressing Back from the destination service
-        // lands back on this login (which re-bounces) or drops out of the app.
+      const returnValue = safeReturn(returnParam);
+      if (returnValue) {
+        // replace() not assign(): the SSO bounce shouldn't leave this login
+        // in history, or pressing Back from the destination service lands back
+        // on it (which re-bounces) or drops out of the app.
         window.location.replace(returnValue);
         return;
       }
@@ -103,15 +138,17 @@ export default function Login({ onLoggedIn }: Props) {
           </div>
         </div>
         <h1 className="text-[22px] font-semibold text-white text-center mb-1">
-          Admin
+          negativezero
         </h1>
         <p
           className="text-[13px] text-center mb-5"
           style={{ color: LABEL_SECONDARY }}
         >
           {hasPasskey
-            ? 'Sign in with your passkey'
-            : 'No admin passkey registered yet'}
+            ? destination
+              ? `Sign in to continue to ${destination}`
+              : 'Sign in with your passkey'
+            : 'No passkey registered yet'}
         </p>
 
         {!supported && (

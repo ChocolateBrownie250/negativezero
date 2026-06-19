@@ -13,8 +13,30 @@
 <link rel="icon" type="image/svg+xml" href="icon.svg" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="stylesheet" href="styles.css" />
+<style>
+  /* Auth gate: keep the app shell hidden until the session is verified on load,
+     so the static PWA never flashes its UI to an anonymous visitor (the Record
+     tab makes no API call, so without this the whole screen renders before the
+     first protected request bounces to login). app.js adds `authed` on success
+     or redirects/blocks on failure. Inlined here (not styles.css) because
+     index.html is served no-cache, so the gate can't be defeated by a stale
+     cached stylesheet. */
+  body.az:not(.authed) .screen { visibility: hidden; }
+  #authGate {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+    background: #0d1a44; color: #fff;
+    font: 500 14px/1.5 -apple-system, system-ui, sans-serif;
+  }
+  body.az.authed #authGate { display: none; }
+  #authGate .gate-msg { max-width: 22rem; opacity: .75; }
+</style>
 </head>
 <body class="az">
+
+<div id="authGate"><div class="gate-msg">Checking access…</div></div>
+
 
 <!-- ===== SF Symbols 7 style icon sprite (monoline, rounded) ===== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>

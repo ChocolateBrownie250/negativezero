@@ -8,6 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from fastapi import Depends
+
+from .auth import verify_auth
 from .config import settings
 from .db import init_db
 from .groq_client import verify_credentials
@@ -122,6 +125,17 @@ async def ready() -> JSONResponse:
          "groq": {"ok": ok, "detail": detail}},
         status_code=200 if ok else 503,
     )
+
+
+# Cheap authenticated probe used by the PWA at boot to decide whether to show
+# the app or bounce to the SSO login. Returns 200 only when the caller holds a
+# valid session AND is authorized for "tts" (verify_auth → 401 unauth / 403 no
+# grant). Keeping it dependency-only means it gates the static shell without the
+# PWA having to fire a heavier data call first (which caused the app to flash
+# before redirecting an anonymous visitor).
+@app.get("/api/v1/me")
+async def me(_: None = Depends(verify_auth)) -> dict:
+    return {"ok": True}
 
 
 app.include_router(transcribe_router, prefix="/api/v1", tags=["transcribe"])
