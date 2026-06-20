@@ -10,16 +10,26 @@
 }
 
 :root {
-  --bg: #0B0B0A;
-  --ink: #F0EFE9;
-  --muted: #7C7B72;
-  --rule: #1F1E1B;
-  --hi: #E4B05A;
+  /* Blue theme (matches admin / bookmark-manager / redirector /
+     video-downloader / amethyst): cool blue-tinted glass surfaces and
+     translucent hairline borders, so nothing reads as a warm box on the blue
+     gradient. The gold accent stays — it's timezones' identity and pairs well
+     with deep navy. */
+  --bg: #0B0B0A;                     /* kept: dark text on the gold HOME badge */
+  --ink: #EEF2FA;                    /* cool near-white */
+  --muted: #93A0C0;                  /* cool blue-gray */
+  --rule: rgba(150, 178, 235, 0.14); /* translucent blue hairline (was solid warm) */
+  --hi: #E4B05A;                     /* gold accent — identity, kept */
 
-  --night: #121211;
-  --day: #1A1A18;
-  --work: #2A2723;
-  --overlap: rgba(228, 176, 90, 0.16);
+  --panel: rgba(10, 17, 40, 0.55);   /* deep-blue glass panel (zone meta) */
+  --panel-solid: #0b1430;            /* opaque deep blue (search dropdown) */
+  --glass: rgba(86, 116, 190, 0.07); /* faint blue fill for chips/inputs */
+  --glass-hi: rgba(110, 142, 215, 0.14);
+
+  --night: rgba(70, 98, 165, 0.05);  /* off-hours: barely-there blue */
+  --day: rgba(86, 116, 190, 0.12);   /* daytime: light blue glass */
+  --work: rgba(110, 142, 215, 0.20); /* working hours: brighter blue */
+  --overlap: rgba(228, 176, 90, 0.20); /* everyone available: gold */
   --cell-w: 38px;
 }
 
@@ -82,7 +92,7 @@ h1 {
 }
 .add { position: relative; flex: 1 1 280px; min-width: 220px; }
 #search {
-  width: 100%; background: transparent; color: var(--ink);
+  width: 100%; background: var(--glass); color: var(--ink);
   border: 1px solid var(--rule); border-radius: 6px;
   padding: 10px 12px; font: inherit; font-size: 14px; outline: none;
 }
@@ -91,7 +101,7 @@ h1 {
 
 .results {
   position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0;
-  background: #0E0E0D; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--panel-solid); border: 1px solid var(--rule); border-radius: 6px;
   max-height: 320px; overflow-y: auto;
   box-shadow: 0 16px 40px rgba(0,0,0,0.55);
 }
@@ -100,7 +110,7 @@ h1 {
   padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--rule);
 }
 .results .row:last-child { border-bottom: none; }
-.results .row:hover, .results .row.active { background: #161614; }
+.results .row:hover, .results .row.active { background: var(--glass-hi); }
 .results .name { font-size: 14px; }
 .results .zone {
   font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);
@@ -111,6 +121,7 @@ h1 {
 .ctl {
   display: inline-flex; align-items: center; gap: 8px;
   border: 1px solid var(--rule); border-radius: 6px; padding: 7px 11px;
+  background: var(--glass);
   font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.08em;
 }
@@ -127,7 +138,7 @@ h1 {
 .range i { color: var(--muted); font-style: normal; }
 
 button.btn {
-  background: transparent; cursor: pointer; color: var(--ink);
+  background: var(--glass); cursor: pointer; color: var(--ink);
   text-transform: uppercase;
 }
 button.btn:hover { border-color: var(--muted); color: var(--ink); }
@@ -151,7 +162,7 @@ button.btn[aria-pressed="true"] { border-color: var(--hi); color: var(--hi); }
 .zonemeta {
   padding: 12px 14px; border-right: 1px solid var(--rule);
   display: flex; flex-direction: column; gap: 2px; justify-content: center;
-  min-width: 0; background: #0E0E0D;
+  min-width: 0; background: var(--panel);
 }
 .zonemeta .city { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 7px; }
 .zonemeta .tag {
@@ -182,7 +193,7 @@ button.btn[aria-pressed="true"] { border-color: var(--hi); color: var(--hi); }
   position: relative;
 }
 .cell:first-child { border-left: none; }
-.cell.day { background: var(--day); color: #B8B6AC; }
+.cell.day { background: var(--day); color: #AAB4CC; }
 .cell.work { background: var(--work); color: var(--ink); }
 .cell.daystart { font-weight: 600; color: var(--hi); }
 .cell.overlap::after {
