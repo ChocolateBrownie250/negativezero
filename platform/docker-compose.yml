@@ -49,38 +49,40 @@ services:
       - internal
 
   # ── timezones ─────────────────────────────────────────────────
-  # Static cross-timezone meeting planner at
-  # negativezero.one/services/timezones/. No backend; all timezone
-  # math is client-side via the Intl API. Served by nginx-alpine with
-  # a read-only bind-mount, same pattern as landing.
+  # Cross-timezone meeting planner at negativezero.one/services/timezones/.
+  # Now a gated Fastify service (was a static nginx site): it verifies the apex
+  # nz_session SSO cookie + admin authz and stores per-account presets in SQLite.
+  # SSO-cookie-only — no local passkey/login of its own, so no SESSION_SECRET /
+  # SETUP_CODE_HASH. Timezone math stays client-side; the client gates on
+  # /api/v1/me. Same hardened build pattern as redirector.
   timezones:
-    image: nginx:1.27-alpine
+    build:
+      context: ../apps/timezones
     container_name: negativezero-timezones
     restart: unless-stopped
     security_opt:
       - "no-new-privileges:true"
     cap_drop:
       - ALL
-    # Same stock-nginx cap set as landing (chown cache + drop workers + bind 80);
-    # all dangerous caps stay dropped.
-    cap_add:
-      - CHOWN
-      - SETGID
-      - SETUID
-      - NET_BIND_SERVICE
-      - DAC_OVERRIDE
     pids_limit: 512
     mem_limit: 512m
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SSO_SESSION_SECRET: ${SSO_SESSION_SECRET}
+      ADMIN_AUTHZ_URL: http://admin:3000
+      PUBLIC_URL: ${TIMEZONES_PUBLIC_URL}
+      DATA_DIR: /app/server/data
     volumes:
-      - ../apps/timezones:/usr/share/nginx/html:ro
+      - ./data/timezones:/app/server/data
     ports:
-      - "127.0.0.1:${TIMEZONES_HOST_PORT:-3024}:80"
+      - "127.0.0.1:${TIMEZONES_HOST_PORT:-3024}:3000"
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 20s
     networks:
       - internal
 

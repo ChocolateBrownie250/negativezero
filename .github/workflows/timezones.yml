@@ -1,9 +1,9 @@
 name: timezones
 
-# CI for the static timezones planner. Lightweight — no build step.
-# Validates the HTML parses, the JS is syntactically valid, the fonts
-# referenced by @font-face are present, and the page still references
-# its sibling assets.
+# CI for the timezones service. Runs typecheck + tests + build and validates the
+# Dockerfile produces a runnable image. timezones was a static page until it
+# gained SSO auth + per-account presets; this mirrors redirector.yml. The client
+# shell stays vanilla (public/), so it's also linted here.
 
 on:
   push:
@@ -17,33 +17,68 @@ on:
       - '.github/workflows/timezones.yml'
 
 jobs:
-  validate:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/timezones
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          # Node 22 in lockstep with the other TS services + the Dockerfile.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/timezones/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck + build (server)
+        run: npm run build
+
+      - name: server tests
+        run: npm -w server test
+
+      - name: client shell lints (vanilla JS/HTML)
+        run: |
+          node --check public/app.js
+          npx --yes htmlhint public/index.html
+          for f in Geist-Variable.ttf GeistMono-Variable.ttf; do
+            [ -f "public/fonts/$f" ] || { echo "::error::missing referenced font public/fonts/$f"; exit 1; }
+          done
+
+  docker-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: HTML lint (htmlhint)
-        run: npx --yes htmlhint apps/timezones/index.html
+      - uses: docker/setup-buildx-action@v3
 
-      - name: JS parses (node --check)
-        run: node --check apps/timezones/app.js
+      - name: build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/timezones
+          push: false
+          load: true
+          tags: negativezero-timezones:ci
+          cache-from: type=gha,scope=timezones
+          cache-to: type=gha,scope=timezones,mode=max
 
-      - name: referenced fonts exist
+      - name: smoke-test image starts + serves health
+        # Boot with a stub SSO secret and confirm the health endpoint answers —
+        # catches runtime image-layout regressions (a full auth probe needs a
+        # real admin-minted session).
         run: |
-          missing=0
-          for f in Geist-Variable.ttf GeistMono-Variable.ttf; do
-            if [ ! -f "apps/timezones/fonts/$f" ]; then
-              echo "::error file=apps/timezones/index.html::missing referenced font: fonts/$f"
-              missing=1
-            fi
+          docker run --rm --name tz-smoke -d \
+            -e SSO_SESSION_SECRET=$(openssl rand -hex 32) \
+            -p 3000:3000 \
+            negativezero-timezones:ci
+          for _ in $(seq 1 15); do
+            curl -sf http://127.0.0.1:3000/api/health >/dev/null 2>&1 && break
+            sleep 2
           done
-          exit $missing
-
-      - name: referenced assets exist
-        run: |
-          for a in styles.css app.js; do
-            grep -q "\"./$a\"" apps/timezones/index.html \
-              || { echo "::error::index.html no longer references ./$a"; exit 1; }
-            [ -f "apps/timezones/$a" ] \
-              || { echo "::error::missing asset apps/timezones/$a"; exit 1; }
-          done
+          docker logs tz-smoke
+          curl -sf http://127.0.0.1:3000/api/health | grep -q '"ok":true'
+          docker stop tz-smoke

@@ -12,7 +12,8 @@ live deployed state, ops procedures, and known issues, read
 **Stack:** Node 22 + Fastify 5 + TypeScript + better-sqlite3 12 +
 React 18 (Vite 8, Tailwind 4) for the bookmark manager and admin;
 Python 3.12 + FastAPI + aiosqlite + Groq (Whisper + Llama) for tts;
-static HTML for the landing and timezones planner; nginx on apex; Docker Compose +
+static HTML for the landing page, and a vanilla-JS client served by a small
+Fastify backend (SSO gate + presets) for timezones; nginx on apex; Docker Compose +
 Let's Encrypt; deployed to a shared Ubuntu VPS. Auth is per-service
 WebAuthn (passkey) with a one-time setup code; tts uses a Bearer API
 key. No central identity provider — earlier plans for Logto were
@@ -26,7 +27,7 @@ apps/
   bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
   tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/amethyst/)
-  timezones/            static cross-timezone planner (negativezero.one/services/timezones/)
+  timezones/            cross-timezone planner — gated, per-account presets (negativezero.one/services/timezones/)
 platform/
   docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones
   deploy.sh             idempotent deployer for the VPS

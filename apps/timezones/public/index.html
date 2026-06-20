@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
+<div id="authGate" class="auth-gate">checking access…</div>
 <div class="page">
   <header class="top">
     <a class="mark" href="/">−0 · negativezero.one</a>
@@ -49,6 +50,14 @@
       </label>
       <button id="fmt" class="ctl btn" type="button" aria-pressed="false">24h</button>
       <button id="now" class="ctl btn" type="button">now</button>
+      <span class="ctl preset">
+        <span>preset</span>
+        <select id="presetSel" aria-label="load a saved preset">
+          <option value="">— none —</option>
+        </select>
+      </span>
+      <button id="presetSave" class="ctl btn" type="button">save</button>
+      <button id="presetDel" class="ctl btn" type="button" disabled>del</button>
     </div>
   </div>
 

@@ -4,13 +4,14 @@
 // Every other service asks admin (via /api/internal/authz) and caches the answer.
 import { db, type AccountRow } from '../db.js';
 
-// Services that have a backend and are gated by an account. `landing` and
-// `timezones` are public static sites with no auth, so they are not listed.
-// Adding a new gated service to the platform means adding it here.
+// Services that have a backend and are gated by an account. `landing` is the
+// only public static site with no auth. Adding a new gated service to the
+// platform means adding it here.
 export const GATED_SERVICES = [
   'bookmark-manager',
   'video-downloader',
   'redirector',
+  'timezones',
   'tts',
   'admin',
 ] as const;

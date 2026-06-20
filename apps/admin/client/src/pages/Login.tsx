@@ -28,6 +28,7 @@ const SERVICE_NAMES: Record<string, string> = {
   'bookmark-manager': 'Bookmark Manager',
   'video-downloader': 'Video Downloader',
   redirector: 'Redirector',
+  timezones: 'Timezones',
   admin: 'Admin',
 };
 

@@ -14,9 +14,11 @@ reasoning behind architectural choices, see `DECISIONS.md`.
 
 - **Landing:** static HTML/CSS/Canvas (apps/landing/). Hypotrochoid
   animation in vanilla JS. No build step.
-- **Timezones:** static HTML/CSS/JS (apps/timezones/). Cross-timezone
-  meeting planner; all timezone math is client-side via the `Intl` API.
-  No backend, no build step.
+- **Timezones:** vanilla HTML/CSS/JS client (apps/timezones/public/) served
+  by a small Node 22 + Fastify backend (apps/timezones/server/). Timezone math
+  stays client-side via the `Intl` API; the backend gates the service on the
+  apex SSO cookie + admin authz and stores per-account presets in SQLite
+  (SSO-cookie-only — no local login of its own).
 - **Bookmark service backend:** Node 22 + Fastify 5 + TypeScript +
   better-sqlite3 12. SQLite file lives on the VPS via a bind-mount
   volume. Per-service WebAuthn + setup-code auth (no shared identity
