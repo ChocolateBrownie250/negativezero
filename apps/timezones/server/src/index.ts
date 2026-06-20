@@ -38,13 +38,20 @@ export async function createApp() {
       root: config.staticDir,
       prefix: '/',
       wildcard: false,
-      cacheControl: true,
-      maxAge: '1h',
+      // The app shell (html/js/css/fonts) is replaced on every deploy. Send
+      // no-cache so the browser revalidates (cheap 304s via ETag) instead of
+      // pinning a stale bundle for up to an hour — otherwise a deployed fix
+      // never reaches an already-open client.
+      cacheControl: false,
+      setHeaders(res) {
+        res.setHeader('Cache-Control', 'no-cache');
+      },
     });
     app.setNotFoundHandler(async (req, reply) => {
       if (req.method === 'GET' && !req.url.startsWith('/api/')) {
         const indexPath = path.join(config.staticDir, 'index.html');
         if (fs.existsSync(indexPath)) {
+          reply.header('Cache-Control', 'no-cache');
           reply.type('text/html');
           return fs.readFileSync(indexPath, 'utf8');
         }
