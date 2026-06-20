@@ -405,14 +405,21 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // Resolve API paths against the current page's directory so the same code
+  // works whether served at /services/timezones/ (prod) or / (dev). A
+  // leading-slash absolute path would hit the apex root, not this service mount.
+  function apiUrl(path) {
+    return new URL(String(path).replace(/^\/+/, ''), new URL('./', window.location.href)).href;
+  }
+
   const api = {
     async list() {
-      const r = await fetch('/api/presets', { credentials: 'same-origin' });
+      const r = await fetch(apiUrl('api/presets'), { credentials: 'same-origin' });
       if (!r.ok) throw new Error('list ' + r.status);
       return (await r.json()).presets;
     },
     async create(name, selection) {
-      const r = await fetch('/api/presets', {
+      const r = await fetch(apiUrl('api/presets'), {
         method: 'POST', credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, selection }),
@@ -421,7 +428,7 @@
       return (await r.json()).preset;
     },
     async remove(id) {
-      const r = await fetch('/api/presets/' + encodeURIComponent(id), {
+      const r = await fetch(apiUrl('api/presets/' + encodeURIComponent(id)), {
         method: 'DELETE', credentials: 'same-origin',
       });
       if (!r.ok) throw new Error('delete ' + r.status);
@@ -519,7 +526,7 @@
 
   async function boot() {
     try {
-      const r = await fetch('/api/v1/me', { credentials: 'same-origin' });
+      const r = await fetch(apiUrl('api/v1/me'), { credentials: 'same-origin' });
       if (r.ok) {
         document.body.classList.add('authed');
         await initPresets();
