@@ -61,12 +61,14 @@ mkdir -p "$PLATFORM_DIR/data/video-downloader"
 # Bind-mounts inherit host ownership, so the host dirs must be writable by
 # 999, otherwise SQLite fails with SQLITE_CANTOPEN on first start.
 mkdir -p "$PLATFORM_DIR/data/redirector"
+mkdir -p "$PLATFORM_DIR/data/timezones"
 chown -R 999:999 \
     "$PLATFORM_DIR/data/bookmark-manager" \
     "$PLATFORM_DIR/data/admin" \
     "$PLATFORM_DIR/data/tts" \
     "$PLATFORM_DIR/data/video-downloader" \
-    "$PLATFORM_DIR/data/redirector"
+    "$PLATFORM_DIR/data/redirector" \
+    "$PLATFORM_DIR/data/timezones"
 
 # ────────────────────────────────────────────────────────────────────────
 # 2. Pick free loopback ports
@@ -203,6 +205,12 @@ fi
 grep -q '^REDIRECTOR_PUBLIC_URL=' "$ENV_FILE" || \
     echo "REDIRECTOR_PUBLIC_URL=https://$APEX_DOMAIN/services/redirector" >> "$ENV_FILE"
 
+# ── timezones (gated Fastify service; SSO-cookie-only) ─────────
+# No SESSION_SECRET / SETUP_CODE_HASH — timezones has no local login; it relies
+# entirely on the shared SSO cookie + admin authz. Only its public URL is seeded.
+grep -q '^TIMEZONES_PUBLIC_URL=' "$ENV_FILE" || \
+    echo "TIMEZONES_PUBLIC_URL=https://$APEX_DOMAIN/services/timezones" >> "$ENV_FILE"
+
 # ── shared SSO session secret (idempotent) ─────────────────────
 # One HS256 key shared by every service so a single apex `nz_session` cookie
 # (minted by admin on passkey login) authenticates the user everywhere. The
@@ -261,7 +269,7 @@ done
 
 log "Waiting for timezones on 127.0.0.1:$TIMEZONES_PORT"
 for _ in $(seq 1 30); do
-    curl -sf "http://127.0.0.1:$TIMEZONES_PORT/" >/dev/null 2>&1 && { log "timezones up"; break; }
+    curl -sf "http://127.0.0.1:$TIMEZONES_PORT/api/health" >/dev/null 2>&1 && { log "timezones up"; break; }
     sleep 2
 done
 

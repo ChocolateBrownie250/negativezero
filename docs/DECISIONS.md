@@ -12,6 +12,49 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-20 — timezones gated by SSO + per-account presets
+
+Turned `timezones` from a public static page into a gated Fastify service so it
+sits behind login like every other service, and added **server-side per-account
+presets** (named snapshots of the planner's zone selection + work hours).
+
+**Auth: SSO-cookie-only, no local login.** Unlike bookmark-manager / redirector /
+admin (which also carry their own WebAuthn passkey + secure-session as a local
+fallback), timezones authenticates *only* via the apex `nz_session` cookie minted
+by admin. Reasons: the owner already has a passkey at the hub, the cookie works
+across services, and dropping local WebAuthn/secure-session removes
+`@simplewebauthn`, `bcrypt`, `@fastify/secure-session`, a `SESSION_SECRET`, and a
+`SETUP_CODE_HASH` — a meaningfully smaller surface for a low-stakes utility. The
+static client shell is still served publicly; `app.js` gates the UI on
+`GET /api/v1/me` and bounces anonymous visitors to `/services/admin/?return=…`
+(the Amethyst PWA pattern). Registered in admin's `GATED_SERVICES`, so the owner
+auto-has it and friends get it via a setup code.
+
+**Presets: server-side, per-account (not localStorage).** Each preset is a row
+(`presets(id, account_id, name, selection, …)`) scoped by the SSO `sub`; the live
+working selection still lives in `localStorage` for instant, offline-friendly
+restore. Alternatives considered: (a) localStorage-only presets — rejected, they
+wouldn't sync across devices and aren't tied to the account the new auth
+introduces; (b) a shared (un-scoped) table like redirector's — rejected, presets
+are personal, so every query carries `WHERE account_id = ?`.
+
+**Client kept vanilla JS** (served via `@fastify/static`), not rewritten to React
+— the planner is a self-contained ~400-line IIFE; a framework migration would be
+pure churn for no user benefit.
+
+**What changed:** new `apps/timezones/{server,public}` (Fastify + better-sqlite3,
+shell moved under `public/`); the docker-compose block flipped from `nginx:alpine`
+to a built image with a `data/timezones` volume; `deploy.sh` seeds the data dir +
+health-checks `/api/health`; admin `GATED_SERVICES` + login `SERVICE_NAMES`;
+`timezones.yml` CI now builds/tests instead of static-validating.
+
+**Behavior change:** timezones is **no longer publicly accessible** — it now
+requires login, the explicit goal.
+
+**What would invalidate this:** wanting timezones public again (revert to the
+static block); or the platform gaining a real central IdP (then the SSO-cookie
+gate is replaced wholesale, not just for timezones).
+
 ## 2026-06-19 — CI auto-deploy on merge to main; isolation kept incremental
 
 Set up push-to-deploy: `.github/workflows/deploy.yml` runs on every merge to

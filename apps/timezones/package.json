@@ -1,0 +1,15 @@
+{
+  "name": "@negativezero/timezones",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cross-timezone meeting planner — gated by SSO, with per-account saved presets",
+  "workspaces": [
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm -w server run dev",
+    "build": "npm -w server run build",
+    "test": "npm -w server run test",
+    "start": "npm -w server run start"
+  }
+}

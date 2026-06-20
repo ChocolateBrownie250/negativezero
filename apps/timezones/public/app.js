@@ -111,6 +111,9 @@
   const workEnd = $('workEnd');
   const fmtBtn = $('fmt');
   const nowBtn = $('now');
+  const presetSel = $('presetSel');
+  const presetSave = $('presetSave');
+  const presetDel = $('presetDel');
 
   // ── search / add ──────────────────────────────────────────────
   let activeResult = -1;
@@ -396,13 +399,144 @@
     save(); render();
   });
 
-  // Re-render the clocks each minute so "now" stays honest.
-  setInterval(render, 60000);
-  window.addEventListener('resize', () => {
-    // Reposition the now-marker on layout change.
-    document.querySelectorAll('.nowline').forEach((n) => n.remove());
-    positionNow(Date.now(), refDayStart());
+  // ── presets (server-side, scoped to the signed-in account) ────
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  const api = {
+    async list() {
+      const r = await fetch('/api/presets', { credentials: 'same-origin' });
+      if (!r.ok) throw new Error('list ' + r.status);
+      return (await r.json()).presets;
+    },
+    async create(name, selection) {
+      const r = await fetch('/api/presets', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, selection }),
+      });
+      if (!r.ok) throw new Error('create ' + r.status);
+      return (await r.json()).preset;
+    },
+    async remove(id) {
+      const r = await fetch('/api/presets/' + encodeURIComponent(id), {
+        method: 'DELETE', credentials: 'same-origin',
+      });
+      if (!r.ok) throw new Error('delete ' + r.status);
+    },
+  };
+
+  let presets = [];
+
+  // The savable snapshot of the planner — everything except the ephemeral `date`.
+  function currentSelection() {
+    return {
+      zones: state.zones.slice(),
+      home: state.home,
+      work: state.work.slice(),
+      fmt24: state.fmt24,
+    };
+  }
+
+  function renderPresetOptions() {
+    presetSel.innerHTML = '<option value="">— none —</option>' +
+      presets.map((p) => '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>').join('');
+    presetDel.disabled = !presetSel.value;
+  }
+
+  async function initPresets() {
+    try {
+      presets = await api.list();
+    } catch (_) {
+      presets = []; // offline / API error → the planner still works on localStorage
+    }
+    renderPresetOptions();
+  }
+
+  // Load a saved selection into the live state (validated against known zones).
+  function applySelection(s) {
+    if (!s || !Array.isArray(s.zones)) return;
+    const zones = s.zones.filter((z) => ALL_ZONES.includes(z));
+    state.zones = zones.length ? zones : [browserZone];
+    state.home = state.zones.includes(s.home) ? s.home : state.zones[0];
+    state.work = Array.isArray(s.work) && s.work.length === 2 ? [s.work[0], s.work[1]] : state.work;
+    state.fmt24 = s.fmt24 !== false;
+    save();
+    render();
+  }
+
+  presetSel.addEventListener('change', () => {
+    presetDel.disabled = !presetSel.value;
+    const p = presets.find((x) => x.id === presetSel.value);
+    if (p) applySelection(p.selection);
   });
 
-  render();
+  presetSave.addEventListener('click', async () => {
+    const name = (window.prompt('Name this preset') || '').trim();
+    if (!name) return;
+    try {
+      const p = await api.create(name, currentSelection());
+      presets.unshift(p);
+      renderPresetOptions();
+      presetSel.value = p.id;
+      presetDel.disabled = false;
+    } catch (_) {
+      window.alert('Could not save preset.');
+    }
+  });
+
+  presetDel.addEventListener('click', async () => {
+    const id = presetSel.value;
+    if (!id) return;
+    try {
+      await api.remove(id);
+      presets = presets.filter((p) => p.id !== id);
+      renderPresetOptions();
+      presetSel.value = '';
+      presetDel.disabled = true;
+    } catch (_) {
+      window.alert('Could not delete preset.');
+    }
+  });
+
+  // ── boot: gate on auth (like the other services), then start ──
+  let clockTimer = null;
+  function startClock() {
+    if (!clockTimer) clockTimer = setInterval(render, 60000); // keep "now" honest
+  }
+  function showGate(msg) {
+    const gate = document.getElementById('authGate');
+    if (gate) gate.textContent = msg;
+  }
+
+  window.addEventListener('resize', () => {
+    // Reposition the now-marker on layout change (only once the board is shown).
+    document.querySelectorAll('.nowline').forEach((n) => n.remove());
+    if (document.body.classList.contains('authed')) positionNow(Date.now(), refDayStart());
+  });
+
+  async function boot() {
+    try {
+      const r = await fetch('/api/v1/me', { credentials: 'same-origin' });
+      if (r.ok) {
+        document.body.classList.add('authed');
+        await initPresets();
+        render();
+        startClock();
+      } else if (r.status === 401) {
+        // No / invalid session → the apex SSO hub, which returns here after login.
+        location.replace('/services/admin/?return=/services/timezones/');
+      } else if (r.status === 403) {
+        showGate("Your account doesn't have access to timezones. Ask the owner to enable it, then reload.");
+      } else {
+        showGate('Could not check access (error ' + r.status + '). Reload to try again.');
+      }
+    } catch (_) {
+      showGate('Could not reach the server. Reload to try again.');
+    }
+  }
+
+  boot();
 })();
