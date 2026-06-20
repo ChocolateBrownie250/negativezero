@@ -25,15 +25,32 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html, body {
+  /* Platform blue "floating" background: a full-bleed FIXED gradient (not the
+     old flat warm-black) so iOS status-bar and home-indicator safe areas show
+     the gradient instead of black bars. Matches admin / bookmark-manager /
+     redirector / video-downloader / amethyst. */
+  min-height: 100dvh;
+  background: linear-gradient(178deg, #0d1a44 0%, #081026 44%, #060b18 100%);
+  background-attachment: fixed;
+}
 body {
   font-family: 'Geist', system-ui, sans-serif;
-  background: var(--bg);
   color: var(--ink);
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
-.page { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
+.page {
+  max-width: 1080px; margin: 0 auto;
+  /* keep the original 28 / 28 / 80 spacing, but grow into the iOS safe areas so
+     the header clears the notch and the footer clears the home indicator */
+  padding:
+    max(28px, env(safe-area-inset-top))
+    max(28px, env(safe-area-inset-right))
+    max(80px, env(safe-area-inset-bottom))
+    max(28px, env(safe-area-inset-left));
+}
 
 header.top {
   display: flex; justify-content: space-between; align-items: center;
