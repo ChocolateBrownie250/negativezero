@@ -39,9 +39,16 @@ html, body {
   /* Platform blue "floating" background: a full-bleed FIXED gradient (not the
      old flat warm-black) so iOS status-bar and home-indicator safe areas show
      the gradient instead of black bars. Matches admin / bookmark-manager /
-     redirector / video-downloader / amethyst. */
+     redirector / video-downloader / amethyst.
+     The solid background-color is the key fix for the WHITE bars: with
+     `background-attachment: fixed` the gradient *image* is not painted into the
+     iOS safe-area strips (status bar at the top, home-indicator at the bottom),
+     so without an explicit color those strips fell back to white. The solid
+     #060b18 (the gradient's dark bottom) fills them instead — same approach as
+     amethyst. */
   min-height: 100dvh;
-  background: linear-gradient(178deg, #0d1a44 0%, #081026 44%, #060b18 100%);
+  background-color: #060b18;
+  background-image: linear-gradient(178deg, #0d1a44 0%, #081026 44%, #060b18 100%);
   background-attachment: fixed;
 }
 body {
@@ -270,7 +277,16 @@ footer {
 }
 
 @media (max-width: 640px) {
-  .page { padding: 20px 16px 64px; }
+  /* Keep the floating safe-area borders on phones: grow the base 20/16/64/16
+     padding into the iOS insets so the header clears the notch / Dynamic Island
+     and the footer clears the home indicator (don't drop the insets the desktop
+     rule sets). */
+  .page { padding:
+    max(20px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(64px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  }
   .zonecard, .ruler { grid-template-columns: 132px 1fr; }
   .ruler .spacer { padding: 0 10px 6px; }
   .zonemeta { padding: 10px; }
