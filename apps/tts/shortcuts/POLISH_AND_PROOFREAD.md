@@ -151,6 +151,36 @@ The Action Button holds **one** shortcut. Reach the others via:
 
 ---
 
+## Ready-made files (import instead of building)
+
+This folder ships the three shortcuts as unsigned plist files you can import:
+
+- `Amethyst-Polish.shortcut`
+- `Amethyst-Proofread-Aggressive.shortcut`
+- `Amethyst-Proofread-Polish.shortcut`
+
+To import: **Settings → Shortcuts → enable "Allow Untrusted Shortcuts"**, then
+open the file on the iPhone (AirDrop / Files / iCloud). After import, edit each
+**Get Contents of URL** action and replace `REPLACE_WITH_AMETHYST_API_KEY` in the
+`Authorization` header with your real key. These are generated, not device-tested
+— if an action looks off, the hand-build steps above are authoritative.
+
+## Editing an existing transcribe-only shortcut to add polish
+
+If you already have a shortcut that records → POSTs to `…/transcribe` → copies
+the `text`, you only need to add the polish round-trip:
+
+1. After the transcribe **Get Contents of URL**, add **Get Dictionary Value**
+   for key `id`, then **Set Variable** `TranscriptID` to it.
+2. Add a **Text** action: `…/transcriptions/`**`[TranscriptID]`**`/polish?mode=standard`.
+3. Add a second **Get Contents of URL**: POST that Text, with the same
+   `Authorization` header, **no body**.
+4. Re-point your existing **Get Dictionary Value** (`text`) to the **new**
+   (polish) Contents of URL. Copy/notify steps stay as they are.
+
+For the proofread intensity, set the transcribe Form fields `cleanup=true` and
+`cleanup_mode=standard|aggressive`.
+
 ## Why clipboard (not auto-paste)
 
 iOS doesn't let a Shortcut type into the field that was focused *before* the
