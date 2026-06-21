@@ -321,8 +321,13 @@
       const lh = hours[h];
       const cell = document.createElement('div');
       let cls = 'cell';
+      // Day-cycle band (working hours win, then the sky phases). Dawn 5–6 and
+      // dusk 18–20 carry the sunrise/sunset gradients; 7–17 is full day; the
+      // rest stays night.
       if (work[h]) cls += ' work';
-      else if (lh >= 7 && lh < 19) cls += ' day';
+      else if (lh >= 5 && lh < 7) cls += ' dawn';
+      else if (lh >= 7 && lh < 18) cls += ' day';
+      else if (lh >= 18 && lh < 21) cls += ' dusk';
       if (lh === 0) cls += ' daystart';
       if (overlap[h]) cls += ' overlap';
       cell.className = cls;

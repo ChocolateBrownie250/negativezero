@@ -30,7 +30,43 @@
   --day: rgba(86, 116, 190, 0.12);   /* daytime: light blue glass */
   --work: rgba(110, 142, 215, 0.20); /* working hours: brighter blue */
   --overlap: rgba(228, 176, 90, 0.20); /* everyone available: gold */
+
+  /* Sunrise / sunset bands: a vertical "sky" gradient per hour cell — a cool
+     upper sky settling onto a warm horizon — so the dawn and dusk transition
+     hours read differently from flat day/night. Sunrise leans gold (the same
+     accent family as --hi); sunset leans a warmer coral/red so the two are
+     immediately tellable apart. */
+  --dawn: linear-gradient(180deg, rgba(86,116,190,0.10) 0%, rgba(228,176,90,0.24) 100%);
+  --dusk: linear-gradient(180deg, rgba(96,108,190,0.12) 0%, rgba(226,116,74,0.26) 100%);
   --cell-w: 38px;
+
+  /* ── Typography system ───────────────────────────────────
+     Two families with one job each: sans for prose (lede, body,
+     city / search), mono for everything that reads as a label or a
+     datum (chrome, codes, clocks, the hour grid). Everything below
+     pulls from these tokens so sizes, weights and tracking stay in a
+     single coherent scale instead of one-off values per rule. */
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+
+  /* Type scale — six steps, shared across the whole UI */
+  --fs-micro: 10px;  /* tags, hour-ruler ticks */
+  --fs-label: 11px;  /* chrome labels: controls, legend, footer, sub, cells */
+  --fs-data:  12px;  /* mono data + nav/mark + section eyebrow */
+  --fs-ui:    14px;  /* interactive text: search, city, results */
+  --fs-body:  15px;  /* body copy */
+  --fs-lead:  17px;  /* lede + the hero clock */
+
+  /* Weights */
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  /* Uppercase mono tracking, three tiers */
+  --track-tight: 0.02em; /* mark / nav */
+  --track-label: 0.08em; /* every uppercase mono label */
+  --track-wide:  0.16em; /* the section eyebrow (h1) */
 }
 
 * { box-sizing: border-box; }
@@ -39,17 +75,26 @@ html, body {
   /* Platform blue "floating" background: a full-bleed FIXED gradient (not the
      old flat warm-black) so iOS status-bar and home-indicator safe areas show
      the gradient instead of black bars. Matches admin / bookmark-manager /
-     redirector / video-downloader / amethyst. */
+     redirector / video-downloader / amethyst.
+     The solid background-color is the key fix for the WHITE bars: with
+     `background-attachment: fixed` the gradient *image* is not painted into the
+     iOS safe-area strips (status bar at the top, home-indicator at the bottom),
+     so without an explicit color those strips fell back to white. The solid
+     #060b18 (the gradient's dark bottom) fills them instead — same approach as
+     amethyst. */
   min-height: 100dvh;
-  background: linear-gradient(178deg, #0d1a44 0%, #081026 44%, #060b18 100%);
+  background-color: #060b18;
+  background-image: linear-gradient(178deg, #0d1a44 0%, #081026 44%, #060b18 100%);
   background-attachment: fixed;
 }
 body {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: var(--font-sans);
   color: var(--ink);
-  font-size: 15px;
+  font-size: var(--fs-body);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Auth gate: the planner stays hidden until /api/v1/me confirms access, so an
@@ -59,7 +104,7 @@ body.authed .page { display: block; }
 .auth-gate {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   padding: 24px; text-align: center; line-height: 1.6;
-  font-family: 'Geist Mono', monospace; font-size: 13px; color: var(--muted);
+  font-family: var(--font-mono); font-size: var(--fs-data); color: var(--muted);
 }
 body.authed .auth-gate { display: none; }
 
@@ -79,8 +124,8 @@ header.top {
   margin-bottom: 48px;
 }
 .mark, nav a {
-  font-family: 'Geist Mono', monospace; font-size: 12px;
-  color: var(--muted); text-decoration: none; letter-spacing: 0.02em;
+  font-family: var(--font-mono); font-size: var(--fs-data);
+  color: var(--muted); text-decoration: none; letter-spacing: var(--track-tight);
 }
 .mark { color: var(--muted); }
 nav a { margin-left: 20px; }
@@ -88,13 +133,14 @@ nav a:hover, .mark:hover { color: var(--ink); }
 
 .head { margin-bottom: 36px; }
 h1 {
-  font-family: 'Geist Mono', monospace; font-size: 13px; font-weight: 400;
-  text-transform: uppercase; letter-spacing: 0.18em; color: var(--hi);
+  font-family: var(--font-mono); font-size: var(--fs-data); font-weight: var(--fw-regular);
+  text-transform: uppercase; letter-spacing: var(--track-wide); color: var(--hi);
   margin: 0 0 14px;
 }
 .lede {
-  font-size: 17px; font-weight: 300; color: var(--ink);
-  max-width: 56ch; margin: 0; letter-spacing: -0.005em;
+  font-family: var(--font-sans);
+  font-size: var(--fs-lead); font-weight: var(--fw-light); color: var(--ink);
+  line-height: 1.5; max-width: 56ch; margin: 0; letter-spacing: -0.005em;
 }
 
 /* ── toolbar ───────────────────────────────────────────── */
@@ -106,7 +152,7 @@ h1 {
 #search {
   width: 100%; background: var(--glass); color: var(--ink);
   border: 1px solid var(--rule); border-radius: 6px;
-  padding: 10px 12px; font: inherit; font-size: 14px; outline: none;
+  padding: 10px 12px; font-family: var(--font-sans); font-size: var(--fs-ui); outline: none;
 }
 #search:focus { border-color: var(--muted); }
 #search::placeholder { color: var(--muted); }
@@ -123,25 +169,25 @@ h1 {
 }
 .results .row:last-child { border-bottom: none; }
 .results .row:hover, .results .row.active { background: var(--glass-hi); }
-.results .name { font-size: 14px; }
+.results .name { font-family: var(--font-sans); font-size: var(--fs-ui); }
 .results .zone {
-  font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--muted);
 }
-.results .none { padding: 12px; color: var(--muted); font-size: 13px; }
+.results .none { padding: 12px; color: var(--muted); font-size: var(--fs-ui); }
 
 .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .ctl {
   display: inline-flex; align-items: center; gap: 8px;
   border: 1px solid var(--rule); border-radius: 6px; padding: 7px 11px;
   background: var(--glass);
-  font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.08em;
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--muted);
+  text-transform: uppercase; letter-spacing: var(--track-label);
 }
 .ctl span { white-space: nowrap; }
 .ctl input[type="date"],
 .ctl input[type="number"] {
   background: transparent; border: none; color: var(--ink);
-  font: inherit; font-family: 'Geist Mono', monospace; font-size: 12px;
+  font-family: var(--font-mono); font-size: var(--fs-data);
   outline: none; text-transform: none; letter-spacing: 0;
 }
 .ctl input[type="date"] { color-scheme: dark; }
@@ -162,7 +208,7 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
 .ctl.preset { text-transform: none; }
 .ctl select {
   background: transparent; border: none; color: var(--ink);
-  font: inherit; font-family: 'Geist Mono', monospace; font-size: 12px;
+  font-family: var(--font-mono); font-size: var(--fs-data);
   outline: none; text-transform: none; letter-spacing: 0;
   max-width: 150px; cursor: pointer;
 }
@@ -188,17 +234,23 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
   display: flex; flex-direction: column; gap: 2px; justify-content: center;
   min-width: 0; background: var(--panel);
 }
-.zonemeta .city { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 7px; }
+.zonemeta .city {
+  font-family: var(--font-sans); font-size: var(--fs-ui); font-weight: var(--fw-medium);
+  display: flex; align-items: center; gap: 7px;
+}
 .zonemeta .tag {
-  font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.1em;
+  font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--track-label);
   text-transform: uppercase; color: var(--bg); background: var(--hi);
   padding: 1px 5px; border-radius: 3px;
 }
 .zonemeta .sub {
-  font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--muted);
   display: flex; gap: 8px; align-items: baseline;
 }
-.zonemeta .bigtime { font-size: 17px; color: var(--ink); letter-spacing: 0.01em; }
+.zonemeta .bigtime {
+  font-family: var(--font-mono); font-size: var(--fs-lead); font-weight: var(--fw-light);
+  color: var(--ink); letter-spacing: 0.01em; font-variant-numeric: tabular-nums;
+}
 .zonemeta .off { color: var(--muted); }
 .zonemeta .home-relative { color: var(--hi); }
 .zonemeta .rm {
@@ -212,14 +264,16 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
   width: var(--cell-w); flex: 0 0 var(--cell-w);
   border-left: 1px solid var(--rule);
   display: flex; align-items: center; justify-content: center;
-  font-family: 'Geist Mono', monospace; font-size: 11px;
+  font-family: var(--font-mono); font-size: var(--fs-label);
   color: var(--muted); padding: 14px 0; background: var(--night);
-  position: relative;
+  position: relative; font-variant-numeric: tabular-nums;
 }
 .cell:first-child { border-left: none; }
+.cell.dawn { background: var(--dawn); color: #D8CBAE; }
 .cell.day { background: var(--day); color: #AAB4CC; }
+.cell.dusk { background: var(--dusk); color: #E0BBA1; }
 .cell.work { background: var(--work); color: var(--ink); }
-.cell.daystart { font-weight: 600; color: var(--hi); }
+.cell.daystart { font-weight: var(--fw-semibold); color: var(--hi); }
 .cell.overlap::after {
   content: ''; position: absolute; inset: 0; background: var(--overlap);
   pointer-events: none;
@@ -228,15 +282,15 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
 /* hour ruler (home zone) on top */
 .ruler { display: grid; grid-template-columns: 200px 1fr; margin-bottom: 6px; }
 .ruler .spacer {
-  font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.1em;
+  font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--muted);
+  text-transform: uppercase; letter-spacing: var(--track-label);
   display: flex; align-items: flex-end; padding: 0 14px 6px;
 }
 .ruler .rtrack { display: flex; }
 .ruler .rcell {
   width: var(--cell-w); flex: 0 0 var(--cell-w); text-align: center;
-  font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--muted);
-  padding-bottom: 6px;
+  font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--muted);
+  padding-bottom: 6px; font-variant-numeric: tabular-nums;
 }
 .ruler .rcell.overlap { color: var(--hi); }
 
@@ -250,27 +304,40 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
   width: 5px; height: 5px; border-radius: 50%; background: var(--hi);
 }
 
-.empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
+.empty { color: var(--muted); font-size: var(--fs-ui); padding: 24px 0; }
 
 .legend {
   display: flex; flex-wrap: wrap; gap: 18px; margin-top: 24px;
-  font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--muted);
+  letter-spacing: var(--track-tight);
 }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid var(--rule); }
 .legend .sw.night { background: var(--night); }
+.legend .sw.dawn { background: var(--dawn); }
 .legend .sw.day { background: var(--day); }
+.legend .sw.dusk { background: var(--dusk); }
 .legend .sw.work { background: var(--work); }
 .legend .sw.overlap { background: var(--hi); opacity: 0.5; }
 
 footer {
   margin-top: 72px; padding-top: 14px; border-top: 1px solid var(--rule);
-  font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--muted);
+  font-family: var(--font-mono); font-size: var(--fs-label); color: var(--muted);
+  letter-spacing: var(--track-tight);
   display: flex; justify-content: space-between;
 }
 
 @media (max-width: 640px) {
-  .page { padding: 20px 16px 64px; }
+  /* Keep the floating safe-area borders on phones: grow the base 20/16/64/16
+     padding into the iOS insets so the header clears the notch / Dynamic Island
+     and the footer clears the home indicator (don't drop the insets the desktop
+     rule sets). */
+  .page { padding:
+    max(20px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(64px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  }
   .zonecard, .ruler { grid-template-columns: 132px 1fr; }
   .ruler .spacer { padding: 0 10px 6px; }
   .zonemeta { padding: 10px; }
