@@ -151,19 +151,14 @@ The Action Button holds **one** shortcut. Reach the others via:
 
 ---
 
-## Ready-made files (import instead of building)
+## Importing a ready-made file? iOS won't allow it
 
-This folder ships the three shortcuts as unsigned plist files you can import:
-
-- `Amethyst-Polish.shortcut`
-- `Amethyst-Proofread-Aggressive.shortcut`
-- `Amethyst-Proofread-Polish.shortcut`
-
-To import: **Settings → Shortcuts → enable "Allow Untrusted Shortcuts"**, then
-open the file on the iPhone (AirDrop / Files / iCloud). After import, edit each
-**Get Contents of URL** action and replace `REPLACE_WITH_AMETHYST_API_KEY` in the
-`Authorization` header with your real key. These are generated, not device-tested
-— if an action looks off, the hand-build steps above are authoritative.
+iOS **refuses to import unsigned shortcut files** ("Importing unsigned shortcut
+files is not supported"). A distributable shortcut must be either signed
+(`shortcuts sign`, macOS only) or shared as an iCloud link — both require an
+Apple device, so we can't ship an importable `.shortcut` from this repo. Build
+on-device with the steps above, or **duplicate an existing working shortcut**
+and edit it (next section) — that reuses its already-correct audio-upload step.
 
 ## Editing an existing transcribe-only shortcut to add polish
 
