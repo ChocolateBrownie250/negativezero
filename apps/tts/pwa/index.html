@@ -90,7 +90,6 @@
           <svg class="ic rec-ic-mic" aria-hidden="true"><use href="#i-mic-fill"/></svg>
           <svg class="ic rec-ic-stop" aria-hidden="true"><use href="#i-stop"/></svg>
         </button>
-        <div class="rec-ring"></div><div class="rec-ring r2"></div>
         <div id="recTimer" class="timer">00:00</div>
         <div id="recStatus" class="status">Tap to dictate</div>
       </div>
@@ -103,10 +102,14 @@
             <div id="resultDoneTime" style="font-size:12.5px;color:var(--fg-dim)">—</div>
           </div>
         </div>
-        <button id="resultNewBtn" class="btn btn-ghost" style="min-height:40px;padding:9px 14px"><svg class="ic"><use href="#i-mic"/></svg><span>New</span></button>
+        <button id="resultNewBtn" class="btn btn-ghost" style="min-height:40px;padding:9px 14px"><svg class="ic"><use href="#i-arrow-left"/></svg><span>Back</span></button>
       </div>
 
       <article id="resultCard" class="glass result-card hidden" style="margin-top:0">
+        <button id="copyBtnTop" class="copy-top" aria-label="Copy text">
+          <svg class="ic copy-top-copy" aria-hidden="true"><use href="#i-copy"/></svg>
+          <svg class="ic copy-top-done" aria-hidden="true"><use href="#i-check"/></svg>
+        </button>
         <div class="result-meta">
           <span id="resultLang" class="meta-pill ac"></span>
           <span id="resultDur" class="meta-pill"></span>
