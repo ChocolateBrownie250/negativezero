@@ -1,5 +1,9 @@
 # iPhone Shortcut: "Amethyst Dictate"
 
+> Want **polished** output, or aggressive-proofread / proofread+polish variants
+> (with the Action Button)? See [`POLISH_AND_PROOFREAD.md`](POLISH_AND_PROOFREAD.md).
+> This file documents the basic transcribe-and-copy shortcut.
+
 The `.shortcut` binary format is signed per-device, so importing a file from
 elsewhere doesn't work cleanly. Building the shortcut by hand on the device
 takes ~3 minutes and you understand exactly what it does. Steps below.
