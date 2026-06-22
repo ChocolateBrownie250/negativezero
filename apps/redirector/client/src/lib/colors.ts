@@ -1,19 +1,21 @@
-// Apple HIG dark-mode palette, kept in sync with bookmark-manager so the
-// two services look like one platform.
+// Deep-blue "liquid glass" dark theme, kept in sync with bookmark-manager /
+// the Amethyst PWA so every service looks like one platform. (Was the old flat
+// Apple-HIG greyscale; re-pointed to the blue palette — keys are unchanged so
+// Dashboard and the rest pick up the new values without edits.)
 export const COLORS = {
-  bg: '#0a0a0d',
-  surface: '#17171b',
-  card: '#1c1c21',
-  ink: '#f5f5f7',
-  muted: '#86868b',
-  blue: '#0a84ff',
-  green: '#30d158',
-  red: '#ff453a',
+  bg: '#03050d',      // near-black, blue cast
+  surface: '#121d3a', // raised blue
+  card: '#0d1730',    // deep-blue panel
+  ink: '#eef2fa',
+  muted: '#6b7491',
+  blue: '#5b93f0',    // accent
+  green: '#56e0b0',
+  red: '#ff6a86',
   yellow: '#ffd60a',
 };
 
-export const RING_STRONG = 'rgba(255, 255, 255, 0.08)';
-export const RING_SUBTLE = 'rgba(255, 255, 255, 0.04)';
+export const RING_STRONG = 'rgba(150, 178, 235, 0.16)';
+export const RING_SUBTLE = 'rgba(150, 178, 235, 0.09)';
 export const LABEL_PRIMARY = COLORS.ink;
-export const LABEL_SECONDARY = '#a1a1a6';
+export const LABEL_SECONDARY = '#9aa4bd';
 export const LABEL_TERTIARY = COLORS.muted;
