@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Shield, KeyRound } from 'lucide-react';
+import { Shield, KeyRound, UserPlus } from 'lucide-react';
 import {
   startAuthentication,
   browserSupportsWebAuthn,
@@ -8,6 +8,7 @@ import { api } from '../api';
 import {
   COLORS,
   RING_STRONG,
+  LABEL_PRIMARY,
   LABEL_SECONDARY,
   LABEL_TERTIARY,
 } from '../lib/colors';
@@ -73,8 +74,10 @@ export default function Login({ onLoggedIn }: Props) {
       <div
         className="w-full max-w-sm rounded-2xl p-6"
         style={{
-          background: COLORS.card,
-          boxShadow: `0 0 0 1px ${RING_STRONG}, 0 8px 28px rgba(0,0,0,0.55)`,
+          background:
+            'linear-gradient(177deg, rgba(110,140,205,0.12) 0%, rgba(60,84,152,0.05) 100%), ' +
+            COLORS.card,
+          boxShadow: `inset 0 1px 0 rgba(190,212,255,0.12), 0 0 0 1px ${RING_STRONG}, 0 18px 48px rgba(0,1,8,0.55)`,
         }}
       >
         <div className="flex items-center justify-center mb-4">
@@ -88,14 +91,36 @@ export default function Login({ onLoggedIn }: Props) {
         <h1 className="text-[22px] font-semibold text-white text-center mb-1">
           Redirector
         </h1>
-        <p
-          className="text-[13px] text-center mb-5"
-          style={{ color: LABEL_SECONDARY }}
-        >
-          {hasPasskey
-            ? 'Sign in with your passkey'
-            : 'No redirector passkey registered yet'}
-        </p>
+        {hasPasskey ? (
+          <p
+            className="text-[13px] text-center mb-5"
+            style={{ color: LABEL_SECONDARY }}
+          >
+            Sign in with your passkey
+          </p>
+        ) : (
+          <div
+            className="rounded-xl px-4 py-3 mb-5 text-center"
+            style={{
+              background: 'rgba(91,147,240,0.12)',
+              boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
+            }}
+          >
+            <div
+              className="text-[15px] font-semibold"
+              style={{ color: LABEL_PRIMARY }}
+            >
+              No account detected on this device
+            </div>
+            <div
+              className="text-[13px] mt-1"
+              style={{ color: LABEL_SECONDARY }}
+            >
+              Sign in with your negativezero account, or register this device to
+              get started.
+            </div>
+          </div>
+        )}
 
         {!supported && (
           <div
@@ -152,13 +177,14 @@ export default function Login({ onLoggedIn }: Props) {
             type="button"
             onClick={() => setModal('first')}
             disabled={!supported}
-            className="w-full rounded-xl py-3 font-semibold disabled:opacity-50"
+            className="w-full rounded-xl py-3 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             style={{
               background: COLORS.surface,
               color: '#ffffff',
               boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
             }}
           >
+            <UserPlus size={18} />
             Register for the first time
           </button>
         )}
