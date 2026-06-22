@@ -40,6 +40,12 @@
   --overlap: rgba(228, 176, 90, 0.22); /* everyone available: gold */
   --cell-w: 38px;
 
+  /* Corner radii — one rounded scale shared across the UI so chips, inputs,
+     dropdowns and cards all curve consistently (softer than the old 3/6/8). */
+  --r-sm: 6px;   /* tags, legend swatches */
+  --r-md: 10px;  /* inputs, control chips, buttons, dropdown */
+  --r-lg: 14px;  /* zone cards */
+
   /* ── Typography system ───────────────────────────────────
      Two families with one job each: sans for prose (lede, body,
      city / search), mono for everything that reads as a label or a
@@ -151,7 +157,7 @@ h1 {
 .add { position: relative; flex: 1 1 280px; min-width: 220px; }
 #search {
   width: 100%; background: var(--glass); color: var(--ink);
-  border: 1px solid var(--rule); border-radius: 6px;
+  border: 1px solid var(--rule); border-radius: var(--r-md);
   padding: 10px 12px; font-family: var(--font-sans); font-size: var(--fs-ui); outline: none;
 }
 #search:focus { border-color: var(--muted); }
@@ -159,7 +165,7 @@ h1 {
 
 .results {
   position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0;
-  background: var(--panel-solid); border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--panel-solid); border: 1px solid var(--rule); border-radius: var(--r-md);
   max-height: 320px; overflow-y: auto;
   box-shadow: 0 16px 40px rgba(0,0,0,0.55);
 }
@@ -178,7 +184,7 @@ h1 {
 .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .ctl {
   display: inline-flex; align-items: center; gap: 8px;
-  border: 1px solid var(--rule); border-radius: 6px; padding: 7px 11px;
+  border: 1px solid var(--rule); border-radius: var(--r-md); padding: 7px 11px;
   background: var(--glass);
   font-family: var(--font-sans); font-size: var(--fs-label); font-weight: var(--fw-medium);
   color: var(--muted); text-transform: uppercase; letter-spacing: var(--track-label);
@@ -223,7 +229,7 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
   grid-template-columns: 200px 1fr;
   align-items: stretch;
   border: 1px solid var(--rule);
-  border-radius: 8px;
+  border-radius: var(--r-lg);
   margin-bottom: 10px;
   overflow: hidden;
 }
@@ -242,7 +248,7 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
   font-family: var(--font-sans); font-size: var(--fs-micro); font-weight: var(--fw-semibold);
   letter-spacing: var(--track-label);
   text-transform: uppercase; color: var(--bg); background: var(--hi);
-  padding: 1px 5px; border-radius: 3px;
+  padding: 1px 5px; border-radius: var(--r-sm);
 }
 .zonemeta .sub {
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--muted);
@@ -312,7 +318,7 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
   font-family: var(--font-sans); font-size: var(--fs-label); color: var(--muted);
 }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
-.legend .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid var(--rule); }
+.legend .sw { width: 14px; height: 14px; border-radius: var(--r-sm); display: inline-block; border: 1px solid var(--rule); }
 .legend .sw.night { background: var(--night); }
 .legend .sw.dawn { background: var(--dawn); }
 .legend .sw.day { background: var(--day); }
