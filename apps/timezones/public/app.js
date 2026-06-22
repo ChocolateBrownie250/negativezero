@@ -169,7 +169,7 @@
     if (!m) return null;
     const h = parseInt(m[2], 10);
     const mm = m[3] ? parseInt(m[3], 10) : 0;
-    if (h > 14 || mm > 59) return null;
+    if (mm > 59 || h > 14 || (h === 14 && mm > 0)) return null; // real offsets span −12:00…+14:00
     return (m[1] === '-' ? -1 : 1) * (h * 60 + mm);
   }
 
@@ -196,16 +196,12 @@
   }
 
   // Zones an alias/offset query should surface, ahead of plain substring hits.
-  // Exact alias hits rank above prefix hits (so "ist" leads with the IST zones,
-  // not "istanbul").
+  // Exact abbreviation match only — partial city names (sydney, moscow…) are
+  // already covered by the substring pass, so prefix-matching aliases would just
+  // add noise (e.g. "as" → Halifax) without new reach.
   function aliasZones(q) {
     const out = [];
     if (ALIASES[q]) out.push.apply(out, ALIASES[q]);
-    if (q.length >= 2) {
-      for (const key in ALIASES) {
-        if (key !== q && key.startsWith(q)) out.push.apply(out, ALIASES[key]);
-      }
-    }
     const off = parseOffset(q);
     if (off !== null) out.push.apply(out, zonesAtOffset(off));
     return out;
