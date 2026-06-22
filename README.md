@@ -21,7 +21,7 @@ apex root.
 |---|---|---|---|
 | **landing** | `/` | static HTML/CSS/JS (nginx) | public |
 | **timezones** | `/services/timezones/` | static HTML/JS (Intl API) | public |
-| **bookmark-manager** | `/services/bookmark-manager/` | Fastify + React + SQLite (AES-256-GCM at rest) | passkey + SSO |
+| **basalt** (bookmark-manager) | `/services/basalt/` | Fastify + React + SQLite (AES-256-GCM at rest) | passkey + SSO |
 | **admin** | `/services/admin/` | Fastify + React + SQLite | passkey; **SSO + authz hub** |
 | **tts** (Amethyst) | `/services/tts/` | FastAPI + Groq (Whisper + Llama) | passkey/SSO + Bearer key |
 | **video-downloader** | `/services/video-downloader/` | Fastify + React + ffmpeg remux | passkey + SSO |

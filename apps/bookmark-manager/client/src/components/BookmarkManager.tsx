@@ -102,13 +102,13 @@ interface DragState {
 // While reorder-dragging, where the drop indicator should land.
 type ReorderTarget = { id: string; side: 'top' | 'bottom' } | null;
 
-const BASE_URL = import.meta.env.BASE_URL; // '/services/bookmark-manager/' in prod, '/' in dev
+const BASE_URL = import.meta.env.BASE_URL; // '/services/basalt/' in prod, '/' in dev
 const PATH_PREFIX = 'f/';
 
 // Decode the current URL into the list of folder IDs to descend into.
-// '/services/bookmark-manager/'           → []
-// '/services/bookmark-manager/f/abc'      → ['abc']
-// '/services/bookmark-manager/f/abc/def'  → ['abc', 'def']
+// '/services/basalt/'           → []
+// '/services/basalt/f/abc'      → ['abc']
+// '/services/basalt/f/abc/def'  → ['abc', 'def']
 function pathFromLocation(): string[] {
   const after = window.location.pathname.startsWith(BASE_URL)
     ? window.location.pathname.slice(BASE_URL.length)

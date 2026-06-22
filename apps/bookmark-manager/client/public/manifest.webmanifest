@@ -1,14 +1,14 @@
 {
-  "name": "Bookmarks",
-  "short_name": "Bookmarks",
+  "name": "Basalt",
+  "short_name": "Basalt",
   "description": "save & organize links",
-  "start_url": "/services/bookmark-manager/",
-  "scope": "/services/bookmark-manager/",
+  "start_url": "/services/basalt/",
+  "scope": "/services/basalt/",
   "display": "standalone",
   "background_color": "#081026",
   "theme_color": "#0d1a44",
   "icons": [
-    { "src": "/services/bookmark-manager/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/services/bookmark-manager/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "/services/basalt/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/services/basalt/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
   ]
 }

@@ -135,7 +135,7 @@ if [ ! -f "$ENV_FILE" ]; then
 
     echo
     warn "Setup codes (save these — they won't be shown again):"
-    echo "  bookmark-manager:  $BOOKMARK_SETUP_CODE"
+    echo "  basalt:            $BOOKMARK_SETUP_CODE"
     echo "  admin:             $ADMIN_SETUP_CODE"
     echo "  tts API key:       $TTS_API_KEY"
     echo
@@ -210,6 +210,17 @@ grep -q '^REDIRECTOR_PUBLIC_URL=' "$ENV_FILE" || \
 # entirely on the shared SSO cookie + admin authz. Only its public URL is seeded.
 grep -q '^TIMEZONES_PUBLIC_URL=' "$ENV_FILE" || \
     echo "TIMEZONES_PUBLIC_URL=https://$APEX_DOMAIN/services/timezones" >> "$ENV_FILE"
+
+# ── Basalt (formerly bookmark-manager): force the public URL ───
+# The bookmark service derives its session-cookie path from BOOKMARK_PUBLIC_URL's
+# pathname. The public URL was renamed /services/bookmark-manager/ → /services/
+# basalt/, so force-update any pre-existing value (a plain seed wouldn't correct
+# an old one) to keep the cookie path aligned with where nginx now serves it.
+if grep -q '^BOOKMARK_PUBLIC_URL=' "$ENV_FILE"; then
+    sed -i "s|^BOOKMARK_PUBLIC_URL=.*|BOOKMARK_PUBLIC_URL=https://$APEX_DOMAIN/services/basalt|" "$ENV_FILE"
+else
+    echo "BOOKMARK_PUBLIC_URL=https://$APEX_DOMAIN/services/basalt" >> "$ENV_FILE"
+fi
 
 # ── shared SSO session secret (idempotent) ─────────────────────
 # One HS256 key shared by every service so a single apex `nz_session` cookie
@@ -437,7 +448,7 @@ systemctl reload nginx || true
 echo
 log "Deploy complete"
 echo "  Landing:          https://$APEX_DOMAIN/"
-echo "  Bookmark manager: https://$APEX_DOMAIN/services/bookmark-manager/"
+echo "  Basalt:           https://$APEX_DOMAIN/services/basalt/"
 echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
 [ "$GROQ_PRESENT" = "1" ] && echo "  Amethyst:         https://$APEX_DOMAIN/services/amethyst/"
 echo "  Timezones:        https://$APEX_DOMAIN/services/timezones/"

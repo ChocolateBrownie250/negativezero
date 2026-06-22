@@ -11,7 +11,7 @@ export class UnauthorizedError extends Error {
 // We strip the leading '/' from the supplied path and concatenate so calls
 // land at <base>api/... instead of /api/... — this is what lets the same
 // client work whether served at the apex or under a path prefix like
-// /services/bookmark-manager/. nginx in front strips the prefix before reaching the
+// /services/basalt/. nginx in front strips the prefix before reaching the
 // server, so the server still sees /api/... unchanged.
 const API_BASE = import.meta.env.BASE_URL;
 
