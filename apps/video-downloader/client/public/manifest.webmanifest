@@ -1,0 +1,14 @@
+{
+  "name": "Video Downloader",
+  "short_name": "Videos",
+  "description": "download & save videos",
+  "start_url": "/services/video-downloader/",
+  "scope": "/services/video-downloader/",
+  "display": "standalone",
+  "background_color": "#081026",
+  "theme_color": "#0d1a44",
+  "icons": [
+    { "src": "/services/video-downloader/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/services/video-downloader/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

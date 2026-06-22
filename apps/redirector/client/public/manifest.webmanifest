@@ -1,0 +1,14 @@
+{
+  "name": "Redirector",
+  "short_name": "Redirector",
+  "description": "short links & redirects",
+  "start_url": "/services/redirector/",
+  "scope": "/services/redirector/",
+  "display": "standalone",
+  "background_color": "#081026",
+  "theme_color": "#0d1a44",
+  "icons": [
+    { "src": "/services/redirector/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/services/redirector/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

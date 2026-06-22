@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="-6%" r="135%">
+      <stop offset="0" stop-color="#5a2440"/>
+      <stop offset="0.34" stop-color="#15203f"/>
+      <stop offset="0.64" stop-color="#0a1330"/>
+      <stop offset="1" stop-color="#05091d"/>
+    </radialGradient>
+    <radialGradient id="bloom" cx="50%" cy="46%" r="50%">
+      <stop offset="0" stop-color="#f0738f" stop-opacity="0.48"/>
+      <stop offset="0.55" stop-color="#c2445f" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#c2445f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stroke" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#fff0f3"/>
+      <stop offset="0.5" stop-color="#f0738f"/>
+      <stop offset="1" stop-color="#c2445f"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2.6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="200" height="200" rx="46" fill="url(#bg)"/>
+  <ellipse cx="100" cy="100" rx="56" ry="58" fill="url(#bloom)"/>
+  <g fill="none" stroke="url(#stroke)" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)">
+    <path d="M100 56 L100 116"/>
+    <path d="M76 94 L100 120 L124 94"/>
+    <path d="M66 142 L134 142"/>
+  </g>
+  <path d="M100 58 L100 92" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" opacity="0.45"/>
+</svg>

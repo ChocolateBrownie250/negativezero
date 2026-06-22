@@ -1,0 +1,14 @@
+{
+  "name": "Admin",
+  "short_name": "Admin",
+  "description": "accounts & access",
+  "start_url": "/services/admin/",
+  "scope": "/services/admin/",
+  "display": "standalone",
+  "background_color": "#081026",
+  "theme_color": "#0d1a44",
+  "icons": [
+    { "src": "/services/admin/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/services/admin/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

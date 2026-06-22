@@ -1,13 +1,14 @@
 {
   "name": "Bookmarks",
   "short_name": "Bookmarks",
+  "description": "save & organize links",
   "start_url": "/services/bookmark-manager/",
   "scope": "/services/bookmark-manager/",
   "display": "standalone",
-  "background_color": "#0d1a44",
+  "background_color": "#081026",
   "theme_color": "#0d1a44",
   "icons": [
-    { "src": "/services/bookmark-manager/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/services/bookmark-manager/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/services/bookmark-manager/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/services/bookmark-manager/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
   ]
 }
