@@ -17,6 +17,11 @@
   const ALL_ZONES = (typeof Intl.supportedValuesOf === 'function'
     ? Intl.supportedValuesOf('timeZone')
     : FALLBACK).slice();
+  // 'UTC' is always a valid zone for Intl even when an engine omits it from
+  // supportedValuesOf, so make sure it's selectable (and that gmt/utc aliases
+  // resolve).
+  if (!ALL_ZONES.includes('UTC')) ALL_ZONES.unshift('UTC');
+  const ZONE_SET = new Set(ALL_ZONES);
 
   // Human label from an IANA id: "Asia/Kolkata" → "Kolkata", keep region hint.
   function labelFor(zone) {
@@ -116,14 +121,113 @@
   const presetDel = $('presetDel');
 
   // ── search / add ──────────────────────────────────────────────
+  // Friendly input aliases: abbreviations that never appear in an IANA id,
+  // mapped to a representative zone (or a few, when genuinely ambiguous — e.g.
+  // IST is India / Ireland / Israel). Keys are lowercase. This lets people type
+  // "PT", "EEST", "JST", "sydney" etc. instead of hunting for the city.
+  const ALIASES = {
+    // North America
+    pt: ['America/Los_Angeles'], pst: ['America/Los_Angeles'], pdt: ['America/Los_Angeles'],
+    pacific: ['America/Los_Angeles'],
+    mt: ['America/Denver'], mst: ['America/Denver'], mdt: ['America/Denver'], mountain: ['America/Denver'],
+    ct: ['America/Chicago'], cst: ['America/Chicago', 'Asia/Shanghai'], cdt: ['America/Chicago'],
+    central: ['America/Chicago'],
+    et: ['America/New_York'], est: ['America/New_York'], edt: ['America/New_York'],
+    eastern: ['America/New_York'],
+    akst: ['America/Anchorage'], akdt: ['America/Anchorage'], alaska: ['America/Anchorage'],
+    hst: ['Pacific/Honolulu'], hawaii: ['Pacific/Honolulu'],
+    ast: ['America/Halifax', 'Asia/Riyadh'], adt: ['America/Halifax'], atlantic: ['America/Halifax'],
+    nst: ['America/St_Johns'], ndt: ['America/St_Johns'], newfoundland: ['America/St_Johns'],
+    // Europe / Africa / Middle East
+    gmt: ['UTC'], utc: ['UTC'], zulu: ['UTC'],
+    bst: ['Europe/London'], wet: ['Europe/Lisbon'], west: ['Europe/Lisbon'],
+    cet: ['Europe/Paris'], cest: ['Europe/Paris'],
+    eet: ['Europe/Bucharest'], eest: ['Europe/Bucharest'],
+    msk: ['Europe/Moscow'], moscow: ['Europe/Moscow'],
+    trt: ['Europe/Istanbul'], istanbul: ['Europe/Istanbul'],
+    sast: ['Africa/Johannesburg'], wat: ['Africa/Lagos'], cat: ['Africa/Maputo'], eat: ['Africa/Nairobi'],
+    gst: ['Asia/Dubai'], gulf: ['Asia/Dubai'],
+    // South / South-East / East Asia
+    ist: ['Asia/Kolkata', 'Europe/Dublin', 'Asia/Jerusalem'], india: ['Asia/Kolkata'],
+    pkt: ['Asia/Karachi'], npt: ['Asia/Kathmandu'],
+    ict: ['Asia/Bangkok'], wib: ['Asia/Jakarta'],
+    hkt: ['Asia/Hong_Kong'], sgt: ['Asia/Singapore'],
+    china: ['Asia/Shanghai'], beijing: ['Asia/Shanghai'],
+    jst: ['Asia/Tokyo'], japan: ['Asia/Tokyo'],
+    kst: ['Asia/Seoul'], korea: ['Asia/Seoul'], seoul: ['Asia/Seoul'],
+    // Oceania
+    awst: ['Australia/Perth'], perth: ['Australia/Perth'],
+    acst: ['Australia/Adelaide'], acdt: ['Australia/Adelaide'], adelaide: ['Australia/Adelaide'],
+    aest: ['Australia/Sydney'], aedt: ['Australia/Sydney'], sydney: ['Australia/Sydney'],
+    nzst: ['Pacific/Auckland'], nzdt: ['Pacific/Auckland'], auckland: ['Pacific/Auckland'],
+  };
+
+  // Parse an offset query: "gmt+3", "utc+3", "gmt+03:00", "+5:30", "-08:00",
+  // "+0530" → minutes east of UTC (null if it isn't an offset expression).
+  function parseOffset(q) {
+    const m = q.replace(/\s+/g, '').match(/^(?:gmt|utc)?([+-])(\d{1,2})(?::?(\d{2}))?$/);
+    if (!m) return null;
+    const h = parseInt(m[2], 10);
+    const mm = m[3] ? parseInt(m[3], 10) : 0;
+    if (h > 14 || mm > 59) return null;
+    return (m[1] === '-' ? -1 : 1) * (h * 60 + mm);
+  }
+
+  // Real zones currently at a given UTC offset (reuses offsetMinutes). Only run
+  // for offset queries, so the per-keystroke cost stays off the common path.
+  function zonesAtOffset(mins) {
+    const now = new Date();
+    return ALL_ZONES.filter((z) => offsetMinutes(z, now) === mins);
+  }
+
+  // Some engines expose legacy IANA ids from supportedValuesOf (e.g.
+  // "Asia/Calcutta" rather than "Asia/Kolkata", or "Etc/UTC" not "UTC"). Map an
+  // alias target to whichever spelling this runtime actually ships.
+  const EQUIV = {
+    'UTC': ['Etc/UTC'],
+    'Asia/Kolkata': ['Asia/Calcutta'],
+    'Asia/Kathmandu': ['Asia/Katmandu'],
+  };
+  function resolve(zone) {
+    if (ZONE_SET.has(zone)) return zone;
+    const alts = EQUIV[zone] || [];
+    for (let i = 0; i < alts.length; i++) if (ZONE_SET.has(alts[i])) return alts[i];
+    return null;
+  }
+
+  // Zones an alias/offset query should surface, ahead of plain substring hits.
+  // Exact alias hits rank above prefix hits (so "ist" leads with the IST zones,
+  // not "istanbul").
+  function aliasZones(q) {
+    const out = [];
+    if (ALIASES[q]) out.push.apply(out, ALIASES[q]);
+    if (q.length >= 2) {
+      for (const key in ALIASES) {
+        if (key !== q && key.startsWith(q)) out.push.apply(out, ALIASES[key]);
+      }
+    }
+    const off = parseOffset(q);
+    if (off !== null) out.push.apply(out, zonesAtOffset(off));
+    return out;
+  }
+
   let activeResult = -1;
   function runSearch() {
     const q = search.value.trim().toLowerCase();
     if (!q) { results.hidden = true; results.innerHTML = ''; return; }
-    const matches = ALL_ZONES
-      .filter((z) => !state.zones.includes(z))
+    const taken = new Set(state.zones);
+    const seen = new Set();
+    const ordered = [];
+    const add = (raw) => {
+      const z = resolve(raw);
+      if (z && !taken.has(z) && !seen.has(z)) { seen.add(z); ordered.push(z); }
+    };
+    // Alias + offset hits first, then plain substring matches on the IANA id.
+    aliasZones(q).forEach(add);
+    ALL_ZONES
       .filter((z) => z.toLowerCase().replace(/_/g, ' ').includes(q))
-      .slice(0, 40);
+      .forEach(add);
+    const matches = ordered.slice(0, 40);
     if (!matches.length) {
       results.innerHTML = '<div class="none">no matching zone</div>';
       results.hidden = false; return;
