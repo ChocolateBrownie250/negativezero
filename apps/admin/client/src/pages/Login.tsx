@@ -1,16 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Shield, KeyRound } from 'lucide-react';
+import { Shield, KeyRound, UserPlus, RotateCcw } from 'lucide-react';
 import {
   startAuthentication,
   browserSupportsWebAuthn,
 } from '@simplewebauthn/browser';
 import { api } from '../api';
-import {
-  COLORS,
-  RING_STRONG,
-  LABEL_SECONDARY,
-  LABEL_TERTIARY,
-} from '../lib/colors';
+import { COLORS, RING_STRONG, LABEL_SECONDARY } from '../lib/colors';
 import RegisterModal from '../components/modals/RegisterModal';
 
 interface Props {
@@ -32,6 +27,19 @@ const SERVICE_NAMES: Record<string, string> = {
   admin: 'Admin',
 };
 
+// One short, lowercase line of what each service is — shown under the service
+// name so the card reads "<Service>" / "<what it does>" everywhere, instead of
+// the old "negativezero" wordmark + "continue to X" sentence.
+const SERVICE_TAGLINES: Record<string, string> = {
+  amethyst: 'speech to text · transcriber',
+  tts: 'speech to text · transcriber',
+  'bookmark-manager': 'save & organize links',
+  'video-downloader': 'download & save videos',
+  redirector: 'short links & redirects',
+  timezones: 'meeting times across zones',
+  admin: 'accounts & access',
+};
+
 // Only allow same-origin absolute paths under /services/ as a post-login
 // redirect target — reject scheme/host, protocol-relative (//host) and
 // backslash tricks so ?return= can't be turned into an open redirect.
@@ -42,11 +50,14 @@ function safeReturn(raw: string | null): string | null {
   return raw;
 }
 
-function returnServiceName(raw: string | null): string | null {
+function returnService(
+  raw: string | null,
+): { name: string; tagline: string | null } | null {
   const safe = safeReturn(raw);
   if (!safe) return null;
   const slug = safe.match(/^\/services\/([^/]+)/)?.[1];
-  return slug ? (SERVICE_NAMES[slug] ?? slug) : null;
+  if (!slug) return null;
+  return { name: SERVICE_NAMES[slug] ?? slug, tagline: SERVICE_TAGLINES[slug] ?? null };
 }
 
 export default function Login({ onLoggedIn }: Props) {
@@ -59,7 +70,11 @@ export default function Login({ onLoggedIn }: Props) {
     typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search).get('return')
       : null;
-  const destination = returnServiceName(returnParam);
+  const service = returnService(returnParam);
+  // Big title is always the *service* name (falling back to the hub wordmark
+  // when opened directly with no ?return), with a one-line description below.
+  const title = service?.name ?? 'negativezero';
+  const tagline = service?.tagline ?? 'one account · every service';
 
   useEffect(() => {
     let cancelled = false;
@@ -134,17 +149,13 @@ export default function Login({ onLoggedIn }: Props) {
           </div>
         </div>
         <h1 className="text-[22px] font-semibold text-white text-center mb-1">
-          negativezero
+          {title}
         </h1>
         <p
           className="text-[13px] text-center mb-5"
           style={{ color: LABEL_SECONDARY }}
         >
-          {hasPasskey
-            ? destination
-              ? `Sign in to continue to ${destination}`
-              : 'Sign in with your passkey'
-            : 'No passkey registered yet'}
+          {tagline}
         </p>
 
         {!supported && (
@@ -197,32 +208,43 @@ export default function Login({ onLoggedIn }: Props) {
           </div>
         )}
 
-        {/* Invite-code entry. Pre-bootstrap (no passkey) the prominent
-            "Register for the first time" button above already opens the
-            setup-code path; this link adds the same entry once an owner
-            passkey exists, so an invited friend with a setup code can still
-            enroll. */}
+        {/* Secondary actions as their own buttons (not faint text links) so it's
+            obvious they're tappable and distinct from the primary passkey CTA.
+            Invite-code entry: pre-bootstrap the prominent "Register for the first
+            time" button already opens this path, so these only show once an owner
+            passkey exists — an invited friend with a setup code can still enroll,
+            and a backup code can recover a lost passkey. */}
         {hasPasskey && (
-          <button
-            type="button"
-            onClick={() => setModal('first')}
-            disabled={!supported}
-            className="block mx-auto mt-4 text-[13px] disabled:opacity-50"
-            style={{ color: LABEL_TERTIARY, background: 'transparent' }}
+          <div
+            className="mt-4 pt-4 grid grid-cols-2 gap-2"
+            style={{ borderTop: `1px solid ${RING_STRONG}` }}
           >
-            Have an invite code? Register
-          </button>
-        )}
-
-        {hasPasskey && (
-          <button
-            type="button"
-            onClick={() => setModal('reset')}
-            className="block mx-auto mt-3 text-[13px]"
-            style={{ color: LABEL_TERTIARY, background: 'transparent' }}
-          >
-            Lost your passkey? Reset with backup code
-          </button>
+            <button
+              type="button"
+              onClick={() => setModal('first')}
+              disabled={!supported}
+              className="rounded-xl py-2.5 text-[13px] font-medium text-white disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                background: COLORS.surface,
+                boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
+              }}
+            >
+              <UserPlus size={15} />
+              Register
+            </button>
+            <button
+              type="button"
+              onClick={() => setModal('reset')}
+              className="rounded-xl py-2.5 text-[13px] font-medium text-white flex items-center justify-center gap-1.5"
+              style={{
+                background: COLORS.surface,
+                boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
+              }}
+            >
+              <RotateCcw size={15} />
+              Reset
+            </button>
+          </div>
         )}
       </div>
 
