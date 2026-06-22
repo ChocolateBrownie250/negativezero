@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="-6%" r="135%">
+      <stop offset="0" stop-color="#244084"/>
+      <stop offset="0.34" stop-color="#112048"/>
+      <stop offset="0.64" stop-color="#0a1330"/>
+      <stop offset="1" stop-color="#05091d"/>
+    </radialGradient>
+    <radialGradient id="bloom" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#e9c074" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#c98f3a" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#c98f3a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dial" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#f3d9a4"/>
+      <stop offset="0.5" stop-color="#e4b05a"/>
+      <stop offset="1" stop-color="#c98f3a"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="200" height="200" rx="46" fill="url(#bg)"/>
+  <circle cx="100" cy="100" r="54" fill="url(#bloom)"/>
+  <g fill="none" stroke="url(#dial)" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <circle cx="100" cy="100" r="46" stroke-width="3.4"/>
+    <path d="M100 100 L100 64" stroke-width="3.4"/>
+    <path d="M100 100 L127 111" stroke-width="3.4" opacity="0.92"/>
+  </g>
+  <circle cx="100" cy="100" r="4.4" fill="#f3d9a4"/>
+  <path d="M72 64 A46 46 0 0 1 128 64" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" opacity="0.45"/>
+</svg>
