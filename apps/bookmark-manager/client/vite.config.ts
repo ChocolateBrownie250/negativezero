@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Production builds are served under https://negativezero.one/services/bookmark-manager/
+// Production builds are served under https://negativezero.one/services/basalt/
 // (path-mounted on the apex). Dev keeps base='/' so the Vite proxy and
 // dev server work without extra plumbing.
 export default defineConfig(({ mode }) => ({
-  base: mode === 'production' ? '/services/bookmark-manager/' : '/',
+  base: mode === 'production' ? '/services/basalt/' : '/',
   plugins: [react()],
   server: {
     port: 5173,

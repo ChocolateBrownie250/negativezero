@@ -43,5 +43,5 @@ jobs:
         # The landing's only outbound app link. If someone renames the
         # bookmark-manager path, this catches it before deploy.
         run: |
-          grep -q '"/services/bookmark-manager/"' apps/landing/index.html \
-            || { echo "::error::landing no longer links to /services/bookmark-manager/"; exit 1; }
+          grep -q '"/services/basalt/"' apps/landing/index.html \
+            || { echo "::error::landing no longer links to /services/basalt/"; exit 1; }

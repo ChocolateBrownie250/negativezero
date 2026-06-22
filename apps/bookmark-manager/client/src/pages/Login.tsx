@@ -95,7 +95,7 @@ export default function Login({ onLoggedIn }: Props) {
           type="button"
           onClick={() =>
             window.location.assign(
-              '/services/admin/?return=/services/bookmark-manager/',
+              '/services/admin/?return=/services/basalt/',
             )
           }
           className="w-full rounded-xl py-3 text-white font-semibold flex items-center justify-center gap-2"

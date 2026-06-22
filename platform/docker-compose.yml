@@ -86,9 +86,11 @@ services:
     networks:
       - internal
 
-  # ── bookmark-manager ──────────────────────────────────────────
+  # ── bookmark-manager (the "Basalt" service) ───────────────────
   # Self-hosted single-user bookmark service. Mounted at
-  # negativezero.one/services/bookmark-manager/.
+  # negativezero.one/services/basalt/. The service, container, and data dir keep
+  # the bookmark-manager name (so the live SQLite bind-mount is untouched); only
+  # the public URL + brand are "Basalt".
   # SQLite file is kept on the host bind-mount; nothing else persistent.
   bookmark-manager:
     build:

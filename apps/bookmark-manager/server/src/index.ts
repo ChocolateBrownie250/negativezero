@@ -25,7 +25,7 @@ async function main() {
   });
 
   // Cookie path is derived from PUBLIC_URL's pathname so when the app is
-  // mounted under e.g. /services/bookmark-manager/ on a shared apex, the session
+  // mounted under e.g. /services/basalt/ on a shared apex, the session
   // cookie isn't sent to neighbouring tenants (Amethyst, ISG, WellFit)
   // on the same domain. Falls back to '/' for plain-domain deployments.
   let cookiePath = '/';

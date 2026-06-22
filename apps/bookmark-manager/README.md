@@ -1,6 +1,8 @@
-# bookmark-manager
+# bookmark-manager (Basalt)
 
-Single-user self-hosted bookmark service. Fastify + React, SQLite + at-rest
+Single-user self-hosted bookmark service. Branded **Basalt** and served at
+`/services/basalt/`; the folder, container, and data dir keep the
+`bookmark-manager` name. Fastify + React, SQLite + at-rest
 AES-256-GCM encryption, WebAuthn passkey auth.
 
 This is one service in the `negativezero` monorepo. For the platform shape
@@ -10,7 +12,8 @@ This is one service in the `negativezero` monorepo. For the platform shape
 - [`../../platform/deploy.sh`](../../platform/deploy.sh) — the actual deployer (idempotent)
 - [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) — platform architecture
 
-Deployed at `https://negativezero.one/services/bookmark-manager/`.
+Deployed at `https://negativezero.one/services/basalt/` (old
+`/services/bookmark-manager/` 308-redirects there).
 
 ## Layout
 
@@ -20,7 +23,7 @@ Deployed at `https://negativezero.one/services/bookmark-manager/`.
 - `client/` — React 18 + Vite + Tailwind. Apple HIG dark mode UI,
   PWA-installable on iOS.
 
-Vite `base` is set to `/services/bookmark-manager/` so asset URLs include
+Vite `base` is set to `/services/basalt/` so asset URLs include
 the prefix; the platform nginx strips the prefix before proxying to the
 container (trailing slash on both `location` and `proxy_pass`).
 
@@ -70,7 +73,7 @@ image, generates/preserves secrets in `platform/.env`, picks a free
 loopback port, installs the nginx site file, and reloads.
 
 The container listens on `127.0.0.1:3000`; nginx fronts it via the
-path-mount at `/services/bookmark-manager/`. State (SQLite + WAL) lives
+path-mount at `/services/basalt/`. State (SQLite + WAL) lives
 on a bind-mounted volume at `platform/data/bookmark-manager/`, owned by
 UID 999 (container `app` user). Backup = snapshot that directory.
 
@@ -83,7 +86,7 @@ from passkey loss.
 
 Two session paths are accepted:
 - **Per-service cookie** — a WebAuthn assertion signs a cookie scoped to
-  `/services/bookmark-manager/` (the local fallback).
+  `/services/basalt/` (the local fallback).
 - **Apex SSO** — admin is the platform SSO hub; after signing in there the
   browser carries a shared `nz_session` JWT (HS256 over `SSO_SESSION_SECRET`)
   that this service verifies. *Whether* an account may use this service is

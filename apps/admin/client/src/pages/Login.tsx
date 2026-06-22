@@ -20,7 +20,8 @@ interface Props {
 const SERVICE_NAMES: Record<string, string> = {
   amethyst: 'Amethyst',
   tts: 'Amethyst', // legacy path, kept while old /services/tts/ links redirect
-  'bookmark-manager': 'Bookmark Manager',
+  basalt: 'Basalt',
+  'bookmark-manager': 'Basalt', // legacy path, kept while old /services/bookmark-manager/ links redirect
   'video-downloader': 'Video Downloader',
   redirector: 'Redirector',
   timezones: 'Timezones',
@@ -33,6 +34,7 @@ const SERVICE_NAMES: Record<string, string> = {
 const SERVICE_TAGLINES: Record<string, string> = {
   amethyst: 'speech to text · transcriber',
   tts: 'speech to text · transcriber',
+  basalt: 'save & organize links',
   'bookmark-manager': 'save & organize links',
   'video-downloader': 'download & save videos',
   redirector: 'short links & redirects',
