@@ -305,18 +305,11 @@ describe('presentations CRUD routes', () => {
       expect(res.json()).toEqual({ error: 'invalid_document' });
     });
 
-    it('rejects an over-2MB document (413)', async () => {
-      // Pad well past the 2 MB cap with a single large text element. The element
-      // is structurally fine — only the serialized size trips a limit.
-      //
-      // NOTE: A >1 MiB body is rejected by Fastify's default bodyLimit before it
-      // ever reaches the handler, so the framework returns its own 413
-      // (FST_ERR_CTP_BODY_TOO_LARGE) rather than the handler's
-      // `{ error: 'document_too_large' }`. The status code is the contract that
-      // matters here, so we assert on 413 and tolerate either error body. See
-      // the PR description for the gap this exposes (the handler's own 413 path
-      // for 1 MiB–2 MB documents is currently unreachable over HTTP).
-      const huge = makeDocument({
+    // A document between Fastify's old 1 MiB default and the route's 2 MB cap.
+    // This would have been rejected by the framework before the bodyLimit fix;
+    // now it reaches the handler and is accepted.
+    function docOfTextSize(textLen: number) {
+      return makeDocument({
         scenes: [
           {
             id: 'big',
@@ -327,18 +320,34 @@ describe('presentations CRUD routes', () => {
                 id: 'blob',
                 type: 'body',
                 frame: { x: 0, y: 0, width: 10, height: 10 },
-                props: { text: 'x'.repeat(2_100_000) },
+                props: { text: 'x'.repeat(textLen) },
               },
             ],
           },
         ],
       });
+    }
+
+    it('accepts a 1–2 MB document (above the old 1 MiB default, under the cap)', async () => {
       const res = await inject({
         method: 'POST',
         url: '/api/presentations',
-        payload: { document: huge },
+        payload: { document: docOfTextSize(1_500_000) },
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it('rejects an over-2MB document with the handler 413 (document_too_large)', async () => {
+      // With bodyLimit raised to 4 MiB, this 2.1 MB document now reaches the
+      // handler, so its own MAX_DOC_BYTES check fires and returns the specific
+      // { error: 'document_too_large' } body — not the generic framework 413.
+      const res = await inject({
+        method: 'POST',
+        url: '/api/presentations',
+        payload: { document: docOfTextSize(2_100_000) },
       });
       expect(res.statusCode).toBe(413);
+      expect(res.json()).toEqual({ error: 'document_too_large' });
     });
 
     it('rejects an invalid document on update too (400)', async () => {
