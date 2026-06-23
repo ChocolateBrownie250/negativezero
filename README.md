@@ -12,6 +12,8 @@ apex root.
 > [`docs/DEPLOY.md`](docs/DEPLOY.md) (deploy runbook),
 > [`docs/DECISIONS.md`](docs/DECISIONS.md) (why), and
 > [`AGENTS.md`](AGENTS.md) (conventions for coding agents).
+> For the Citrine implementation status, see
+> [`docs/CITRINE_IMPLEMENTATION_REPORT.md`](docs/CITRINE_IMPLEMENTATION_REPORT.md).
 > **This repo contains zero secrets by design** — all secret material lives only
 > in `platform/.env` on the VPS (`chmod 600`).
 

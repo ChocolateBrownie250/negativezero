@@ -18,11 +18,13 @@ repo root. This file holds the strategic phased view.
 ## Current focus
 
 **No active migration focus.** The latest completed platform addition is
-Citrine at `/services/citrine/` (2026-06-23). The next strategic item remains
-Phase 3 — admin gains a "tts prompts" page for editing the cleanup and proofread
-system prompts that the tts service uses. Needs a small protocol between admin
-and tts (either a shared SQLite table or a tiny HTTP API on tts that admin
-calls).
+Citrine at `/services/citrine/` (2026-06-23); implementation details and
+remaining optional work are recorded in
+[`docs/CITRINE_IMPLEMENTATION_REPORT.md`](CITRINE_IMPLEMENTATION_REPORT.md).
+The next strategic item remains Phase 3 — admin gains a "tts prompts" page for
+editing the cleanup and proofread system prompts that the tts service uses.
+Needs a small protocol between admin and tts (either a shared SQLite table or a
+tiny HTTP API on tts that admin calls).
 
 ---
 

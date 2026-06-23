@@ -146,6 +146,8 @@ and SPA static serving all work under fastify 5.
       authenticated Claude Design source import, JSON validation, admin SSO
       authorization via the `citrine` service grant, compose/deploy/nginx
       wiring, GitHub `main` sync, CI coverage, and production smoke verification.
+      Final implementation report:
+      [`docs/CITRINE_IMPLEMENTATION_REPORT.md`](docs/CITRINE_IMPLEMENTATION_REPORT.md).
 - [x] **2026-06-18** Mobile UI polish — **Batch 1** (commits `db69761`, `57d714c`,
       `78f518e`; deployed + verified live). Fixed *why fresh UI wasn't reaching the
       device* and the clear quick wins:
