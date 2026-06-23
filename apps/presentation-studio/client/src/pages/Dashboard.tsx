@@ -1029,6 +1029,10 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  // Undo/redo history: snapshots of the document before each edit. Capped so a
+  // long session can't grow memory unbounded.
+  const pastRef = useRef<PresentationDocument[]>([]);
+  const futureRef = useRef<PresentationDocument[]>([]);
 
   useEffect(() => {
     saveStoredDocument(document);
@@ -1105,6 +1109,10 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   );
 
   function updateDocument(mutator: (draft: PresentationDocument) => void) {
+    // Snapshot the pre-edit document for undo, then clear the redo stack.
+    pastRef.current.push(document);
+    if (pastRef.current.length > 80) pastRef.current.shift();
+    futureRef.current = [];
     setDocument((current) => {
       const draft = cloneValue(current);
       mutator(draft);
@@ -1112,6 +1120,89 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
     });
     setValidation({ status: 'idle' });
   }
+
+  function undo() {
+    if (pastRef.current.length === 0) return;
+    const prev = pastRef.current.pop() as PresentationDocument;
+    futureRef.current.push(document);
+    setDocument(prev);
+    setValidation({ status: 'idle' });
+  }
+
+  function redo() {
+    if (futureRef.current.length === 0) return;
+    const next = futureRef.current.pop() as PresentationDocument;
+    pastRef.current.push(document);
+    setDocument(next);
+    setValidation({ status: 'idle' });
+  }
+
+  function nudgeSelected(dx: number, dy: number) {
+    if (!selectedElement) return;
+    patchElement({
+      frame: {
+        ...selectedElement.frame,
+        x: Math.max(0, Math.min(95, Math.round((selectedElement.frame.x + dx) * 10) / 10)),
+        y: Math.max(0, Math.min(95, Math.round((selectedElement.frame.y + dy) * 10) / 10)),
+      },
+    });
+  }
+
+  // Keyboard: ⌘Z / ⌘⇧Z undo-redo, ⌘D duplicate, Delete/Backspace remove,
+  // arrows nudge the selected element. Ignored while typing in a field.
+  useEffect(() => {
+    function isTextEntry(t: EventTarget | null): boolean {
+      const el = t as HTMLElement | null;
+      if (!el || !el.tagName) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    }
+    function onKey(e: KeyboardEvent) {
+      if (isTextEntry(e.target)) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (mod && k === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (mode !== 'edit') return;
+      if (mod && k === 'd') {
+        if (!selectedElement) return;
+        e.preventDefault();
+        duplicateElement();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
+        e.preventDefault();
+        deleteElement();
+        return;
+      }
+      if (selectedElement && e.key.startsWith('Arrow')) {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        if (e.key === 'ArrowLeft') nudgeSelected(-step, 0);
+        else if (e.key === 'ArrowRight') nudgeSelected(step, 0);
+        else if (e.key === 'ArrowUp') nudgeSelected(0, -step);
+        else if (e.key === 'ArrowDown') nudgeSelected(0, step);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // The handlers close over the state in the deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedElement, document]);
 
   async function onLogout() {
     if (isOffline) return;
