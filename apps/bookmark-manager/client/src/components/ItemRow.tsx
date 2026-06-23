@@ -76,12 +76,11 @@ function Favicon({ url, alt }: { url: string | null; alt: string }) {
   );
 }
 
-// 24px square selection indicator on the left edge of every row. Empty
-// rounded square when unselected, blue with white check when selected.
-// This checkbox is the ONLY thing that toggles selection — clicking empty
-// space on the row does nothing (per the user's request). Square shape
-// reads as a checkbox and gives a deliberate "form control" feel.
-// Hit area is padded to 36px so it's comfortably tappable on touch.
+// 24px square selection indicator on the left edge of every row — a distinct
+// tap zone for multi-select (stopPropagation, so it never triggers the row's
+// open action). Tapping anywhere else on the row opens it (HIG: a list row is
+// tappable; the trailing chevron is a disclosure indicator, not the only hit
+// target). Hit area padded to 36px so it's comfortably tappable on touch.
 function SelectionToggle({
   selected,
   onSelect,
@@ -137,7 +136,7 @@ export default function ItemRow({
   const moreRef = useRef<HTMLButtonElement | null>(null);
   const isFolder = node.type === 'folder';
   // null for non-http(s) URLs — see externalLinkHref. Used to decide whether
-  // to render the open-bookmark control as a live link or a disabled span.
+  // the open target is a live link or an inert (disabled) element.
   const safeHref = isFolder ? null : externalLinkHref(node.url);
 
   // Drop-target highlight wins over selection visual: it's the foreground
@@ -147,6 +146,56 @@ export default function ItemRow({
     : selected
       ? 'rgba(91,147,240,0.18)'
       : 'transparent';
+
+  // The full-row tap target: icon + title/subtitle + a trailing disclosure
+  // indicator. Shared between the folder (button → navigate) and bookmark
+  // (anchor → open link) variants so the whole row reads as one tappable cell.
+  const openTargetClass =
+    'flex-1 flex items-center gap-3 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer';
+  const inner = (
+    <>
+      {isFolder ? (
+        <span
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+          style={{
+            background: COLORS.surface,
+            boxShadow: `inset 0 0 0 1px ${RING_SUBTLE}`,
+          }}
+        >
+          <Folder size={20} color={COLORS.blue} fill={COLORS.blue} />
+        </span>
+      ) : (
+        <Favicon url={node.faviconUrl} alt={node.name} />
+      )}
+      <span className="flex-1 min-w-0 block">
+        <span
+          className="text-[15px] font-medium truncate block"
+          style={{ color: LABEL_PRIMARY }}
+        >
+          {node.name}
+        </span>
+        <span
+          className="text-[13px] truncate block"
+          style={{ color: LABEL_SECONDARY }}
+        >
+          {isFolder
+            ? itemCount === 0
+              ? 'Empty'
+              : `${itemCount} item${itemCount === 1 ? '' : 's'}`
+            : hostFromUrl(node.url)}
+        </span>
+      </span>
+      {/* Trailing disclosure indicator (decorative — the whole row is the hit
+          target): chevron for folders, open-in-new for bookmarks. */}
+      <span
+        className="w-6 h-9 flex items-center justify-center shrink-0"
+        style={{ color: LABEL_TERTIARY, opacity: !isFolder && !safeHref ? 0.4 : 1 }}
+        aria-hidden="true"
+      >
+        {isFolder ? <ChevronRight size={20} /> : <ExternalLink size={18} />}
+      </span>
+    </>
+  );
 
   return (
     <div
@@ -182,6 +231,8 @@ export default function ItemRow({
         />
       )}
       <SelectionToggle selected={selected} onSelect={onSelect} />
+
+      {/* Primary action: tap the row to enter the folder / open the bookmark. */}
       {isFolder ? (
         <button
           type="button"
@@ -190,49 +241,10 @@ export default function ItemRow({
             e.stopPropagation();
             onOpenFolder?.();
           }}
-          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 cursor-pointer"
-          style={{
-            background: COLORS.surface,
-            boxShadow: `inset 0 0 0 1px ${RING_SUBTLE}`,
-          }}
-          aria-label="Open folder"
-          title="Open folder"
+          className={openTargetClass}
+          aria-label={`Open folder ${node.name}`}
         >
-          <Folder size={20} color={COLORS.blue} fill={COLORS.blue} />
-        </button>
-      ) : (
-        <Favicon url={node.faviconUrl} alt={node.name} />
-      )}
-      <div className="flex-1 min-w-0">
-        <div
-          className="text-[15px] font-medium truncate"
-          style={{ color: LABEL_PRIMARY }}
-        >
-          {node.name}
-        </div>
-        <div className="text-[13px] truncate" style={{ color: LABEL_SECONDARY }}>
-          {isFolder
-            ? itemCount === 0
-              ? 'Empty'
-              : `${itemCount} item${itemCount === 1 ? '' : 's'}`
-            : hostFromUrl(node.url)}
-        </div>
-      </div>
-      {/* Primary action: enter folder / open bookmark */}
-      {isFolder ? (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onOpenFolder?.();
-          }}
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{ color: LABEL_TERTIARY }}
-          aria-label="Open folder"
-          title="Open folder"
-        >
-          <ChevronRight size={20} />
+          {inner}
         </button>
       ) : safeHref ? (
         <a
@@ -241,30 +253,29 @@ export default function ItemRow({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.stopPropagation()}
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{ color: LABEL_TERTIARY, textDecoration: 'none' }}
-          aria-label="Open bookmark"
-          title="Open in new tab"
+          className={openTargetClass}
+          style={{ textDecoration: 'none' }}
+          aria-label={`Open ${node.name}`}
         >
-          <ExternalLink size={18} />
+          {inner}
         </a>
       ) : (
-        // Defense-in-depth: a non-http(s) URL is never rendered as a live
-        // link. Show the icon disabled so a hostile javascript:/data: URL
-        // that slipped past the server can't be clicked into execution.
-        <span
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{ color: LABEL_TERTIARY, opacity: 0.4 }}
+        // Defense-in-depth: a non-http(s) URL is never a live link. Render an
+        // inert row so a hostile javascript:/data: URL that slipped past the
+        // server can't be tapped into execution.
+        <div
+          className="flex-1 flex items-center gap-3 min-w-0 text-left"
           aria-label="Link unavailable"
           title="This link can't be opened"
         >
-          <ExternalLink size={18} />
-        </span>
+          {inner}
+        </div>
       )}
+
       {/* Reorder grip — visible only on desktop (when draggable=true).
           Drag-starts from this element are routed to reorder mode in
           BookmarkManager via the data-drag-handle attribute. Clicks are
-          swallowed so it doesn't toggle row selection accidentally. */}
+          swallowed so it doesn't open the row accidentally. */}
       {draggable && (
         <span
           data-drag-handle="1"
@@ -277,7 +288,8 @@ export default function ItemRow({
           <GripVertical size={18} />
         </span>
       )}
-      {/* Per-row actions menu (existing 3-dot) */}
+
+      {/* Per-row actions menu (3-dot) */}
       <button
         ref={moreRef}
         type="button"

@@ -1051,7 +1051,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
           className="text-[12px] text-center mt-4"
           style={{ color: LABEL_TERTIARY }}
         >
-          Tap the checkbox to select. Use the arrow on the right to open.
+          Tap to open · tap the box to select.
         </p>
       </div>
 
