@@ -1,30 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Basalt">
+  <!-- Basalt: hexagonal columnar jointing (the Giant's-Causeway look) — three
+       blue 3D basalt columns on the platform's deep-blue field. Full-bleed
+       square (no baked corners) so it's safe as a maskable PWA icon. -->
   <defs>
-    <radialGradient id="bg" cx="50%" cy="-6%" r="135%">
-      <stop offset="0" stop-color="#1a5048"/>
-      <stop offset="0.34" stop-color="#112048"/>
-      <stop offset="0.64" stop-color="#0a1330"/>
-      <stop offset="1" stop-color="#05091d"/>
-    </radialGradient>
-    <radialGradient id="bloom" cx="50%" cy="48%" r="50%">
-      <stop offset="0" stop-color="#5fe0b4" stop-opacity="0.48"/>
-      <stop offset="0.55" stop-color="#2f9d7a" stop-opacity="0.15"/>
-      <stop offset="1" stop-color="#2f9d7a" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="stroke" x1="0.2" y1="0" x2="0.8" y2="1">
-      <stop offset="0" stop-color="#eafff7"/>
-      <stop offset="0.5" stop-color="#5fe0b4"/>
-      <stop offset="1" stop-color="#2f9d7a"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#13245c"/>
+      <stop offset=".52" stop-color="#0a1430"/>
+      <stop offset="1" stop-color="#050a18"/>
     </linearGradient>
-    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="2.6" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
+    <radialGradient id="glow" cx=".5" cy=".1" r=".75">
+      <stop offset="0" stop-color="#3a6ce6" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#3a6ce6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="floor" cx=".5" cy=".86" r=".4">
+      <stop offset="0" stop-color="#5b93f0" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#5b93f0" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <rect width="200" height="200" rx="46" fill="url(#bg)"/>
-  <ellipse cx="100" cy="104" rx="54" ry="60" fill="url(#bloom)"/>
-  <g fill="none" stroke="url(#stroke)" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)">
-    <path d="M74 60 Q74 56 78 56 L122 56 Q126 56 126 60 L126 150 L100 128 L74 150 Z"/>
-  </g>
-  <path d="M82 62 L118 62" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" opacity="0.5"/>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <ellipse cx="256" cy="430" rx="150" ry="34" fill="url(#floor)"/>
+  <!-- left column -->
+  <polygon points="198,255 174,296.6 174,406.6 198,365" fill="#34539e"/>
+  <polygon points="174,296.6 126,296.6 126,406.6 174,406.6" fill="#1c386f"/>
+  <polygon points="126,296.6 102,255 102,365 126,406.6" fill="#274583"/>
+  <polygon points="198,255 174,296.6 126,296.6 102,255 126,213.4 174,213.4" fill="#4a73c8"/>
+  <!-- right column -->
+  <polygon points="410,240 386,281.6 386,406.6 410,365" fill="#34539e"/>
+  <polygon points="386,281.6 338,281.6 338,406.6 386,406.6" fill="#1c386f"/>
+  <polygon points="338,281.6 314,240 314,365 338,406.6" fill="#274583"/>
+  <polygon points="410,240 386,281.6 338,281.6 314,240 338,198.4 386,198.4" fill="#4a73c8"/>
+  <!-- center column (front) -->
+  <polygon points="320,205 288,260.4 288,410.4 320,355" fill="#3565d8"/>
+  <polygon points="288,260.4 224,260.4 224,410.4 288,410.4" fill="#1f3d77"/>
+  <polygon points="224,260.4 192,205 192,355 224,410.4" fill="#2c5fdd"/>
+  <polygon points="320,205 288,260.4 224,260.4 192,205 224,149.6 288,149.6" fill="#7aa6ff"/>
+  <polygon points="320,205 288,149.6 224,149.6 192,205" fill="#a9c6ff" fill-opacity=".35"/>
 </svg>
