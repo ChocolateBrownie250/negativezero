@@ -1,10 +1,19 @@
 export type NodeType = 'folder' | 'bookmark';
 
+// A custom node icon: exactly one of `emoji` or `lucide` (a name from the
+// client's fixed icon set in lib/nodeIcons), shown on the `bg` background.
+export interface NodeIcon {
+  emoji?: string;
+  lucide?: string;
+  bg: string;
+}
+
 export interface FolderNode {
   id: string;
   parentId: string | null;
   type: 'folder';
   name: string;
+  icon: NodeIcon | null;
   position: number;
   createdAt: number;
   updatedAt: number;
@@ -17,6 +26,7 @@ export interface BookmarkNode {
   name: string;
   url: string;
   faviconUrl: string | null;
+  icon: NodeIcon | null;
   position: number;
   createdAt: number;
   updatedAt: number;
@@ -49,6 +59,7 @@ export function buildTree(nodes: ApiNode[]): TreeFolder {
         parentId: null,
         type: 'folder',
         name: 'Bookmarks',
+        icon: null,
         position: 0,
         createdAt: 0,
         updatedAt: 0,

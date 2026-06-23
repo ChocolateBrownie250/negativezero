@@ -27,6 +27,7 @@ import {
   countItems,
   findFolder,
   type ApiNode,
+  type NodeIcon,
   type TreeFolder,
   type TreeNode,
 } from '../lib/tree';
@@ -44,6 +45,7 @@ import SelectionToolbar from './SelectionToolbar';
 import AddMenu from './menus/AddMenu';
 import OptionsMenu from './menus/OptionsMenu';
 import RowActionsMenu from './menus/RowActionsMenu';
+import IconPicker from './IconPicker';
 import ContextMenu from './menus/ContextMenu';
 import MenuItem from './menus/MenuItem';
 import BookmarkModal from './modals/BookmarkModal';
@@ -135,6 +137,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
   const [addMenuAnchor, setAddMenuAnchor] = useState<HTMLElement | null>(null);
   const [optionsAnchor, setOptionsAnchor] = useState<HTMLElement | null>(null);
   const [rowMenu, setRowMenu] = useState<RowMenuState>(null);
+  const [iconPicker, setIconPicker] = useState<RowMenuState>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -371,6 +374,13 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     // Detect mode: dragstart fired from inside the GripVertical handle
     // means "reorder", otherwise "move".
     const target = e.target as HTMLElement | null;
+    // Functional controls (icon button, open button, ⋯ menu, checkbox) never
+    // start a move-drag — only the card body and the grip do. The grip is a
+    // <span data-drag-handle>, not a button, so it's unaffected by this guard.
+    if (target?.closest('button, a')) {
+      e.preventDefault();
+      return;
+    }
     const isReorder = !!target?.closest('[data-drag-handle]');
 
     // If the dragged row is in the existing selection, drag the whole
@@ -731,6 +741,16 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     }
   }
 
+  async function setNodeIcon(id: string, icon: NodeIcon | null) {
+    try {
+      await api.patchNode(id, { icon });
+      await refetch();
+    } catch (err) {
+      if (handleApiError(err)) return;
+      setToast('Could not update icon');
+    }
+  }
+
   async function renameNode(id: string, name: string, url?: string) {
     try {
       await api.patchNode(id, url ? { name, url } : { name });
@@ -980,6 +1000,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     totalCount === 0 ? 'Empty' : `${totalCount} item${totalCount === 1 ? '' : 's'}`;
 
   const rowMenuNode = rowMenu ? nodeById(rowMenu.nodeId) : null;
+  const iconPickerNode = iconPicker ? nodeById(iconPicker.nodeId) : null;
   const renameNodeRef = modal?.kind === 'rename' ? nodeById(modal.nodeId) : null;
 
   // Used by the SelectionToolbar's "Open all" button: count how many of
@@ -1118,6 +1139,9 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
                 onOpenActions={(anchorEl) =>
                   setRowMenu({ anchor: anchorEl, nodeId: child.id })
                 }
+                onOpenIconPicker={(anchorEl) =>
+                  setIconPicker({ anchor: anchorEl, nodeId: child.id })
+                }
                 onDragStart={(e) => onRowDragStart(child.id, e)}
                 onDragEnd={onRowDragEnd}
                 onDragOver={(e) =>
@@ -1173,6 +1197,14 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
           onPasteLinks={() => setModal({ kind: 'paste-links' })}
           onLogout={logout}
           exportDisabled={countItems(tree) === 0}
+        />
+      )}
+      {iconPicker && iconPickerNode && (
+        <IconPicker
+          anchorEl={iconPicker.anchor}
+          current={iconPickerNode.icon}
+          onPick={(icon) => void setNodeIcon(iconPicker.nodeId, icon)}
+          onClose={() => setIconPicker(null)}
         />
       )}
       {rowMenu && rowMenuNode && (

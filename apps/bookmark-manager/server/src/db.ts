@@ -22,6 +22,7 @@ db.exec(`
     name        TEXT NOT NULL,
     url         TEXT,
     favicon_url TEXT,
+    icon        TEXT,
     position    INTEGER NOT NULL DEFAULT 0,
     created_at  INTEGER NOT NULL,
     updated_at  INTEGER NOT NULL
@@ -46,6 +47,17 @@ db.exec(`
     updated_at INTEGER NOT NULL
   );
 `);
+
+// Additive migrations for databases created before a column existed
+// (CREATE TABLE IF NOT EXISTS never alters an existing table). Idempotent.
+{
+  const cols = (
+    db.prepare('PRAGMA table_info(nodes)').all() as { name: string }[]
+  ).map((c) => c.name);
+  // Per-node custom icon: an emoji or a named icon on a chosen background
+  // color, stored as encrypted JSON (e.g. {"emoji":"🚀","bg":"#5b93f0"}).
+  if (!cols.includes('icon')) db.exec('ALTER TABLE nodes ADD COLUMN icon TEXT');
+}
 
 export type CredentialRow = {
   id: string;
@@ -136,41 +148,72 @@ export type DbNodeRow = {
   name: string;
   url: string | null;
   favicon_url: string | null;
+  icon: string | null;
   position: number;
   created_at: number;
   updated_at: number;
 };
 
+// A custom node icon: exactly one of `emoji` or `lucide` (a named icon from the
+// client's fixed set), shown on the `bg` background color.
+export type NodeIcon = { emoji?: string; lucide?: string; bg: string };
+
+type ApiBase = {
+  icon: NodeIcon | null;
+  position: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type ApiNode =
-  | {
+  | ({
       id: string;
       parentId: string | null;
       type: 'folder';
       name: string;
-      position: number;
-      createdAt: number;
-      updatedAt: number;
-    }
-  | {
+    } & ApiBase)
+  | ({
       id: string;
       parentId: string;
       type: 'bookmark';
       name: string;
       url: string;
       faviconUrl: string | null;
-      position: number;
-      createdAt: number;
-      updatedAt: number;
-    };
+    } & ApiBase);
+
+// Decrypt + parse the stored icon JSON. Returns null for absent/invalid data so
+// a corrupt value can never crash a tree read.
+function parseIcon(raw: string | null): NodeIcon | null {
+  const dec = decryptNullable(raw);
+  if (!dec) return null;
+  try {
+    const o = JSON.parse(dec) as Record<string, unknown>;
+    if (
+      o &&
+      typeof o.bg === 'string' &&
+      (typeof o.emoji === 'string' || typeof o.lucide === 'string')
+    ) {
+      const icon: NodeIcon = { bg: o.bg };
+      if (typeof o.emoji === 'string') icon.emoji = o.emoji;
+      else if (typeof o.lucide === 'string') icon.lucide = o.lucide;
+      return icon;
+    }
+  } catch {
+    // ignore malformed icon JSON
+  }
+  return null;
+}
 
 export function rowToApi(row: DbNodeRow): ApiNode {
   const name = decryptNullable(row.name) ?? '';
+  const icon = parseIcon(row.icon);
   if (row.type === 'folder') {
     return {
       id: row.id,
       parentId: row.parent_id,
       type: 'folder',
       name,
+      icon,
       position: row.position,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -183,6 +226,7 @@ export function rowToApi(row: DbNodeRow): ApiNode {
     name,
     url: decryptNullable(row.url) ?? '',
     faviconUrl: decryptNullable(row.favicon_url),
+    icon,
     position: row.position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
