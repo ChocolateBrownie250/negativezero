@@ -878,10 +878,66 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const stageSwipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const skipNextStageClickRef = useRef(false);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     saveStoredDocument(document);
   }, [document]);
+
+  // Cross-device persistence: on mount, adopt the owner's most-recent saved
+  // presentation from the server (the source of truth across devices), or
+  // create one from the current local document if none exists yet. Offline or
+  // unauthenticated, we keep working from the localStorage copy loaded above.
+  useEffect(() => {
+    if (isOffline) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { presentations } = await api.presentations.list();
+        if (cancelled) return;
+        if (presentations.length > 0) {
+          const loaded = await api.presentations.get(presentations[0].id);
+          if (cancelled) return;
+          const doc = loaded.document as PresentationDocument;
+          if (doc?.version === 1 && Array.isArray(doc.scenes)) {
+            setDocument(doc);
+            setSelectedSceneId(doc.scenes[0]?.id ?? '');
+            setSelectedElementId(doc.scenes[0]?.elements[0]?.id ?? null);
+          }
+          setCurrentId(loaded.id);
+        } else {
+          const created = await api.presentations.create(document);
+          if (cancelled) return;
+          setCurrentId(created.id);
+        }
+      } catch (err) {
+        if (err instanceof UnauthorizedError) onUnauthorized();
+        // else: keep working locally; saves resume when the server is reachable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Mount-only — intentionally does not re-run on document changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced save to the server on every document change (the instant
+  // localStorage mirror above keeps offline edits safe meanwhile).
+  useEffect(() => {
+    if (isOffline || !currentId) return;
+    if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+    serverSaveTimer.current = setTimeout(() => {
+      void api.presentations.save(currentId, document).catch((err) => {
+        if (err instanceof UnauthorizedError) onUnauthorized();
+        // else: transient — the next edit retries.
+      });
+    }, 800);
+    return () => {
+      if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+    };
+  }, [document, currentId, isOffline, onUnauthorized]);
 
   useEffect(() => {
     window.localStorage.setItem(EDIT_LEVEL_STORAGE_KEY, editLevel);

@@ -105,4 +105,29 @@ export const api = {
         body: JSON.stringify({ document }),
       }),
   },
+  // Server-side, owner-scoped saved presentations (cross-device persistence).
+  presentations: {
+    list: () =>
+      request<{
+        presentations: Array<{ id: string; title: string; updatedAt: number }>;
+      }>('/api/presentations'),
+    create: (document: unknown) =>
+      request<{ id: string; title: string; updatedAt: number }>('/api/presentations', {
+        method: 'POST',
+        body: JSON.stringify({ document }),
+      }),
+    get: (id: string) =>
+      request<{ id: string; title: string; document: unknown; updatedAt: number }>(
+        `/api/presentations/${encodeURIComponent(id)}`,
+      ),
+    save: (id: string, document: unknown) =>
+      request<{ ok: true; title: string; updatedAt: number }>(
+        `/api/presentations/${encodeURIComponent(id)}`,
+        { method: 'PUT', body: JSON.stringify({ document }) },
+      ),
+    remove: (id: string) =>
+      request<{ ok: true }>(`/api/presentations/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+  },
 };

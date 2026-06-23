@@ -27,6 +27,21 @@ db.exec(`
     v          TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  -- Saved presentations, scoped per owner identity ('owner' for the local
+  -- passkey, or the SSO account id). The document is the full presentation
+  -- JSON. CREATE TABLE IF NOT EXISTS adds this cleanly to existing DBs.
+  CREATE TABLE IF NOT EXISTS presentations (
+    id          TEXT PRIMARY KEY,
+    owner       TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    document    TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_presentations_owner
+    ON presentations(owner, updated_at DESC);
 `);
 
 export type CredentialRow = {
@@ -37,4 +52,13 @@ export type CredentialRow = {
   device_name: string | null;
   created_at: number;
   last_used: number | null;
+};
+
+export type PresentationRow = {
+  id: string;
+  owner: string;
+  title: string;
+  document: string;
+  created_at: number;
+  updated_at: number;
 };
