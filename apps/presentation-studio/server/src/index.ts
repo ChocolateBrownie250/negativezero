@@ -58,6 +58,17 @@ export async function createApp() {
     { prefix: '/api' },
   );
 
+  // The HTML shell + manifest must revalidate every load, or a deploy's new
+  // hashed asset refs stay pinned for up to the static maxAge. Hashed /assets/*
+  // keep the long cache. Matches the platform convention used across services.
+  app.addHook('onSend', async (req, reply, payload) => {
+    const ct = String(reply.getHeader('content-type') || '');
+    if (ct.includes('text/html') || req.url.split('?')[0].endsWith('.webmanifest')) {
+      reply.header('cache-control', 'no-cache, must-revalidate');
+    }
+    return payload;
+  });
+
   if (fs.existsSync(config.clientDist)) {
     app.get('/sw.js', async (_req, reply) => {
       const swPath = path.join(config.clientDist, 'sw.js');

@@ -1,4 +1,4 @@
-const CACHE = 'citrine-shell-v1';
+const CACHE = 'citrine-shell-v2';
 const SHELL = [
   './',
   './index.html',

@@ -1,20 +1,23 @@
-// Apple HIG dark-mode palette, kept in sync with bookmark-manager so the
-// two services look like one platform.
+// Deep-blue "liquid glass" dark theme — the shared negativezero platform
+// palette (Amethyst / Basalt / admin / redirector / video-downloader). The base
+// was re-pointed from the old Apple-HIG greyscale so Citrine's editor chrome
+// matches every other service. `accent` is kept as Citrine's warm gem highlight
+// (used for element/selection accents in the editor) — its identity color.
 export const COLORS = {
-  bg: '#0a0a0d',
-  surface: '#17171b',
-  card: '#1c1c21',
-  ink: '#f5f5f7',
-  muted: '#86868b',
-  accent: '#f2552f',
-  blue: '#0a84ff',
-  green: '#30d158',
-  red: '#ff453a',
+  bg: '#03050d',      // near-black, blue cast
+  surface: '#121d3a', // raised blue
+  card: '#0d1730',    // deep-blue panel
+  ink: '#eef2fa',
+  muted: '#6b7491',
+  accent: '#f2552f',  // citrine warm accent (element/selection highlight) — kept
+  blue: '#5b93f0',
+  green: '#56e0b0',
+  red: '#ff6a86',
   yellow: '#ffd60a',
 };
 
-export const RING_STRONG = 'rgba(255, 255, 255, 0.08)';
-export const RING_SUBTLE = 'rgba(255, 255, 255, 0.04)';
+export const RING_STRONG = 'rgba(150, 178, 235, 0.16)';
+export const RING_SUBTLE = 'rgba(150, 178, 235, 0.09)';
 export const LABEL_PRIMARY = COLORS.ink;
-export const LABEL_SECONDARY = '#a1a1a6';
+export const LABEL_SECONDARY = '#9aa4bd';
 export const LABEL_TERTIARY = COLORS.muted;
