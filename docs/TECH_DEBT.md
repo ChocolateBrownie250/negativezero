@@ -32,8 +32,8 @@ PRs and may not exist yet in this branch.
 | 2 | Admin tests never run in CI | CI gaps | High | ✅ Resolved (#137) |
 | 3 | Operator key-rotation backlog | Operational | High | ⏳ Operator action |
 | 4 | Untested new routes (Citrine CRUD, Basalt clone/icon) | Test coverage | High | ✅ Resolved (#132, #135; +#141, #142) |
-| 5 | Copy-pasted shared modules, no workspace package | Duplication | Med | Open — deferred (depends on #8) |
-| 6 | `Dashboard.tsx` monolith (~2.5k lines) | Maintainability | Med | Open — track with Citrine Phase 5 |
+| 5 | Copy-pasted shared modules, no workspace package | Duplication | Med | ◑ Audited: drift is cosmetic, no security gap; extraction deferred |
+| 6 | `Dashboard.tsx` monolith (~2.5k lines) | Maintainability | Med | ◑ Started (#147); rest → Citrine Phase 5 |
 | 7 | Citrine dual persistence (localStorage + server) | Maintainability | Med | ◑ Decision recorded; code precedence pending |
 | 8 | No root workspace / shared tooling baseline | Duplication | Med | Open — deferred (breaks per-service Docker `npm ci`) |
 | 9 | Stray iCloud `" 2"` duplicate assets | Housekeeping | Low | ✅ Resolved (#144) |
@@ -50,6 +50,21 @@ PRs and may not exist yet in this branch.
 > workspace/shared-package work would change the per-service Docker build model,
 > so it needs a deliberate, separately-reviewed effort, not an autonomous sweep).
 > Item **3** is operator-only.
+
+> **Update log — 2026-06-23 follow-up round.** Item **5**: the duplicated
+> security modules were **audited for drift** — every `ssoSession.ts` copy
+> fails closed on an empty secret, every `authz.ts` copy fails closed (`deny`)
+> on an admin error, every passkey `auth.ts` verifies `expectedOrigin` +
+> `expectedRPID`, and `codes.ts` diverges by *purpose* (registration vs backup
+> codes), not by a missed fix. So the drift is cosmetic/structural and the
+> "silent hole" risk is **not realized today** — that removes the security
+> urgency from the extraction (it stays deferred as pure maintenance). Item
+> **6**: the first safe slice landed — 14 pure element helpers extracted to
+> `apps/presentation-studio/client/src/lib/elementHelpers.ts` (#147); the
+> heavyweight component blocks are sequenced into Phase 5. The pre-existing
+> Dependabot bumps (#95–#104) were reviewed (incl. the runtime majors
+> node-html-parser 7→8 and @fastify/rate-limit 10→11, both safe for their
+> actual usage) and merged.
 
 ---
 
