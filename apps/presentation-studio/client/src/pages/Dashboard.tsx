@@ -40,6 +40,7 @@ import {
   cloneValue,
   elementDefinitions,
   newElement,
+  blankDocument,
   seedDocument,
   slug,
   type Action,
@@ -1040,8 +1041,13 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const stageSwipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const skipNextStageClickRef = useRef(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [decks, setDecks] = useState<
+    Array<{ id: string; title: string; updatedAt: number }>
+  >([]);
+  const [decksOpen, setDecksOpen] = useState(false);
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const decksRef = useRef<HTMLDivElement | null>(null);
   // Undo/redo history: snapshots of the document before each edit. Capped so a
   // long session can't grow memory unbounded. suspendHistoryRef groups a
   // continuous gesture (a drag) into a single undo step (snapshot once at the
@@ -1066,6 +1072,7 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
       try {
         const { presentations } = await api.presentations.list();
         if (cancelled) return;
+        setDecks(presentations);
         if (presentations.length > 0) {
           const loaded = await api.presentations.get(presentations[0].id);
           if (cancelled) return;
@@ -1080,6 +1087,9 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
           const created = await api.presentations.create(document);
           if (cancelled) return;
           setCurrentId(created.id);
+          setDecks([
+            { id: created.id, title: created.title, updatedAt: created.updatedAt },
+          ]);
         }
       } catch (err) {
         if (err instanceof UnauthorizedError) onUnauthorized();
@@ -1156,6 +1166,81 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   function endHistoryGroup() {
     suspendHistoryRef.current = false;
   }
+
+  // ---- Decks (multiple saved presentations) ------------------------
+
+  async function refreshDecks() {
+    try {
+      const { presentations } = await api.presentations.list();
+      setDecks(presentations);
+    } catch {
+      /* keep the current list */
+    }
+  }
+
+  function loadDocumentInto(doc: PresentationDocument, id: string) {
+    pastRef.current = [];
+    futureRef.current = [];
+    setDocument(doc);
+    setCurrentId(id);
+    setSelectedSceneId(doc.scenes[0]?.id ?? '');
+    setSelectedElementId(doc.scenes[0]?.elements[0]?.id ?? null);
+    setValidation({ status: 'idle' });
+  }
+
+  async function newDeck() {
+    setDecksOpen(false);
+    if (isOffline) return;
+    const doc = blankDocument('Untitled presentation', String(Date.now()));
+    try {
+      const created = await api.presentations.create(doc);
+      loadDocumentInto(doc, created.id);
+      void refreshDecks();
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+    }
+  }
+
+  async function switchDeck(id: string) {
+    setDecksOpen(false);
+    if (id === currentId || isOffline) return;
+    try {
+      const loaded = await api.presentations.get(id);
+      const doc = loaded.document as PresentationDocument;
+      if (doc?.version === 1 && Array.isArray(doc.scenes)) {
+        loadDocumentInto(doc, loaded.id);
+      }
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+    }
+  }
+
+  async function deleteDeck(id: string) {
+    if (isOffline) return;
+    try {
+      await api.presentations.remove(id);
+      const remaining = decks.filter((d) => d.id !== id);
+      setDecks(remaining);
+      if (id === currentId) {
+        if (remaining.length > 0) await switchDeck(remaining[0].id);
+        else await newDeck();
+      }
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+    }
+  }
+
+  // Close the decks menu when clicking outside it.
+  useEffect(() => {
+    if (!decksOpen) return;
+    function onDown(e: MouseEvent) {
+      if (decksRef.current && !decksRef.current.contains(e.target as Node)) {
+        setDecksOpen(false);
+      }
+    }
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [decksOpen]);
 
   function undo() {
     if (pastRef.current.length === 0) return;
@@ -1583,6 +1668,70 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
             <p className="text-[12px] truncate" style={{ color: LABEL_TERTIARY }}>
               {document.title} · {document.source.status === 'imported' ? 'Claude Design source imported' : 'MCP import pending'}
             </p>
+          </div>
+
+          <div className="relative" ref={decksRef}>
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={() => {
+                setDecksOpen((o) => !o);
+                void refreshDecks();
+              }}
+              disabled={isOffline}
+              aria-haspopup="menu"
+              aria-expanded={decksOpen}
+            >
+              <LayoutTemplate size={14} /> Decks
+            </button>
+            {decksOpen && (
+              <div
+                className="absolute left-0 mt-2 z-50 w-64 rounded-xl overflow-hidden"
+                style={{
+                  background: 'rgba(18,22,32,0.98)',
+                  boxShadow: `0 16px 40px rgba(0,1,8,0.6), inset 0 0 0 1px ${RING_STRONG}`,
+                }}
+                role="menu"
+              >
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2.5 text-[13px] font-medium flex items-center gap-2 hover:bg-white/5"
+                  style={{ color: COLORS.accent }}
+                  onClick={() => void newDeck()}
+                >
+                  <Plus size={14} /> New presentation
+                </button>
+                <div style={{ height: 1, background: RING_SUBTLE }} />
+                <div className="max-h-64 overflow-auto py-1">
+                  {decks.length === 0 && (
+                    <div className="px-3 py-2 text-[12px]" style={{ color: LABEL_TERTIARY }}>
+                      No saved presentations yet.
+                    </div>
+                  )}
+                  {decks.map((d) => (
+                    <div key={d.id} className="flex items-center">
+                      <button
+                        type="button"
+                        className="flex-1 text-left px-3 py-2 text-[13px] truncate hover:bg-white/5"
+                        style={{ color: d.id === currentId ? COLORS.accent : LABEL_SECONDARY }}
+                        onClick={() => void switchDeck(d.id)}
+                      >
+                        {d.title || 'Untitled'}
+                      </button>
+                      <button
+                        type="button"
+                        className="px-2 py-2 hover:bg-white/5"
+                        style={{ color: LABEL_TERTIARY }}
+                        aria-label={`Delete ${d.title || 'Untitled'}`}
+                        onClick={() => void deleteDeck(d.id)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
