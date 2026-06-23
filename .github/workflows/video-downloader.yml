@@ -1,0 +1,78 @@
+name: video-downloader
+
+# CI for the video-downloader service. Runs typecheck + tests + build, and
+# validates the Dockerfile can produce a runnable image. Mirrors
+# redirector.yml (the nearest Fastify+React service). ffmpeg is a runtime
+# dependency baked into the Dockerfile's runtime stage, so no CI-side ffmpeg
+# setup is needed — the smoke step exercises the same image prod ships.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/video-downloader/**'
+      - '.github/workflows/video-downloader.yml'
+  pull_request:
+    paths:
+      - 'apps/video-downloader/**'
+      - '.github/workflows/video-downloader.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/video-downloader
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          # Node 22 in lockstep with the other TS services + the Dockerfile.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/video-downloader/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck + build (client + server)
+        run: npm run build
+
+      - name: server tests
+        run: npm -w server test
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/video-downloader
+          push: false
+          load: true
+          tags: negativezero-video-downloader:ci
+          cache-from: type=gha,scope=video-downloader
+          cache-to: type=gha,scope=video-downloader,mode=max
+
+      - name: smoke-test image starts
+        # Boot the container with stub secrets and confirm it survives config
+        # validation and answers the health route. The runtime image bundles
+        # ffmpeg, so a started container is a faithful prod check; a real
+        # download needs a passkey session, which is out of scope for CI.
+        run: |
+          docker run --rm --name vd-smoke -d \
+            -e SESSION_SECRET=$(openssl rand -hex 32) \
+            -e SETUP_CODE_HASH='$2b$12$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRS' \
+            -e PUBLIC_URL=http://localhost:3000 \
+            -p 3000:3000 \
+            negativezero-video-downloader:ci
+          sleep 5
+          docker logs vd-smoke
+          docker ps --filter name=vd-smoke --filter status=running --format '{{.Names}}' | grep -q vd-smoke
+          curl -fsS --retry 5 --retry-delay 1 --retry-connrefused http://localhost:3000/api/health
+          docker stop vd-smoke
