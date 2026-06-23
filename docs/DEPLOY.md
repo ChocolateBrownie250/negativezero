@@ -6,7 +6,10 @@ Nothing here needs secrets in the repo; the only secret to supply is the Groq ke
 
 > Context: this rolls out the multi-account + per-service authorization work
 > (PR #76) plus the salvaged landing redesign and bookmark-manager liquid-glass
-> UI. There is **no auto-deploy** — CI only validates; the box is updated here.
+> UI. **Auto-deploy is live** (PR #84): every merge to `main` rsyncs the tree to
+> the box and runs `platform/deploy.sh` via `.github/workflows/deploy.yml`. This
+> runbook is the **manual** path — for first-time setup, recovery, or deploying
+> from the desktop without going through CI.
 
 ## 0. Preconditions
 - You reach the VPS as `ssh wellfit` (= root@45.76.88.245). The operator's key on
