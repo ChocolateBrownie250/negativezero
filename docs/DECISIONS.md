@@ -12,6 +12,40 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-23 — Citrine persistence: server is the source of truth, localStorage is an offline cache
+
+Server-side per-presentation storage landed for Citrine: owner-scoped
+`/api/presentations` CRUD backed by better-sqlite3 (see
+`apps/presentation-studio/server/src/routes/presentations.ts`). This is exactly
+the "server-side multi-project storage" that the earlier 2026-06-23 entry below
+("Citrine as a web-native presentation editor service") named as a reason to
+extend the document model — so this entry records how the two persistence
+layers now relate.
+
+**Decision:** the server is the source of truth; the browser `localStorage`
+store (`apps/presentation-studio/client/src/lib/storage.ts`, key
+`negativezero:citrine:v1`) is an offline cache, not a second authority. The
+client may hydrate from localStorage for instant/offline first paint, but an
+authenticated session reconciles against the server copy, saves write to the
+server (mirrored to localStorage), and on conflict the server wins.
+
+**Alternatives considered:** (a) localStorage-only (the V1 model) — rejected now
+that decks must persist across devices; (b) server-only, dropping the
+localStorage mirror — rejected because offline-first first paint is a real UX
+win and the PWA already ships an app-shell cache; (c) last-write-wins between the
+two stores with no designated authority — rejected as the source of exactly the
+stale-overwrite bugs this decision prevents.
+
+**Status / follow-up:** the precedence is decided here but not yet fully explicit
+in code — `Dashboard.tsx` still interleaves both stores (`docs/TECH_DEBT.md`
+items 6 and 7). Making it explicit should ride along with the Dashboard
+decomposition. `ARCHITECTURE.md` now describes the server layer.
+
+**What would invalidate this:** adding real-time collaboration or multi-writer
+editing (which needs a CRDT/OT model rather than a single-authority cache), or
+dropping the offline-first requirement (then go server-only and delete the
+mirror).
+
 ## 2026-06-23 — Citrine as a web-native presentation editor service
 
 Added `apps/presentation-studio/`, mounted at `/services/citrine/`, as a

@@ -26,17 +26,30 @@ PRs and may not exist yet in this branch.
 
 ## Summary table
 
-| # | Item | Theme | Severity |
-|---|------|-------|----------|
-| 1 | tts + video-downloader have no CI workflow | CI gaps | High |
-| 2 | Admin tests never run in CI | CI gaps | High |
-| 3 | Operator key-rotation backlog | Operational | High |
-| 4 | Untested new routes (Citrine CRUD, Basalt clone/icon) | Test coverage | High |
-| 5 | Copy-pasted shared modules, no workspace package | Duplication | Med |
-| 6 | `Dashboard.tsx` monolith (~2.5k lines) | Maintainability | Med |
-| 7 | Citrine dual persistence (localStorage + server) | Maintainability | Med |
-| 8 | No root workspace / shared tooling baseline | Duplication | Med |
-| 9 | Stray iCloud `" 2"` duplicate assets | Housekeeping | Low |
+| # | Item | Theme | Severity | Status |
+|---|------|-------|----------|--------|
+| 1 | tts + video-downloader have no CI workflow | CI gaps | High | ✅ Resolved (#129, #130) |
+| 2 | Admin tests never run in CI | CI gaps | High | ✅ Resolved (#137) |
+| 3 | Operator key-rotation backlog | Operational | High | ⏳ Operator action |
+| 4 | Untested new routes (Citrine CRUD, Basalt clone/icon) | Test coverage | High | ✅ Resolved (#132, #135; +#141, #142) |
+| 5 | Copy-pasted shared modules, no workspace package | Duplication | Med | Open — deferred (depends on #8) |
+| 6 | `Dashboard.tsx` monolith (~2.5k lines) | Maintainability | Med | Open — track with Citrine Phase 5 |
+| 7 | Citrine dual persistence (localStorage + server) | Maintainability | Med | ◑ Decision recorded; code precedence pending |
+| 8 | No root workspace / shared tooling baseline | Duplication | Med | Open — deferred (breaks per-service Docker `npm ci`) |
+| 9 | Stray iCloud `" 2"` duplicate assets | Housekeeping | Low | ✅ Resolved (#144) |
+
+> **Update log — 2026-06-23 hardening pass.** A platform-wide docs+tests batch
+> (PRs #128–#143) plus follow-ups closed the High-severity CI/coverage block:
+> items **1, 2, 4** are resolved (CI now runs admin/video-downloader/tts; Citrine
+> and Basalt routes are tested; the Citrine 2 MB cap and the timezones
+> `GET`/`PATCH /api/presets/:id` routes were fixed in #141/#142), and item **9**
+> is swept (#144). Item **7**'s canonical model is now recorded in
+> `docs/DECISIONS.md` (server is source of truth, localStorage is an offline
+> cache); the code-level precedence still rides with item 6. Items **5, 6, 8**
+> remain open and are deliberately deferred — see each item for why (the
+> workspace/shared-package work would change the per-service Docker build model,
+> so it needs a deliberate, separately-reviewed effort, not an autonomous sweep).
+> Item **3** is operator-only.
 
 ---
 
