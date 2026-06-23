@@ -1,0 +1,989 @@
+/* ═══════════════════════════════════════════════════════════════
+   ISG DELIVERABLE DESIGN SYSTEM — canonical tokens
+   One source of truth for every template. Dark is default;
+   add [data-theme="light"] on a wrapper for the bright theme.
+   Typeface: SF Pro (system stack on macOS), SF Mono for labels.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Surface elevation — deeper, cool-undertone near-blacks ─ */
+  --bg:   #07080b;
+  --bg-1: #11141a;
+  --bg-2: #181c24;
+  --bg-3: #222732;
+  --bg-4: #2e343f;
+
+  /* ── Hairlines ───────────────────────────────────────────── */
+  --line:    rgba(255,255,255,0.18);  /* ↑ немного видимее для диаграмм */
+  --line-2:  rgba(255,255,255,0.30);
+  --line-hi: rgba(255,255,255,0.08);
+
+  /* ── Ink — brighter for readability on the deeper ground ──── */
+  --ink:   #f4f5f8;
+  --ink-2: #c8ccd4;
+  --ink-3: #b4b9c4;  /* ↑ secondary reading text */
+  --ink-4: #969ba7;  /* ↑ 5.0:1 — tiny mono labels now legible */
+
+  /* ── Accent — coral, the single warm signature hue (vivid) ─── */
+  --accent:       #f2552f;
+  --accent-hover: #ff6a45;
+  --accent-deep:  #d6431f;
+  --accent-soft:  rgba(242,85,47,0.20);
+  --accent-line:  rgba(242,85,47,0.50);
+  --accent-ink:   #0a0b0d;
+  --accent-grad:  linear-gradient(135deg, #ff6f43 0%, #f2552f 55%, #d6431f 100%);
+  --accent-glow:  0 6px 28px rgba(242,85,47,0.42);
+
+  /* ── Focus — WCAG 2.2 visible-focus token (≥3:1, ≥2px) ───── */
+  --focus-ring:  #ff7a5c;          /* brightened coral, perceivable on both themes */
+  --focus-w:     2px;
+  --focus-off:   2px;
+
+  /* ── Status — richer, more saturated earth gamut ─────────── */
+  --ok:        hsl(80,58%,58%);
+  --ok-bg:     hsla(80,48%,44%,0.22);
+  --ok-line:   hsl(80,46%,44%);
+  --warn:      hsl(36,88%,60%);
+  --warn-bg:   hsla(36,78%,52%,0.22);
+  --warn-line: hsl(36,72%,52%);
+  --bad:       hsl(6,84%,62%);
+  --bad-bg:    hsla(6,78%,48%,0.24);
+  --bad-line:  hsl(6,74%,48%);
+  --mute:      #b4b9c4;  /* синхронизировано с --ink-3 */
+
+  /* ── Profile taxonomy — 5 restrained, matched-saturation hues ─ */
+  --p1: #b07858;  /* Storage  */
+  --p2: #5e9a6e;  /* Database */
+  --p3: #6878a8;  /* Compute  */
+  --p4: #a07e48;  /* AI       */
+  --p5: #7a6e8e;  /* OOS      */
+
+  /* ── Diagram palette — vivid, with soft fill + line + a depth
+        gradient node-fill (--d-N-fill) and a glow (--d-N-glow).
+        Coral is --d-1 (the lead). ───────────────────────────── */
+  --d-1: #f2552f;  --d-1-soft: rgba(242,85,47,0.20);   --d-1-line: rgba(242,85,47,0.52);
+  --d-2: #5a8cf5;  --d-2-soft: rgba(90,140,245,0.20);  --d-2-line: rgba(90,140,245,0.52);
+  --d-3: #34cf85;  --d-3-soft: rgba(52,207,133,0.20);  --d-3-line: rgba(52,207,133,0.52);
+  --d-4: #f6b41c;  --d-4-soft: rgba(246,180,28,0.20);  --d-4-line: rgba(246,180,28,0.52);
+  --d-5: #b072f0;  --d-5-soft: rgba(176,114,240,0.20); --d-5-line: rgba(176,114,240,0.52);
+  --d-6: #1acdec;  --d-6-soft: rgba(26,205,236,0.20);  --d-6-line: rgba(26,205,236,0.52);
+  --d-1-fill: linear-gradient(160deg, rgba(242,85,47,0.32), rgba(242,85,47,0.06) 72%, transparent);
+  --d-2-fill: linear-gradient(160deg, rgba(90,140,245,0.32), rgba(90,140,245,0.06) 72%, transparent);
+  --d-3-fill: linear-gradient(160deg, rgba(52,207,133,0.32), rgba(52,207,133,0.06) 72%, transparent);
+  --d-4-fill: linear-gradient(160deg, rgba(246,180,28,0.32), rgba(246,180,28,0.06) 72%, transparent);
+  --d-5-fill: linear-gradient(160deg, rgba(176,114,240,0.32), rgba(176,114,240,0.06) 72%, transparent);
+  --d-6-fill: linear-gradient(160deg, rgba(26,205,236,0.32), rgba(26,205,236,0.06) 72%, transparent);
+  --d-1-glow: 0 8px 32px rgba(242,85,47,0.34);
+  --d-2-glow: 0 8px 32px rgba(90,140,245,0.34);
+  --d-3-glow: 0 8px 32px rgba(52,207,133,0.34);
+  --d-4-glow: 0 8px 32px rgba(246,180,28,0.34);
+  --d-5-glow: 0 8px 32px rgba(176,114,240,0.34);
+  --d-6-glow: 0 8px 32px rgba(26,205,236,0.34);
+
+  /* Gentle status gradient fills */
+  --ok-fill:   linear-gradient(160deg, hsla(80,52%,48%,0.30), hsla(80,52%,48%,0.05) 72%, transparent);
+  --warn-fill: linear-gradient(160deg, hsla(36,80%,54%,0.30), hsla(36,80%,54%,0.05) 72%, transparent);
+  --bad-fill:  linear-gradient(160deg, hsla(6,80%,52%,0.30), hsla(6,80%,52%,0.05) 72%, transparent);
+  --accent-fill: linear-gradient(160deg, color-mix(in srgb, var(--accent) 34%, transparent), color-mix(in srgb, var(--accent) 6%, transparent) 72%, transparent);
+
+  /* ── Surface gradients — depth for cards, slides, wells ───── */
+  --grad-surface: linear-gradient(162deg, #161a21 0%, #11141a 60%, #0d0f14 100%);
+  --grad-well:    linear-gradient(180deg, #0c0e12 0%, #11141a 100%);
+  --grad-sheen:   linear-gradient(180deg, rgba(255,255,255,0.05), transparent 40%);
+
+  /* ── Lighting · elevation & glow ─────────────────────────── */
+  --sheen-inset: inset 0 1px 0 rgba(255,255,255,0.13);
+  --elev-1: 0 1px 2px rgba(0,0,0,0.48), 0 4px 16px rgba(0,0,0,0.42), 0 10px 32px rgba(0,0,0,0.24);
+  --elev-2: var(--sheen-inset), 0 3px 10px rgba(0,0,0,0.54), 0 18px 48px rgba(0,0,0,0.48), 0 32px 72px rgba(0,0,0,0.22);
+  --elev-3: var(--sheen-inset), 0 8px 22px rgba(0,0,0,0.60), 0 36px 84px rgba(0,0,0,0.64), 0 56px 120px rgba(0,0,0,0.28);
+  --lift:   var(--sheen-inset), 0 10px 28px rgba(0,0,0,0.58), 0 32px 76px rgba(0,0,0,0.62), 0 52px 110px rgba(0,0,0,0.26);
+  --glow-accent: 0 0 0 1px var(--accent-line), 0 8px 34px rgba(224,102,76,0.34);
+  --glow-ok:   0 0 0 1px var(--ok-line),   0 8px 30px hsla(74,46%,55%,0.26);
+  --glow-warn: 0 0 0 1px var(--warn-line), 0 8px 30px hsla(38,72%,58%,0.26);
+  --glow-bad:  0 0 0 1px var(--bad-line),  0 8px 30px hsla(8,74%,58%,0.30);
+  --ring-accent: 0 0 0 3px var(--accent-soft);
+  --ambient: radial-gradient(900px 520px at 50% -12%, var(--accent-soft), transparent 62%);
+
+  /* ── Flow-dot global defaults — overrideable per-element or via Tweaks ── */
+  --fd-glow-r1:    3px;
+  --fd-glow-r2:    9px;
+  --fd-brightness: 1;
+
+  /* ── Glass recipe ────────────────────────────────────────── */
+  --glass-bg:   color-mix(in srgb, #1c1f26 88%, transparent);
+  --glass-blur: blur(14px) saturate(160%);
+  --glass-shadow:
+    0 0 0 1px rgba(255,255,255,0.11) inset,
+    0 1px 0 rgba(255,255,255,0.13) inset,
+    0 4px 16px rgba(0,0,0,0.44),
+    0 16px 44px rgba(0,0,0,0.38),
+    0 32px 72px rgba(0,0,0,0.20);
+  --glass-shadow-hover:
+    0 0 0 1px rgba(255,255,255,0.16) inset,
+    0 1px 0 rgba(255,255,255,0.16) inset,
+    0 8px 24px rgba(0,0,0,0.52),
+    0 22px 60px rgba(0,0,0,0.46),
+    0 40px 90px rgba(0,0,0,0.24);
+
+  /* ── Radii — 5-stop ──────────────────────────────────────── */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r:    8px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 24px;
+
+  /* ── Spacing — 4px base rhythm ───────────────────────────── */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-12: 48px; --s-16: 64px; --s-20: 80px;
+
+  /* ── Typography ──────────────────────────────────────────── */
+  --f-sans: 'Geist','SF Pro Display','SF Pro Text',-apple-system,BlinkMacSystemFont,system-ui,'Helvetica Neue',sans-serif;
+  --f-text: 'Geist','SF Pro Text',-apple-system,BlinkMacSystemFont,system-ui,'Helvetica Neue',sans-serif;
+  --f-mono: 'Geist Mono','SF Mono','SFMono-Regular',ui-monospace,Menlo,Monaco,'Cascadia Code',monospace;
+
+  /* Document type scale (on-screen reading / one-pagers) */
+  --t-display: 46px;
+  --t-h1: 32px;
+  --t-h2: 23px;
+  --t-h3: 18px;
+  --t-body: 15.5px;
+  --t-small: 14px;
+  --t-label: 12px;
+  --t-micro: 11px;
+
+  /* Slide type scale (1920×1080 boards) */
+  --st-hero: 112px;
+  --st-h1: 68px;
+  --st-h2: 48px;
+  --st-body: 30px;
+  --st-small: 22px;
+  --st-label: 18px;
+  --st-eyebrow: 22px;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* ── Motion — one duration scale, ease-out bias ───────────── */
+  --dur-fast: 150ms;
+  --dur:      220ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Semantic aliases — stable names for re-skinning ──────── */
+  --text:           var(--ink);
+  --text-muted:     var(--ink-3);
+  --surface:        var(--bg-1);
+  --surface-raised: var(--bg-2);
+  --border:         var(--line);
+  --primary:        var(--accent);
+  --primary-hover:  var(--accent-hover);
+  --primary-active: var(--accent-deep);
+}
+
+/* ═══ Bright theme ═══════════════════════════════════════════ */
+[data-theme="light"] {
+  --bg:   #f3f1ea;   /* warm paper, not stark */
+  --bg-1: #fdfcf8;   /* soft off-white card — no pure-white glare */
+  --bg-2: #efece3;   /* warm raised surface */
+  --bg-3: #e6e2d6;
+  --bg-4: #d9d4c6;
+
+  --line:    rgba(44,38,26,0.24);  /* warm hairlines, softer */
+  --line-2:  rgba(44,38,26,0.38);
+  --line-hi: rgba(255,255,255,0.9);
+
+  --ink:   #1c1b17;  /* warm charcoal — softer than near-black */
+  --ink-2: #34322b;  /* body copy */
+  --ink-3: #4b4840;  /* ~8:1 — secondary reading text */
+  --ink-4: #5f5b4f;  /* ~6:1 — tiny mono labels still legible */
+
+  --accent:       #d8412a;
+  --accent-hover: #e44c33;
+  --accent-deep:  #b8331f;
+  --accent-soft:  rgba(216,65,42,0.15);
+  --accent-line:  rgba(216,65,42,0.40);
+  --accent-ink:   #ffffff;
+  --accent-grad:  linear-gradient(135deg, #ee5238 0%, #d8412a 55%, #b8331f 100%);
+  --accent-glow:  0 6px 24px rgba(216,65,42,0.30);
+
+  --focus-ring:  #c2391f;  /* darker coral — ≥3:1 on the bright ground */
+
+  --ok:        hsl(80,58%,30%);
+  --ok-bg:     hsla(80,52%,44%,0.20);
+  --ok-line:   hsl(80,48%,38%);
+  --warn:      hsl(33,84%,38%);
+  --warn-bg:   hsla(35,84%,54%,0.22);
+  --warn-line: hsl(35,70%,46%);
+  --bad:       hsl(6,76%,44%);
+  --bad-bg:    hsla(6,76%,54%,0.18);
+  --bad-line:  hsl(6,68%,46%);
+  --mute:      #4b4840;  /* warm, синхронизировано с --ink-3 */
+
+  --p1: #92603f;  --p2: #437a52;  --p3: #4b5c8c;  --p4: #856331;  --p5: #5f5474;
+
+  --d-1: #d8412a;  --d-1-soft: rgba(216,65,42,0.15);   --d-1-line: rgba(216,65,42,0.42);
+  --d-2: #2f5ec4;  --d-2-soft: rgba(47,94,196,0.15);   --d-2-line: rgba(47,94,196,0.40);
+  --d-3: #1a8f55;  --d-3-soft: rgba(26,143,85,0.15);   --d-3-line: rgba(26,143,85,0.40);
+  --d-4: #b07a00;  --d-4-soft: rgba(176,122,0,0.16);   --d-4-line: rgba(176,122,0,0.42);
+  --d-5: #6b41bd;  --d-5-soft: rgba(107,65,189,0.15);  --d-5-line: rgba(107,65,189,0.40);
+  --d-6: #0a93b5;  --d-6-soft: rgba(10,147,181,0.15);  --d-6-line: rgba(10,147,181,0.40);
+  --d-1-fill: linear-gradient(160deg, rgba(216,65,42,0.20), rgba(216,65,42,0.04) 72%, transparent);
+  --d-2-fill: linear-gradient(160deg, rgba(47,94,196,0.20), rgba(47,94,196,0.04) 72%, transparent);
+  --d-3-fill: linear-gradient(160deg, rgba(26,143,85,0.20), rgba(26,143,85,0.04) 72%, transparent);
+  --d-4-fill: linear-gradient(160deg, rgba(176,122,0,0.20), rgba(176,122,0,0.04) 72%, transparent);
+  --d-5-fill: linear-gradient(160deg, rgba(107,65,189,0.20), rgba(107,65,189,0.04) 72%, transparent);
+  --d-6-fill: linear-gradient(160deg, rgba(10,147,181,0.20), rgba(10,147,181,0.04) 72%, transparent);
+  --d-1-glow: 0 8px 26px rgba(216,65,42,0.22);
+  --d-2-glow: 0 8px 26px rgba(47,94,196,0.22);
+  --d-3-glow: 0 8px 26px rgba(26,143,85,0.22);
+  --d-4-glow: 0 8px 26px rgba(176,122,0,0.22);
+  --d-5-glow: 0 8px 26px rgba(107,65,189,0.22);
+  --d-6-glow: 0 8px 26px rgba(10,147,181,0.22);
+
+  /* Gentle status gradient fills */
+  --ok-fill:   linear-gradient(160deg, hsla(80,52%,44%,0.22), hsla(80,52%,44%,0.04) 72%, transparent);
+  --warn-fill: linear-gradient(160deg, hsla(35,84%,52%,0.22), hsla(35,84%,52%,0.04) 72%, transparent);
+  --bad-fill:  linear-gradient(160deg, hsla(6,76%,52%,0.20), hsla(6,76%,52%,0.04) 72%, transparent);
+  --accent-fill: linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 4%, transparent) 72%, transparent);
+
+  --grad-surface: linear-gradient(162deg, #ffffff 0%, #fcfbfa 52%, #f2f1ed 100%);
+  --grad-well:    linear-gradient(180deg, #ecedef 0%, #f7f7f5 100%);
+  --grad-sheen:   linear-gradient(180deg, rgba(255,255,255,0.85), transparent 42%);
+
+  /* ── Lighting · elevation & glow (warm, layered, premium) ── */
+  --sheen-inset: inset 0 1px 0 rgba(255,255,255,1);
+  --elev-1: 0 1px 3px rgba(60,48,28,0.12), 0 5px 16px rgba(60,48,28,0.11), 0 12px 28px rgba(60,48,28,0.06);
+  --elev-2: var(--sheen-inset), 0 3px 8px rgba(60,48,28,0.10), 0 18px 46px rgba(60,48,28,0.17), 0 32px 70px rgba(60,48,28,0.08);
+  --elev-3: var(--sheen-inset), 0 8px 20px rgba(60,48,28,0.15), 0 40px 90px rgba(60,48,28,0.24), 0 60px 120px rgba(60,48,28,0.10);
+  --lift:   var(--sheen-inset), 0 12px 30px rgba(60,48,28,0.17), 0 40px 86px rgba(60,48,28,0.27), 0 60px 110px rgba(60,48,28,0.11);
+  --glow-accent: 0 0 0 1px var(--accent-line), 0 12px 38px rgba(193,77,54,0.22);
+  --glow-ok:   0 0 0 1px var(--ok-line),   0 10px 30px hsla(74,48%,42%,0.18);
+  --glow-warn: 0 0 0 1px var(--warn-line), 0 10px 30px hsla(34,72%,48%,0.20);
+  --glow-bad:  0 0 0 1px var(--bad-line),  0 10px 30px hsla(8,66%,52%,0.20);
+  --ring-accent: 0 0 0 3px var(--accent-soft);
+  --ambient: radial-gradient(900px 520px at 50% -12%, var(--accent-soft), transparent 62%);
+
+  --glass-bg:   color-mix(in srgb, #fdfcf8 86%, transparent);
+  --glass-blur: blur(16px) saturate(180%);
+  --glass-shadow:
+    0 0 0 1px rgba(44,38,26,0.12) inset,
+    0 1px 0 rgba(255,255,255,1) inset,
+    0 4px 14px rgba(60,48,28,0.12),
+    0 22px 58px rgba(60,48,28,0.18),
+    0 40px 80px rgba(60,48,28,0.08);
+  --glass-shadow-hover:
+    0 0 0 1px rgba(44,38,26,0.16) inset,
+    0 1px 0 rgba(255,255,255,1) inset,
+    0 8px 22px rgba(60,48,28,0.16),
+    0 34px 80px rgba(60,48,28,0.26),
+    0 56px 110px rgba(60,48,28,0.12);
+}
+
+/* ═══ Resets shared by every template ════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* WCAG 2.2 (2.4.7 / 2.4.11) — visible focus only for keyboard users.
+   Centralized: every interactive element inherits this one ring. */
+:focus-visible {
+  outline: var(--focus-w, 2px) solid var(--focus-ring);
+  outline-offset: var(--focus-off, 2px);
+  border-radius: 3px;
+}
+/* Mouse/touch users keep clean UI (no ring on :focus without -visible) */
+:focus:not(:focus-visible) { outline: none; }
+
+.isg-scope {
+  font-family: var(--f-sans);
+  font-feature-settings: 'ss01' 1, 'cv11' 1, 'tnum' 1;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Mono utility label — the workhorse eyebrow/label across the system */
+.mono-label {
+  font-family: var(--f-mono);
+  font-size: var(--t-label);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TYPOGRAPHY SYSTEM — philosophy & hierarchy
+   ───────────────────────────────────────────────────────────────
+   THREE VOICES, each with a job:
+     • DISPLAY  (SF Pro Display) — titles, headline numbers. Speaks
+       loudly and briefly. Tracking goes NEGATIVE and tightens as
+       size grows (optical compensation); line-height near 1.
+     • TEXT     (SF Pro Text)    — reading copy. Neutral tracking,
+       1.6 line-height, capped measure (~68ch) for readability.
+     • MONO     (SF Mono)        — the SYSTEM VOICE: eyebrows,
+       labels, metadata, data, code. Always UPPERCASE for labels,
+       wide positive tracking. This is what makes the system feel
+       instrumented rather than decorated.
+   RULES:
+     • Numbers in data contexts are ALWAYS tabular (tnum) so columns
+       align and figures don't dance between states.
+     • One Display element per view owns the hierarchy; everything
+       else steps down. Never two competing headlines.
+     • Mono labels introduce; Display states; Text explains.
+   ─────────────────────────────────────────────────────────────── */
+
+.t-display {
+  font-family: var(--f-sans); font-weight: 600;
+  font-size: clamp(40px, 4.4vw, 64px);
+  letter-spacing: -0.035em; line-height: 1.0;
+  font-variant-numeric: tabular-nums;
+}
+.t-h1 { font-family: var(--f-sans); font-weight: 600; font-size: var(--t-h1); letter-spacing: -0.028em; line-height: 1.08; text-wrap: balance; }
+.t-h2 { font-family: var(--f-sans); font-weight: 600; font-size: var(--t-h2); letter-spacing: -0.02em;  line-height: 1.15; text-wrap: balance; }
+.t-h3 { font-family: var(--f-sans); font-weight: 600; font-size: var(--t-h3); letter-spacing: -0.012em; line-height: 1.25; }
+.t-lead {
+  font-family: var(--f-text); font-weight: 400; font-size: 18px;
+  letter-spacing: -0.006em; line-height: 1.55; color: var(--ink-2);
+  max-width: 64ch; text-wrap: pretty;
+}
+.t-body {
+  font-family: var(--f-text); font-weight: 400; font-size: var(--t-body);
+  line-height: 1.62; color: var(--ink-2); max-width: 68ch; text-wrap: pretty;
+}
+.t-small { font-family: var(--f-text); font-size: var(--t-small); line-height: 1.5; color: var(--ink-3); }
+.t-eyebrow {
+  font-family: var(--f-mono); font-weight: 500; font-size: var(--t-label);
+  letter-spacing: 0.13em; text-transform: uppercase; color: var(--accent);
+}
+.t-mono { font-family: var(--f-mono); font-size: var(--t-small); letter-spacing: 0.02em; color: var(--ink-2); }
+.t-meta {
+  font-family: var(--f-mono); font-size: var(--t-micro); font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-4);
+}
+/* Headline number / metric — tabular, optically tight */
+.t-num {
+  font-family: var(--f-sans); font-weight: 600;
+  letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+}
+.t-data { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+
+/* ═══════════════════════════════════════════════════════════════
+   TEXTURE SYSTEM — atmosphere & depth, theme-aware, bundler-safe.
+   Layer these behind content with low opacity. --tx-grain is
+   injected as a base64 noise tile (see build) so the bundler never
+   tries to resolve an internal SVG fragment.
+   ─────────────────────────────────────────────────────────────── */
+
+/* Fine engineering dot-grid */
+.tx-dots {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.tx-dots-lg { background-image: radial-gradient(circle, color-mix(in srgb, var(--ink) 12%, transparent) 1px, transparent 1px); background-size: 46px 46px; }
+
+/* Diagonal hatch — for zones / fills that want "under construction / scoped" feel */
+.tx-hatch {
+  background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--ink) 6%, transparent) 0 1px, transparent 1px 9px);
+}
+.tx-hatch-accent {
+  background-image: repeating-linear-gradient(45deg, var(--accent-line) 0 1px, transparent 1px 11px);
+}
+
+/* Soft radial mesh — atmospheric color wash */
+.tx-mesh {
+  background-image:
+    radial-gradient(1200px 700px at 8% -10%, var(--accent-soft), transparent 60%),
+    radial-gradient(1000px 620px at 96% 4%, color-mix(in srgb, var(--d-2) 12%, transparent), transparent 64%),
+    radial-gradient(900px 700px at 84% 104%, color-mix(in srgb, var(--d-3) 9%, transparent), transparent 64%);
+}
+
+/* Top sheen — a single light pass for glassy depth */
+.tx-sheen { background-image: var(--grad-sheen); }
+
+/* Grain overlay — apply via ::before for blend control */
+.tx-grain { position: relative; }
+.tx-grain::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: var(--tx-grain); background-size: 160px 160px;
+  opacity: 0.5; mix-blend-mode: overlay;
+}
+[data-theme="light"] .tx-grain::before { opacity: 0.6; mix-blend-mode: multiply; }
+
+/* Concentric scope rings — subtle radial guide for hub/centered art */
+.tx-rings {
+  background-image: repeating-radial-gradient(circle at center, transparent 0 38px, color-mix(in srgb, var(--ink) 4%, transparent) 38px 39px);
+}
+
+:root { --tx-grain: url("assets/grain.png"); } /* film-grain noise tile, 140px */
+
+/* ═══════════════════════════════════════════════════════════════
+   FLOW-LIGHT — directional reading-guide glow.
+   A faint sheen that travels in the reading direction of a diagram
+   or infographic (→ for sequences, ↓ for ladders/pyramids, ↻ for
+   cycles) to lead the eye. Opt in per element with a .flowlight
+   overlay (a pointer-events-none child of a position:relative box).
+   Toggled globally by [data-flowlight] on <html> (default = on).
+   Deliberately barely-there: low-alpha accent, blurred, blended.
+   Automatically HIDDEN in print / PDF and for reduced-motion users,
+   so PDF exports are clean (effect off) by default.
+   ─────────────────────────────────────────────────────────────── */
+@keyframes isgFlowX  { 0% { transform: translateX(-70%); opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translateX(170%); opacity: 0; } }
+@keyframes isgFlowY  { 0% { transform: translateY(-150%); opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(370%); opacity: 0; } }
+@keyframes isgFlowSpin { to { transform: rotate(360deg); } }
+
+.flowlight { position: absolute; pointer-events: none; z-index: 4; mix-blend-mode: screen; will-change: transform, opacity; }
+[data-theme="light"] .flowlight { mix-blend-mode: multiply; }
+
+.flowlight-x {
+  top: 0; bottom: 0; left: 0; width: 34%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 30%, transparent), transparent);
+  filter: blur(7px); animation: isgFlowX 3.6s var(--ease) infinite;
+}
+.flowlight-y {
+  left: 0; right: 0; top: 0; height: 28%;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 26%, transparent), transparent);
+  filter: blur(7px); animation: isgFlowY 4.2s var(--ease) infinite;
+}
+.flowlight-cycle {
+  inset: 0; border-radius: 50%; filter: blur(2px);
+  background: conic-gradient(from -90deg, transparent 0 58%, color-mix(in srgb, var(--accent) 42%, transparent) 78%, transparent 85% 100%);
+  -webkit-mask: radial-gradient(circle, transparent 0 38%, #000 44% 52%, transparent 60%);
+          mask: radial-gradient(circle, transparent 0 38%, #000 44% 52%, transparent 60%);
+  animation: isgFlowSpin 7s linear infinite;
+}
+
+[data-flowlight="off"] .flowlight { display: none !important; }
+
+/* Motion-sensitive users: no looping sweep — fall back to a calm STATIC
+   directional gradient (brighter toward the reading destination) so the
+   directional cue survives without animation. */
+@media (prefers-reduced-motion: reduce) {
+  .flowlight { animation: none !important; transform: none !important; opacity: 1; }
+  .flowlight-x { left: 0; right: 0; width: auto; filter: blur(10px);
+    background: linear-gradient(90deg, transparent 2%, color-mix(in srgb, var(--accent) 15%, transparent) 94%, transparent); }
+  .flowlight-y { top: 0; bottom: 0; height: auto; filter: blur(10px);
+    background: linear-gradient(180deg, transparent 2%, color-mix(in srgb, var(--accent) 13%, transparent) 94%, transparent); }
+  .flowlight-cycle { background: conic-gradient(from -90deg, transparent 0 52%, color-mix(in srgb, var(--accent) 28%, transparent) 88%, transparent 93% 100%); }
+}
+
+@media print { .flowlight { display: none !important; } }
+
+/* ── FLOWLIGHT-BORDER — glow that traces the perimeter of a box ──
+   Uses @property for CSS-only conic gradient rotation.
+   Place a <span class="flowlight flowlight-border"> inside any
+   position:relative box. Works with border-radius. The glow sweeps
+   clockwise, and a sub-class stagger (--fl-delay) lets sibling
+   boxes animate in sequence, guiding narrative order.
+   ──────────────────────────────────────────────────────────────── */
+@property --fl-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes isgBorderSpin { to { --fl-angle: 360deg; } }
+
+.flowlight-border {
+  inset: -1.5px; border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--fl-angle),
+    transparent 0deg 290deg,
+    color-mix(in srgb, var(--accent) 30%, transparent) 305deg,
+    color-mix(in srgb, var(--accent) 90%, transparent) 330deg,
+    color-mix(in srgb, var(--accent) 90%, transparent) 340deg,
+    color-mix(in srgb, var(--accent) 30%, transparent) 355deg,
+    transparent 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: isgBorderSpin var(--fl-dur, 5s) linear infinite var(--fl-delay, 0s);
+  filter: blur(1.5px);
+}
+
+/* ── SVG zone-trace — animated stroke that travels the perimeter ─
+   Add to a <rect> overlay inside your SVG <defs>/<g>. Set
+   pathLength="1" on the rect and use stroke-dasharray / offset.
+   ──────────────────────────────────────────────────────────────── */
+@keyframes isgSvgTrace {
+  0%   { stroke-dashoffset: 0;    opacity: 0; }
+  5%   { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { stroke-dashoffset: -1;   opacity: 0; }
+}
+.svg-zone-trace {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 0.08 0.92;
+  pathLength: 1;
+  animation: isgSvgTrace var(--fl-dur, 5s) linear infinite var(--fl-delay, 0s);
+  filter: drop-shadow(0 0 5px var(--accent));
+  opacity: 0;
+}
+
+/* ── SVG edge-flow — pulse that travels along a data-flow edge ───
+   Add a second <path> copy with class="svg-edge-flow" on top of
+   the existing edge stroke. The dash rides the path and a glowing
+   arrowhead appears at the destination end.
+   ──────────────────────────────────────────────────────────────── */
+@keyframes isgEdgeFlow {
+  0%   { stroke-dashoffset: 1;    opacity: 0; }
+  6%   { opacity: 1; }
+  80%  { opacity: 0.9; }
+  100% { stroke-dashoffset: 0;    opacity: 0; }
+}
+.svg-edge-flow {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 0.12 0.88;
+  animation: isgEdgeFlow var(--fl-edgedur, 2.4s) var(--ease) infinite var(--fl-delay, 0s);
+  filter: drop-shadow(0 0 4px var(--accent));
+  opacity: 0;
+}
+
+/* ── Arrow-pop — animated directional cue that emerges at the
+   destination end of a connection. Rendered as an inline SVG
+   child; position it at the arrowhead target.
+   ──────────────────────────────────────────────────────────────── */
+@keyframes isgArrowPop {
+  0%   { opacity: 0; transform: translateY(-50%) translateX(-8px) scale(0.6); }
+  18%  { opacity: 1; transform: translateY(-50%) translateX(0)    scale(1.1); }
+  22%  { transform: translateY(-50%) translateX(0) scale(1); }
+  72%  { opacity: 1; transform: translateY(-50%) translateX(6px)  scale(1); }
+  100% { opacity: 0; transform: translateY(-50%) translateX(14px) scale(0.8); }
+}
+.flowlight-arrow {
+  position: absolute;
+  top: 50%; right: -30px;
+  transform: translateY(-50%);
+  display: flex; align-items: center; gap: 3px;
+  pointer-events: none; z-index: 6;
+  animation: isgArrowPop var(--fl-dur, 3.6s) var(--ease) infinite var(--fl-delay, 0s);
+  opacity: 0;
+  color: var(--accent);
+}
+/* Down-arrow variant */
+.flowlight-arrow-d {
+  top: calc(100% + 10px); right: auto; left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  animation-name: isgArrowPopD;
+}
+@keyframes isgArrowPopD {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.6); }
+  18%  { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1.1); }
+  22%  { transform: translateX(-50%) translateY(0) scale(1); }
+  72%  { opacity: 1; transform: translateX(-50%) translateY(6px)  scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(14px) scale(0.8); }
+}
+
+[data-flowlight="off"] .flowlight-border,
+[data-flowlight="off"] .flowlight-arrow,
+[data-flowlight="off"] .svg-zone-trace,
+[data-flowlight="off"] .svg-edge-flow { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flowlight-border { animation: none !important; opacity: 0.35;
+    background: conic-gradient(from 45deg, transparent 0 80%, color-mix(in srgb, var(--accent) 40%, transparent) 90%, transparent); }
+  .flowlight-arrow, .svg-zone-trace, .svg-edge-flow { display: none !important; }
+}
+@media print {
+  .flowlight-border, .flowlight-arrow, .svg-zone-trace, .svg-edge-flow { display: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NARRATIVE GUIDE (nv-) — play-ONCE sequenced storytelling.
+   Unlike .flowlight (ambient, infinite loops), nv- primitives run a
+   single choreographed pass that walks the reader through a diagram
+   in narrative order: a glow traces the border of the first figure,
+   rides each connector as a comet, then blooms into an arrow that
+   wakes the next stage. Each element carries --nv-t (start time)
+   and optionally --nv-dur / --nv-c (color).
+   The END state is fully settled and legible — reduced-motion and
+   print jump straight to it. Replay by remounting the .nv subtree.
+   ─────────────────────────────────────────────────────────────── */
+
+/* Card/figure "wake" — starts dimmed, brightens with a soft flash
+   when the glow reaches it, then stays lit. */
+@keyframes isgNvWake {
+  0%   { opacity: 0.26; filter: saturate(0.5) brightness(0.82); }
+  62%  { opacity: 1;    filter: saturate(1.15) brightness(1.14); }
+  100% { opacity: 1;    filter: none; }
+}
+.nv .nv-wake { animation: isgNvWake var(--nv-dur, 0.85s) var(--ease, cubic-bezier(0.4,0,0.2,1)) var(--nv-t, 0s) 1 both; }
+
+/* Label / chip fade-up — stays. */
+@keyframes isgNvIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.nv .nv-in { animation: isgNvIn var(--nv-dur, 0.6s) var(--ease, cubic-bezier(0.4,0,0.2,1)) var(--nv-t, 0s) 1 both; }
+
+/* Perimeter comet — one full clockwise lap around a figure's border,
+   then it hands off. Use on <rect pathLength="1"> (rx = card radius)
+   in an SVG overlay that shares the layout's coordinate space. */
+@keyframes isgNvTrace {
+  0%   { stroke-dashoffset: 0;     opacity: 0; }
+  7%   { opacity: 1; }
+  86%  { opacity: 1; }
+  100% { stroke-dashoffset: -1.02; opacity: 0; }
+}
+.nv .nv-trace {
+  fill: none; stroke: var(--nv-c, var(--accent));
+  stroke-width: 2.2; stroke-linecap: round;
+  stroke-dasharray: 0.16 2;            /* period > pathLength: single comet, no wrap ghost */
+  filter: drop-shadow(0 0 6px var(--nv-c, var(--accent)));
+  opacity: 0;
+  animation: isgNvTrace var(--nv-dur, 1.5s) cubic-bezier(0.42,0.08,0.42,0.92) var(--nv-t, 0s) 1 both;
+}
+
+/* Connector that draws once and STAYS — <path pathLength="1">. */
+@keyframes isgNvDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.nv .nv-draw {
+  fill: none; stroke-dasharray: 1 1; stroke-dashoffset: 1;
+  animation: isgNvDraw var(--nv-dur, 0.6s) var(--ease, cubic-bezier(0.4,0,0.2,1)) var(--nv-t, 0s) 1 both;
+}
+
+/* Glow comet riding a connector once, start → arrowhead. */
+@keyframes isgNvComet {
+  0%   { stroke-dashoffset: 0.18;  opacity: 0; }
+  12%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { stroke-dashoffset: -1.02; opacity: 0; }
+}
+.nv .nv-comet {
+  fill: none; stroke: var(--nv-c, var(--accent));
+  stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 0.18 2;
+  filter: drop-shadow(0 0 5px var(--nv-c, var(--accent)));
+  opacity: 0;
+  animation: isgNvComet var(--nv-dur, 0.9s) cubic-bezier(0.32,0,0.38,1) var(--nv-t, 0s) 1 both;
+}
+
+/* Arrowhead bloom — the comet "becomes" a directional arrow that
+   STAYS as the settled wayfinding cue. Wrap in a positioning <g>;
+   apply this class to an inner <g> so CSS transform doesn't clobber
+   the SVG positioning transform. */
+@keyframes isgNvBloom {
+  0%   { opacity: 0; transform: scale(0.3); }
+  55%  { opacity: 1; transform: scale(1.22); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.nv .nv-bloom {
+  transform-box: fill-box; transform-origin: center;
+  animation: isgNvBloom var(--nv-dur, 0.5s) cubic-bezier(0.34,1.56,0.64,1) var(--nv-t, 0s) 1 both;
+}
+
+/* Reduced-motion & print: skip the show, land on the settled,
+   fully-legible end state. Comets/traces are transient → hidden. */
+@media print, (prefers-reduced-motion: reduce) {
+  .nv .nv-wake, .nv .nv-in, .nv .nv-bloom {
+    animation: none !important; opacity: 1 !important;
+    transform: none !important; filter: none !important;
+  }
+  .nv .nv-draw { animation: none !important; stroke-dashoffset: 0 !important; }
+  .nv .nv-trace, .nv .nv-comet { display: none !important; }
+  .nv-replay { display: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE — mobile-first adjustments for the template shell
+   (template content itself is fixed-width and scales via Stage;
+    these rules govern the gallery chrome + reading experience)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ═══ GALLERY CHROME — interactive states, touch targets, motion ═══
+   Classes for the library shell ONLY (not template content).
+   Inline styles in gallery.jsx handle sizing; states live here so
+   hover / active / focus work and stay theme-aware. ════════════ */
+
+.gc { -webkit-tap-highlight-color: transparent; font: inherit; }
+
+/* Press feedback — gentle scale, respects reduced motion */
+.gc-press {
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background var(--dur) var(--ease-out),
+    background-color var(--dur) var(--ease-out),
+    color var(--dur) var(--ease-out),
+    border-color var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out),
+    opacity var(--dur) var(--ease-out);
+}
+.gc-press:active { transform: scale(0.965); }
+@media (prefers-reduced-motion: reduce) {
+  .gc-press { transition: none; }
+  .gc-press:active { transform: none; }
+}
+
+/* Nav item — left rail + mobile drawer */
+.gc-nav {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: none;
+  border-left: 2px solid transparent;
+  color: var(--ink-3); cursor: pointer;
+  font-family: var(--f-sans);
+}
+.gc-nav:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.gc-nav[data-active="true"] {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  color: var(--ink); font-weight: 500;
+}
+
+/* Frame chip */
+.gc-chip {
+  font-family: var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase;
+  border-radius: var(--r-sm); cursor: pointer; flex-shrink: 0;
+  border: 1px solid var(--line-2);
+  background: var(--surface-raised); color: var(--ink-3);
+}
+.gc-chip:hover { background: var(--bg-3); color: var(--ink-2); }
+.gc-chip[data-active="true"] {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Ghost icon / utility button */
+.gc-ghost {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--line);
+  border-radius: var(--r-sm); color: var(--ink-2); cursor: pointer;
+}
+.gc-ghost:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); border-color: var(--line-2); color: var(--ink); }
+.gc-ghost:disabled { opacity: 0.35; cursor: default; }
+.gc-ghost:disabled:hover { background: transparent; border-color: var(--line); color: var(--ink-2); }
+
+/* Prev / next template pager card */
+.gc-pager {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); cursor: pointer; text-align: left;
+  color: var(--ink); font-family: var(--f-sans);
+  box-shadow: var(--elev-1);
+}
+.gc-pager:hover { border-color: var(--line-2); box-shadow: var(--elev-2); }
+.gc-pager .gc-pager-dir {
+  font-family: var(--f-mono); font-size: var(--t-micro);
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4);
+}
+.gc-pager:hover .gc-pager-dir { color: var(--accent); }
+
+/* Touch-device scrollable stage wrapper — allow pinch-zoom on mobile */
+@media (max-width: 767px) {
+  .stage-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+  }
+  .stage-scroll:active { cursor: grabbing; }
+
+  /* Tighter frame-selector chips on mobile */
+  .frame-chips { gap: 4px; flex-wrap: nowrap; overflow-x: auto; }
+  .frame-chips::-webkit-scrollbar { display: none; }
+
+  /* Stat band: allow wrapping on tiny screens */
+  .stat-band-inner { flex-wrap: wrap; }
+  .stat-band-inner > * { min-width: 45%; border-left: none !important; border-top: 1px solid var(--line); }
+  .stat-band-inner > *:first-child { border-top: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INTERACTIVITY LAYER — clickable template elements.
+   Any element marked .ix becomes a tactile control: hover-lift,
+   press feedback, keyboard focus, link/inspect affordance. Used by
+   diagram nodes, cards, stat tiles, list rows across templates.
+   ─────────────────────────────────────────────────────────────── */
+.ix {
+  cursor: pointer; text-decoration: none; color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out),
+    border-color var(--dur) var(--ease-out),
+    background-color var(--dur) var(--ease-out),
+    filter var(--dur) var(--ease-out);
+  outline: none;
+}
+.ix:hover { transform: translateY(-2px); }
+.ix:active { transform: translateY(0) scale(0.99); }
+.ix-lift:hover { box-shadow: var(--lift); filter: brightness(1.045); }
+.ix-ring:hover { box-shadow: var(--ring-accent); }
+.ix:focus-visible { outline: var(--focus-w) solid var(--focus-ring); outline-offset: 3px; }
+[data-theme="light"] .ix-lift:hover { filter: none; }
+
+/* Affordance cue — a small corner glyph fading in on hover to say
+   "this opens something". Place a .ix-cue inside a position:relative
+   interactive box. Link variant uses ↗, inspect variant uses +. */
+.ix-cue {
+  position: absolute; top: 10px; right: 10px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--f-mono); font-size: 12px; line-height: 1;
+  color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--accent-line);
+  opacity: 0; transform: scale(0.7) translateY(2px);
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+  pointer-events: none; z-index: 5;
+}
+.ix:hover .ix-cue, .ix:focus-visible .ix-cue { opacity: 1; transform: scale(1) translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ix { transition: none; }
+  .ix:hover, .ix:active { transform: none; }
+  .ix-cue { transition: none; }
+}
+@media print {
+  .ix-cue { display: none !important; }
+  .ix { transform: none !important; box-shadow: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INSPECTOR — the shared detail panel that opens when a clickable
+   element is activated. Desktop: right-docked rail. Mobile: bottom
+   sheet. Mounted once by the gallery App; fed via the
+   `isg:inspect` CustomEvent (see openInspector in lib).
+   ─────────────────────────────────────────────────────────────── */
+.ix-backdrop {
+  position: fixed; inset: 0; z-index: 120;
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
+  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur) var(--ease-out);
+}
+.ix-backdrop[data-open="true"] { opacity: 1; pointer-events: auto; }
+
+.ix-panel {
+  position: fixed; z-index: 121;
+  top: 0; right: 0; height: 100vh; width: min(440px, 92vw);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--line-2);
+  box-shadow: var(--elev-3);
+  display: flex; flex-direction: column;
+  transform: translateX(102%);
+  transition: transform 0.34s cubic-bezier(0.32,0.72,0,1);
+  overflow: hidden;
+}
+.ix-panel[data-open="true"] { transform: translateX(0); }
+
+.ix-panel-head {
+  padding: 22px 24px 18px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  flex-shrink: 0; position: relative;
+}
+.ix-panel-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.ix-panel-body { padding: 20px 24px 28px; overflow-y: auto; flex: 1; }
+.ix-panel-close {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--ink-2);
+  cursor: pointer; font-size: 17px; line-height: 1;
+}
+.ix-panel-close:hover { background: var(--bg-4); color: var(--ink); }
+
+@media (max-width: 767px) {
+  .ix-panel {
+    top: auto; bottom: 0; right: 0; left: 0;
+    width: auto; height: auto; max-height: 86vh;
+    border-left: none; border-top: 1px solid var(--line-2);
+    border-radius: 18px 18px 0 0;
+    transform: translateY(102%);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .ix-panel[data-open="true"] { transform: translateY(0); }
+}
+
+/* ═══ MOBILE BOARD ZOOM — readable 1920px boards on small screens ═
+   The stage wrapper can scroll horizontally; a fit/actual toggle
+   lets users jump between "fit width" and a legible 1:1-ish zoom. */
+.board-scroll {
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--r-lg);
+  scrollbar-width: thin;
+}
+.board-scroll::-webkit-scrollbar { height: 8px; }
+
+/* Search input */
+.gc-search { transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.gc-search:focus { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-soft); }
+.gc-search::placeholder { color: var(--ink-4); }
+.gc-search::-webkit-search-cancel-button { display: none; }
+
+/* ── Flow-dot gradient stop registration — needed for CSS custom
+   properties to work inside color-mix() percentage slots. ──── */
+@property --fd-fade1 { syntax: '<percentage>'; inherits: true; initial-value: 16%; }
+@property --fd-fade2 { syntax: '<percentage>'; inherits: true; initial-value: 60%; }
+
+/* ═══════════════════════════════════════════════════════════════
+   EDGE FLOW — a glowing droplet that travels an element's perimeter
+   (rounded corners + pills included) at an even, calm pace. Replaces
+   the old conic border-trace, which whipped through corners. Bigger
+   and slower for clearer perception. Each instance has its own
+   on/off switch (hover-revealed); the global FLOW toggle still hides
+   all of them at once.
+   ─────────────────────────────────────────────────────────────── */
+@keyframes isgEdgeRun { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+
+.flow-edge {
+  position: absolute; inset: 1.5px; border-radius: inherit;
+  pointer-events: none; z-index: 6;
+}
+.flow-edge > .flow-dot {
+  position: absolute; left: 0; top: 0;
+  width: var(--fd-len, 34px); height: var(--fd-thick, 5px);
+  border-radius: 99px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--fd-c, var(--accent)) var(--fd-fade1, 16%), transparent) 38%,
+    color-mix(in srgb, var(--fd-c, var(--accent)) var(--fd-fade2, 60%), transparent) 70%,
+    var(--fd-c, var(--accent)) 93%,
+    color-mix(in srgb, var(--fd-c, var(--accent)) 96%, #fff) 100%);
+  filter:
+    brightness(var(--fd-brightness, 1))
+    drop-shadow(0 0 var(--fd-glow-r1, 3px) var(--fd-c, var(--accent)))
+    drop-shadow(0 0 var(--fd-glow-r2, 9px) color-mix(in srgb, var(--fd-c, var(--accent)) 50%, transparent));
+  offset-path: border-box;
+  offset-distance: 0%;
+  offset-rotate: auto;
+  animation: isgEdgeRun var(--fd-dur, 8s) linear infinite var(--fd-delay, 0s);
+  will-change: offset-distance;
+}
+.flow-edge[data-off] { display: none; }
+
+/* Per-element on/off switch */
+.flow-switch {
+  position: absolute; bottom: 7px; right: 7px; z-index: 8;
+  width: 22px; height: 22px; border-radius: 50%; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--accent-line); background: var(--accent-soft);
+  color: var(--accent); cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease-out), background var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+:hover > .flow-switch { opacity: 1; }
+.flow-switch:focus-visible { opacity: 1; }
+.flow-switch .fs-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; transition: box-shadow var(--dur) var(--ease-out); }
+.flow-switch[data-on="false"] { background: var(--bg-3); border-color: var(--line-2); color: var(--ink-4); }
+:hover > .flow-switch[data-on="false"] { opacity: 0.92; }
+.flow-switch[data-on="false"] .fs-dot { box-shadow: none; }
+
+[data-flowlight="off"] .flow-edge,
+[data-flowlight="off"] .flow-switch { display: none !important; }
+
+@supports not (offset-path: border-box) {
+  .flow-edge { box-shadow: 0 0 0 1.5px var(--accent-line) inset; }
+  .flow-edge > .flow-dot { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-edge > .flow-dot { animation: none; offset-distance: 2%; }
+}
+@media print { .flow-edge, .flow-switch { display: none !important; } }
+

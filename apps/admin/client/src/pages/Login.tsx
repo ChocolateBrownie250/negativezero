@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Shield, KeyRound, UserPlus, RotateCcw } from 'lucide-react';
+import { Shield, KeyRound, UserPlus, RotateCcw } from '../icons';
 import {
   startAuthentication,
   browserSupportsWebAuthn,
@@ -25,6 +25,7 @@ const SERVICE_NAMES: Record<string, string> = {
   'video-downloader': 'Video Downloader',
   redirector: 'Redirector',
   timezones: 'Timezones',
+  citrine: 'Citrine',
   admin: 'Admin',
 };
 
@@ -39,6 +40,7 @@ const SERVICE_TAGLINES: Record<string, string> = {
   'video-downloader': 'download & save videos',
   redirector: 'short links & redirects',
   timezones: 'meeting times across zones',
+  citrine: 'presentation builder',
   admin: 'accounts & access',
 };
 

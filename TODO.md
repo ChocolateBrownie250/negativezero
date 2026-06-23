@@ -138,6 +138,14 @@ and SPA static serving all work under fastify 5.
 
 ## Done
 
+- [x] **2026-06-23** Citrine presentation builder service added to
+      Negative Zero as `apps/presentation-studio/` and mounted at
+      `https://negativezero.one/services/citrine/`. It is an installable PWA
+      with scoped service worker, offline-safe app shell cache, iPhone/iPad
+      touch layouts, freeform canvas Pan/Move modes, preview swipe navigation,
+      authenticated Claude Design source import, JSON validation, admin SSO
+      authorization via the `citrine` service grant, compose/deploy/nginx
+      wiring, and production smoke verification.
 - [x] **2026-06-18** Mobile UI polish — **Batch 1** (commits `db69761`, `57d714c`,
       `78f518e`; deployed + verified live). Fixed *why fresh UI wasn't reaching the
       device* and the clear quick wins:

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import type { FastifyInstance } from 'fastify';
 import { db, type GeneratedCodeRow } from '../db.js';
 import { generateRegistrationCode } from '../lib/codes.js';

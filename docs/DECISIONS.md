@@ -12,6 +12,36 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-23 — Citrine as a web-native presentation editor service
+
+Added `apps/presentation-studio/`, mounted at `/services/citrine/`, as a
+private Negative Zero service for building polished web presentations from
+premade elements. It is intentionally not a PowerPoint clone: the core model is
+responsive narrative scenes, reusable semantic elements, hyperlink-style
+actions, freeform canvas relationships, and web-native transitions.
+
+**Auth and deployment:** Citrine follows the private Fastify + React service
+pattern used by the other TypeScript apps. It accepts the apex `nz_session`
+SSO cookie and calls admin's `/api/internal/authz` for the `citrine` grant;
+local WebAuthn/setup-code auth remains as a fallback. Compose, deploy.sh,
+admin `GATED_SERVICES`, and nginx all register it as a first-class gated
+service. The production PWA scope is `/services/citrine/`.
+
+**Offline/PWA boundary:** The service worker caches only the app shell and
+static assets. `/api/`, auth, imported-source data, credentialed responses, and
+cross-origin requests remain network-only. V1 project preservation is via
+browser `localStorage`; authenticated server features are online-only.
+
+**Source import:** The seed source is the downloaded Claude Design
+`ISG Studio.html` archive. The imported source files live under
+`server/imports/isg-studio/` and are served only through authenticated
+`/api/source/isg-studio/...` routes.
+
+**What would invalidate this:** wanting server-side multi-project storage,
+collaborative editing, or a general-purpose slide-deck file format. Those
+should extend Citrine's document model rather than turning the UI into a
+PowerPoint clone.
+
 ## 2026-06-20 — timezones gated by SSO + per-account presets
 
 Turned `timezones` from a public static page into a gated Fastify service so it

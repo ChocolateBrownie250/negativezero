@@ -13,6 +13,7 @@ export const GATED_SERVICES = [
   'redirector',
   'timezones',
   'tts',
+  'citrine',
   'admin',
 ] as const;
 

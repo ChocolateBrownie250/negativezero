@@ -1,6 +1,6 @@
 # HANDOVER
 
-State of the `negativezero` platform as of 2026-06-18. This file
+State of the `negativezero` platform as of 2026-06-23. This file
 contains zero secrets by design — secret material lives only in
 `/srv/negativezero/platform/.env` on the VPS (chmod 600) and in the
 operator's password manager.
@@ -9,13 +9,11 @@ The predecessor `url-vault/HANDOVER.md` was excluded from the monorepo
 merge because it had committed a plaintext VPS root password and bookmark
 setup code. This file is the no-secrets replacement.
 
-> **Live status (2026-06-18):** the full multi-account + per-service
-> authorization rollout (PR #76) plus the salvaged landing / bookmark-manager
-> redesigns and the new `redirector` service (PR #77) are now **deployed and
-> verified in production** — all seven containers `Up`, HTTPS green on
-> `negativezero.one`, the box (`/srv/negativezero`) fast-forwarded from the
-> pre-#76 state to current `main`. `main` is the single branch and the live
-> prod source of truth. Deploy procedure + gotchas: `docs/DEPLOY.md`.
+> **Live status (2026-06-23):** Citrine has been added as a private
+> presentation builder PWA at `/services/citrine/`, deployed and verified in
+> production. `main` is the live production branch; the GitHub deploy workflow
+> rsyncs `main` to `/srv/negativezero` and runs `platform/deploy.sh`. Deploy
+> procedure + gotchas: `docs/DEPLOY.md`.
 
 ---
 
@@ -23,14 +21,17 @@ setup code. This file is the no-secrets replacement.
 
 ```
 https://negativezero.one/                            → static landing
-https://negativezero.one/services/bookmark-manager/  → bookmark-manager SPA + API
+https://negativezero.one/services/basalt/            → bookmark-manager/Basalt SPA + API
+https://negativezero.one/services/bookmark-manager/  → 308 redirect → /services/basalt/
 https://negativezero.one/services/admin/             → admin (registration-code generator)
-https://negativezero.one/services/tts/               → tts PWA + API (Bearer-authed)
-https://negativezero.one/services/timezones/         → static cross-timezone planner
+https://negativezero.one/services/amethyst/          → tts/Amethyst PWA + API
+https://negativezero.one/services/tts/               → 308 redirect → /services/amethyst/
+https://negativezero.one/services/timezones/         → gated cross-timezone planner
 https://negativezero.one/services/video-downloader/  → video-downloader SPA + API (clear-HLS remux)
 https://negativezero.one/services/redirector/        → redirector SPA + API (short-link redirects)
 https://negativezero.one/services/redirector/<hash>  → public 302 redirect (16-char hash)
-https://negativezero.one/vtt-transcriber/            → 301 redirect → /services/tts/
+https://negativezero.one/services/citrine/           → Citrine presentation builder PWA + API
+https://negativezero.one/vtt-transcriber/            → 308 redirect → /services/amethyst/
                                                        (legacy URL, kept for old iPhone Shortcuts)
 ```
 
@@ -45,9 +46,10 @@ negativezero-landing            nginx:alpine                       127.0.0.1:302
 negativezero-bookmark-manager   platform-bookmark-manager:latest   127.0.0.1:3021→3000
 negativezero-admin              platform-admin:latest              127.0.0.1:3022→3000
 negativezero-tts                platform-tts:latest                127.0.0.1:3023→3000
-negativezero-timezones          nginx:alpine                       127.0.0.1:3024→80
+negativezero-timezones          platform-timezones:latest          127.0.0.1:3024→3000
 negativezero-video-downloader   platform-video-downloader:latest   127.0.0.1:3025→3000
 negativezero-redirector         platform-redirector:latest         127.0.0.1:3026→3000
+negativezero-citrine            platform-citrine:latest            127.0.0.1:3027→3000
 ```
 
 Loopback ports are re-derived by `platform/deploy.sh` on every run from
@@ -131,8 +133,8 @@ The platform is now multi-account, managed from **admin**:
   service caches admin's authorization answer briefly).
 
 How enforcement works: admin is the SSO hub and the authorization source
-of truth. Each gated service (bookmark-manager, video-downloader,
-redirector, tts) verifies the SSO cookie, then asks admin
+of truth. Each gated service (bookmark-manager/Basalt, video-downloader,
+redirector, timezones, tts/Amethyst, Citrine) verifies the SSO cookie, then asks admin
 `GET /api/internal/authz` (over the internal docker network, bearer =
 `SSO_SESSION_SECRET`, never exposed by nginx) whether that account may
 use it. If `ADMIN_AUTHZ_URL` is unset for a service, the check is skipped
@@ -144,7 +146,7 @@ use it. If `ADMIN_AUTHZ_URL` is unset for a service, the check is skipped
 
 Full details in `docs/ARCHITECTURE.md`; pointer list here:
 
-- **Monorepo layout** — `apps/{landing,bookmark-manager,admin,tts,timezones}/` +
+- **Monorepo layout** — `apps/{landing,bookmark-manager,admin,tts,timezones,video-downloader,redirector,presentation-studio}/` +
   `platform/{docker-compose.yml,deploy.sh,nginx/}` + `docs/`.
 - **No central identity provider.** Per-service WebAuthn for the TS
   services; Bearer API key for tts. Earlier plans for Logto were
@@ -180,7 +182,8 @@ ssh -i ~/.ssh/wellfit_prod_ed25519 root@45.76.88.245 \
   'cd /srv/negativezero && bash platform/deploy.sh'
 ```
 
-`deploy.sh` rebuilds landing + bookmark-manager + admin + tts + timezones
+`deploy.sh` rebuilds landing + bookmark-manager + admin + tts + timezones +
+video-downloader + redirector + citrine
 and re-installs the apex nginx file. If `GROQ_API_KEY` is empty in
 `platform/.env`, tts is skipped (the apex still deploys cleanly);
 paste the Groq key and re-run to bring tts up.
@@ -198,6 +201,7 @@ docker compose -f platform/docker-compose.yml ps
 docker compose -f platform/docker-compose.yml logs -f bookmark-manager
 docker compose -f platform/docker-compose.yml logs -f admin
 docker compose -f platform/docker-compose.yml logs -f tts
+docker compose -f platform/docker-compose.yml logs -f citrine
 
 # restart a single service (e.g. after editing .env)
 docker compose -f platform/docker-compose.yml --env-file platform/.env \
@@ -262,8 +266,8 @@ Steps from `AGENTS.md` (kept consistent here as a reminder):
 5. `platform/deploy.sh` — generate the secret, pick a free port, add the
    placeholder substitution to `install_site()`.
 6. Frontend (if any): set Vite `base` to `/services/<name>/`.
-7. Add the service name to `apps/admin/server/src/routes/codes.ts`
-   `SERVICES` whitelist so admin can issue codes for it.
+7. Add the service name to `apps/admin/server/src/lib/accounts.ts`
+   `GATED_SERVICES` so admin can issue codes and per-account grants for it.
 8. `bash platform/deploy.sh`.
 9. Update `docs/ARCHITECTURE.md`, append a `DECISIONS.md` entry if the
    service brings new deps or breaks a convention (e.g., language).
@@ -278,6 +282,7 @@ The only persistent state on the VPS that's ours and that matters:
 /srv/negativezero/platform/data/bookmark-manager/   # bookmarks.db + WAL
 /srv/negativezero/platform/data/admin/              # admin.db + WAL
 /srv/negativezero/platform/data/tts/                # amethyst.sqlite + audio/ cache
+/srv/negativezero/platform/data/citrine/            # citrine.db + WAL
 /srv/negativezero/platform/data/video-downloader/   # video-downloader.db + WAL
 /srv/negativezero/platform/data/redirector/         # redirector.db + WAL
 /srv/negativezero/platform/.env                     # secrets (chmod 600)
@@ -312,9 +317,10 @@ For the strategic view see `docs/PLAN.md`. Quick pointers:
 - **Phase 1 — first deploy.** Done 2026-05-22. Landing +
   bookmark-manager + admin reachable, TLS active. Amethyst was a
   cohabiting tenant at the time at `/vtt-transcriber/`.
-- **Phase 2 — tts absorbed.** In progress 2026-05-28. Amethyst pulled
-  into `apps/tts/`, deployed via this monorepo at `/services/tts/`,
-  legacy URL `/vtt-transcriber/` kept as a 301. Logto + Neon
+- **Phase 2 — tts absorbed.** Done. Amethyst pulled
+  into `apps/tts/`, deployed via this monorepo at `/services/amethyst/`,
+  legacy URLs `/services/tts/` and `/vtt-transcriber/` kept as 308 redirects.
+  Logto + Neon
   (previously planned for Phase 2) dropped; the existing per-service
   WebAuthn flow stays.
 - **Phase 3 — admin edits tts prompts.** Future. The cleanup and
@@ -377,7 +383,7 @@ over a unix socket. Defer until there's a concrete need.
   API key — set a valid GROQ_API_KEY"), not a misleading 502 (older code mapped it
   to 502, which sent people chasing proxy timeouts). To diagnose/fix:
   `docker logs negativezero-tts` prints a loud line at startup if the key is bad;
-  `GET /services/tts/api/v1/ready` returns 503 + `{"groq":{"ok":false,…}}` when
+  `GET /services/amethyst/api/v1/ready` returns 503 + `{"groq":{"ok":false,...}}` when
   degraded; and `deploy.sh` pings Groq at deploy time and warns if rejected. Fix =
   set a valid key in `platform/.env`, then
   `docker compose -f platform/docker-compose.yml up -d --force-recreate tts`.

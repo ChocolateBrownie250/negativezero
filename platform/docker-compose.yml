@@ -290,6 +290,44 @@ services:
     networks:
       - internal
 
+  # ── citrine (web-native presentation editor) ─────────────────
+  # Private PWA editor at negativezero.one/services/citrine/. V1 stores
+  # presentation projects in browser localStorage and uses the backend for auth,
+  # imported-source serving, and JSON document validation. Same Fastify + React
+  # prefix-strip path-mount pattern as the other private TypeScript services.
+  citrine:
+    build:
+      context: ../apps/presentation-studio
+    container_name: negativezero-citrine
+    restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    mem_limit: 512m
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SESSION_SECRET: ${CITRINE_SESSION_SECRET}
+      SSO_SESSION_SECRET: ${SSO_SESSION_SECRET}
+      ADMIN_AUTHZ_URL: http://admin:3000
+      SETUP_CODE_HASH: ${CITRINE_SETUP_CODE_HASH}
+      PUBLIC_URL: ${CITRINE_PUBLIC_URL}
+      DATA_DIR: /app/server/data
+    volumes:
+      - ./data/citrine:/app/server/data
+    ports:
+      - "127.0.0.1:${CITRINE_HOST_PORT:-3027}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge

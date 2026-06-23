@@ -36,6 +36,11 @@ reasoning behind architectural choices, see `DECISIONS.md`.
   Imported as-is from the upstream amethyst project; see
   DECISIONS.md 2026-05-28 entries on the absorption and the
   Python+FastAPI exception to the TS+Fastify convention.
+- **Citrine service:** Node 22 + Fastify 5 + TypeScript backend and a
+  React 18 + Vite 8 + Tailwind 4 PWA frontend. Web-native presentation
+  editor mounted at `/services/citrine/`; V1 keeps the active project in
+  browser `localStorage`, serves the imported Claude Design source behind
+  auth, and validates JSON exports on the backend.
 - **Reverse proxy:** nginx on the host (shared with unrelated tenants).
   Containers bind to 127.0.0.1 only; nginx is the public entry point.
 - **TLS:** Let's Encrypt via certbot, one cert on the apex
@@ -55,11 +60,12 @@ apps/
   bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
   tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/amethyst/)
-  timezones/            static cross-timezone planner (negativezero.one/services/timezones/)
+  timezones/            gated cross-timezone planner (negativezero.one/services/timezones/)
   video-downloader/     clear-HLS remux tool (negativezero.one/services/video-downloader/)
   redirector/           short-link redirects (negativezero.one/services/redirector/)
+  presentation-studio/  Citrine web-native presentation editor (negativezero.one/services/citrine/)
 platform/
-  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones + video-downloader + redirector
+  docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones + video-downloader + redirector + citrine
   deploy.sh             idempotent deployer for the VPS
   nginx/                apex site config + shared connection_upgrade map
   .env.template         starting point for the deployed .env
@@ -101,7 +107,7 @@ SQLite file on a bind-mount volume.
 shape as bookmark-manager. Today it's a passkey-protected
 registration-code generator (operator generates a code for a service,
 shares it with a new user, user registers a passkey using that code).
-The service whitelist lives in `apps/admin/server/src/routes/codes.ts`.
+The gated service list lives in `apps/admin/server/src/lib/accounts.ts`.
 Future expansion: per-service settings UI (e.g., editing the LLM
 cleanup and proofread system prompts that tts uses).
 
@@ -113,18 +119,23 @@ per-recording metadata + FTS5 search. Auth is a single Bearer API key
 (operator-provisioned, used by the iPhone Shortcut + PWA). State is
 one SQLite file plus an audio cache directory on a bind-mount volume.
 
-**`apps/timezones/`** — static cross-timezone meeting planner. One
-`index.html` + `styles.css` + `app.js`, sharing the Geist fonts with
-the landing. No backend, no build, no runtime dependencies: the zone
-catalogue comes from `Intl.supportedValuesOf('timeZone')` and all
-offset/conversion math from `Intl.DateTimeFormat`. Lets you add cities,
-pick a home zone, and read each zone's local time across the home day
-with working-hours and overlap highlighting; preferences persist in
-`localStorage`. Served by an `nginx:alpine` container with a read-only
-bind-mount, same pattern as landing.
+**`apps/timezones/`** — gated cross-timezone meeting planner. A small
+Fastify backend verifies the apex SSO cookie + admin authz and stores
+per-account presets in SQLite; the vanilla client still does timezone
+math with `Intl` in the browser. The service has no local passkey
+fallback of its own.
+
+**`apps/presentation-studio/`** — Citrine, a private web-native
+presentation editor. Fastify backend + React SPA in one Docker image.
+Owns: SSO/local passkey auth fallback, authenticated serving of the
+imported `ISG Studio.html` Claude Design source, JSON document
+validation, PWA app shell, freeform canvas, premade element registry,
+preview mode, and JSON import/export. V1 project persistence is
+browser-local (`localStorage`); server-side project storage is deferred.
 
 **`platform/`** — orchestration. `docker-compose.yml` defines landing
-+ bookmark-manager + admin + tts + timezones. `deploy.sh` is the idempotent VPS
++ bookmark-manager + admin + tts + timezones + video-downloader +
+redirector + citrine. `deploy.sh` is the idempotent VPS
 deployer (generates secrets, picks free ports, pulls/builds images,
 installs nginx site files, runs certbot). `nginx/` holds the apex
 site config + the shared `$connection_upgrade` map.
@@ -148,7 +159,8 @@ negativezero.one/services/timezones/           → static timezone planner
 negativezero.one/services/video-downloader/    → video-downloader SPA + API
 negativezero.one/services/redirector/          → redirector SPA + API
 negativezero.one/services/redirector/<hash>    → public 302 redirect (16-char hash)
-negativezero.one/vtt-transcriber/              → 301 redirect → /services/amethyst/
+negativezero.one/services/citrine/             → Citrine presentation editor SPA + API
+negativezero.one/vtt-transcriber/              → 308 redirect → /services/amethyst/
                                                   (legacy URL kept for old clients)
 negativezero.one/services/<future>/            → future services (add a location block)
 ```
@@ -157,8 +169,9 @@ negativezero.one/services/<future>/            → future services (add a locati
 before proxying to the upstream container. Both the `location` directive
 and the `proxy_pass` target end in `/`, which makes nginx rewrite the
 matched prefix to `/` for the upstream. For the SPA-bearing services
-(bookmark-manager, admin), Vite's `base` config bakes the prefix back
-into asset references in the bundle. For tts and timezones, the
+(bookmark-manager, admin, video-downloader, redirector, citrine),
+Vite's `base` config bakes the prefix back into asset references in
+the bundle. For tts and timezones, the
 frontend uses relative URLs, so no client-side base config is needed.
 
 ---
@@ -171,6 +184,7 @@ frontend uses relative URLs, so no client-side base config is needed.
 - **nginx → admin:** loopback HTTP on `ADMIN_HOST_PORT`.
 - **nginx → tts:** loopback HTTP on `TTS_HOST_PORT`.
 - **nginx → timezones:** loopback HTTP on `TIMEZONES_HOST_PORT`.
+- **nginx → citrine:** loopback HTTP on `CITRINE_HOST_PORT`.
 - **Browser ↔ bookmark-manager / admin:** HTTPS, session cookies
   (per-service `@fastify/secure-session`).
 - **iPhone Shortcut / PWA ↔ tts:** HTTPS, `Authorization: Bearer

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldAlert, LogOut } from 'lucide-react';
+import { ShieldAlert, LogOut } from '../icons';
 import { api } from '../api';
 import {
   COLORS,

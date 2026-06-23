@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { generateRegistrationCode, normalizeCode } from './codes.js';
 
 // Mirrors the issue/verify logic in routes/auth.ts (hashBackupCode / isBackupCode):

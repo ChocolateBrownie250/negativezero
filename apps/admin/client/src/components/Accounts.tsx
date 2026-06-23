@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Trash2, Power, Crown } from 'lucide-react';
+import { RefreshCw, Trash2, Power, Crown } from '../icons';
 import { api, UnauthorizedError, type Account } from '../api';
 import { COLORS, LABEL_SECONDARY, LABEL_TERTIARY, RING_STRONG } from '../lib/colors';
 import AccountTokens from './AccountTokens';

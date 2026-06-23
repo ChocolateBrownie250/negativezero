@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, KeyRound, Plus, Trash2 } from '../icons';
 import { api, UnauthorizedError, type TokenInfo } from '../api';
 import { COLORS, LABEL_SECONDARY, LABEL_TERTIARY, RING_STRONG } from '../lib/colors';
 

@@ -17,37 +17,39 @@ repo root. This file holds the strategic phased view.
 
 ## Current focus
 
-**Phase 2 — tts absorbed into the platform.** In progress 2026-05-28.
-The Whisper transcription + LLM cleanup service that was previously
-deployed standalone at `/opt/amethyst/` (URL: `/vtt-transcriber/`) is
-being pulled into the monorepo as `apps/tts/`, reachable at
-`/services/tts/`. The legacy URL stays as a 301 redirect for old
-clients. Logto + Postgres on Neon (Phase 2 in the prior plan) was
-removed in favour of keeping the existing per-service WebAuthn flow.
-See `DECISIONS.md` 2026-05-28 for the rationale.
-
-**Operator steps still pending** for the tts cutover:
-
-1. rsync `/opt/amethyst/data/` → `/srv/negativezero/platform/data/tts/`
-2. paste a Groq API key into `/srv/negativezero/platform/.env`
-   (`GROQ_API_KEY=gsk_...`)
-3. run `bash /srv/negativezero/platform/deploy.sh` to bring up the
-   tts container + install the updated apex nginx site
-4. verify `https://negativezero.one/services/tts/` reaches the PWA
-   and `https://negativezero.one/vtt-transcriber/` 301-redirects there
-5. stop the old `amethyst-app` container, `docker network rm
-   amethyst_default`, `rm -rf /opt/amethyst/`
-
-**Next:** Phase 3 — admin gains a "tts prompts" page for editing the
-cleanup and proofread system prompts that the tts service uses. Needs
-a small protocol between admin and tts (either a shared SQLite table
-or a tiny HTTP API on tts that admin calls).
+**No active migration focus.** The latest completed platform addition is
+Citrine at `/services/citrine/` (2026-06-23). The next strategic item remains
+Phase 3 — admin gains a "tts prompts" page for editing the cleanup and proofread
+system prompts that the tts service uses. Needs a small protocol between admin
+and tts (either a shared SQLite table or a tiny HTTP API on tts that admin
+calls).
 
 ---
 
 ## Plan
 
 Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
+
+### Citrine — presentation builder service (DONE 2026-06-23)
+
+- [x] Build `apps/presentation-studio/` as a private Fastify + React PWA
+      mounted at `/services/citrine/`.
+- [x] Import and preserve the downloaded Claude Design `ISG Studio.html`
+      source archive under authenticated `server/imports/isg-studio/` routes.
+- [x] Implement a web-native presentation model: responsive narrative scenes,
+      premade scalable elements, hyperlink-style actions, transitions, preview
+      mode, JSON import/export, and validation.
+- [x] Implement touch/iPhone/iPad PWA polish: manifest/icons, scoped service
+      worker, offline-safe app shell cache, update/offline banners, touch
+      sheets/slide-over layouts, freeform canvas Pan/Move modes, zoom/fit, and
+      preview swipe navigation.
+- [x] Wire platform deployment: admin `citrine` service grant, compose service,
+      deploy.sh secrets/ports/smoke wait, env template, nginx route, docs, and
+      TODO.
+- [x] Deploy to production and verify
+      `https://negativezero.one/services/citrine/` plus `/api/health`, PWA
+      metadata, service-worker scope/cache safety, unauthenticated 401s, and
+      SSO-authorized protected source access.
 
 ### Phase 0 — Monorepo merge (DONE 2026-05-21)
 
@@ -104,8 +106,8 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [x] Adapt `apps/tts/Dockerfile`: PORT env, UID 999, /data ownership
 - [x] Wire into `platform/docker-compose.yml`: new `tts:` service block
 - [x] Wire into `platform/nginx/negativezero.one.conf`: new
-      `/services/tts/` location; old `/vtt-transcriber/` becomes a
-      301 redirect
+      `/services/amethyst/` location; old `/services/tts/` and
+      `/vtt-transcriber/` become 308 redirects
 - [x] Wire into `platform/.env.template`: `GROQ_API_KEY`,
       `TTS_API_KEY`, `TTS_HOST_PORT`
 - [x] Wire into `platform/deploy.sh`: generate `TTS_API_KEY` on first
@@ -115,7 +117,7 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [ ] **Operator: rsync data from /opt/amethyst/data/ to platform/data/tts/**
 - [ ] **Operator: paste GROQ_API_KEY into platform/.env**
 - [ ] **Operator: run `bash platform/deploy.sh` on VPS**
-- [ ] **Operator: verify `/services/tts/` works + `/vtt-transcriber/` redirects**
+- [ ] **Operator: verify `/services/amethyst/` works + `/vtt-transcriber/` redirects**
 - [ ] **Operator: tear down old standalone amethyst (`docker compose
       down -v` in /opt/amethyst/, rm -rf /opt/amethyst/, `docker
       network rm amethyst_default`)**
@@ -179,7 +181,7 @@ None at the moment.
   forever. If audio retention is changed in `.env`, the change takes
   effect on the next purge tick (hourly).
 
-- **Backwards compatibility window.** The `/vtt-transcriber/` 301
+- **Backwards compatibility window.** The `/vtt-transcriber/` 308
   redirect is kept indefinitely for old iPhone Shortcuts. No effort
   spent forcing client updates; redirect is cheap and old clients
   keep working.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, KeyRound, LogOut, RefreshCw } from 'lucide-react';
+import { Copy, KeyRound, LogOut, RefreshCw } from '../icons';
 import { api, UnauthorizedError, type GeneratedCodeLogEntry } from '../api';
 import {
   COLORS,

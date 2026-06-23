@@ -9,7 +9,7 @@
 #   1. Verifies prereqs (docker, compose, nginx, certbot)
 #   2. Generates .env on first run with random per-service secrets
 #      (BOOKMARK_*, ADMIN_*, TTS_API_KEY); operator pastes GROQ_API_KEY
-#   3. Picks free loopback ports for landing/bookmark/admin/tts
+#   3. Picks free loopback ports for all apex services
 #   4. Builds + starts all containers via docker compose. tts is skipped
 #      until GROQ_API_KEY is present so the apex deploys cleanly before
 #      the operator has wired up Groq.
@@ -62,13 +62,15 @@ mkdir -p "$PLATFORM_DIR/data/video-downloader"
 # 999, otherwise SQLite fails with SQLITE_CANTOPEN on first start.
 mkdir -p "$PLATFORM_DIR/data/redirector"
 mkdir -p "$PLATFORM_DIR/data/timezones"
+mkdir -p "$PLATFORM_DIR/data/citrine"
 chown -R 999:999 \
     "$PLATFORM_DIR/data/bookmark-manager" \
     "$PLATFORM_DIR/data/admin" \
     "$PLATFORM_DIR/data/tts" \
     "$PLATFORM_DIR/data/video-downloader" \
     "$PLATFORM_DIR/data/redirector" \
-    "$PLATFORM_DIR/data/timezones"
+    "$PLATFORM_DIR/data/timezones" \
+    "$PLATFORM_DIR/data/citrine"
 
 # ────────────────────────────────────────────────────────────────────────
 # 2. Pick free loopback ports
@@ -87,7 +89,8 @@ TTS_PORT=$(next_free $((ADMIN_APP_PORT+1)))
 TIMEZONES_PORT=$(next_free $((TTS_PORT+1)))
 VIDEO_DOWNLOADER_PORT=$(next_free $((TIMEZONES_PORT+1)))
 REDIRECTOR_PORT=$(next_free $((VIDEO_DOWNLOADER_PORT+1)))
-log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT, timezones=$TIMEZONES_PORT, video-downloader=$VIDEO_DOWNLOADER_PORT, redirector=$REDIRECTOR_PORT"
+CITRINE_PORT=$(next_free $((REDIRECTOR_PORT+1)))
+log "Loopback ports: landing=$LANDING_PORT, bookmark=$BOOKMARK_PORT, admin=$ADMIN_APP_PORT, tts=$TTS_PORT, timezones=$TIMEZONES_PORT, video-downloader=$VIDEO_DOWNLOADER_PORT, redirector=$REDIRECTOR_PORT, citrine=$CITRINE_PORT"
 
 # ────────────────────────────────────────────────────────────────────────
 # 3. .env (first run generates secrets; re-runs preserve them)
@@ -205,6 +208,36 @@ fi
 grep -q '^REDIRECTOR_PUBLIC_URL=' "$ENV_FILE" || \
     echo "REDIRECTOR_PUBLIC_URL=https://$APEX_DOMAIN/services/redirector" >> "$ENV_FILE"
 
+# ── citrine secrets (idempotent) ───────────────────────────────
+# Added after .env was first generated, so seed its secrets on any run where
+# they're missing — not only on first-run. Same bcryptjs + $$-escape handling
+# as the first-run block above.
+if ! grep -Eq '^CITRINE_SESSION_SECRET=[0-9a-fA-F]{64}$' "$ENV_FILE"; then
+    CITRINE_SESSION_SECRET=$(openssl rand -hex 32)
+    if grep -q '^CITRINE_SESSION_SECRET=' "$ENV_FILE"; then
+        sed -i "s|^CITRINE_SESSION_SECRET=.*|CITRINE_SESSION_SECRET=$CITRINE_SESSION_SECRET|" "$ENV_FILE"
+    else
+        echo "CITRINE_SESSION_SECRET=$CITRINE_SESSION_SECRET" >> "$ENV_FILE"
+    fi
+fi
+if ! grep -Eq '^CITRINE_SETUP_CODE_HASH=.+$' "$ENV_FILE"; then
+    CITRINE_SETUP_CODE=$(openssl rand -hex 12 | sed -e 's/.\{4\}/&-/g' -e 's/-$//')
+    CITRINE_SETUP_CODE_HASH=$(docker run --rm node:20-alpine sh -c \
+        "cd /tmp && npm i bcryptjs --silent >/dev/null 2>&1 && node -e 'require(\"bcryptjs\").hash(process.argv[1],12).then(h=>console.log(h))' '$CITRINE_SETUP_CODE'")
+    CITRINE_SETUP_CODE_HASH_ESCAPED=${CITRINE_SETUP_CODE_HASH//\$/\$\$}
+    if grep -q '^CITRINE_SETUP_CODE_HASH=' "$ENV_FILE"; then
+        sed -i "s|^CITRINE_SETUP_CODE_HASH=.*|CITRINE_SETUP_CODE_HASH=$CITRINE_SETUP_CODE_HASH_ESCAPED|" "$ENV_FILE"
+    else
+        echo "CITRINE_SETUP_CODE_HASH=$CITRINE_SETUP_CODE_HASH_ESCAPED" >> "$ENV_FILE"
+    fi
+    echo
+    warn "Citrine setup code (save this — it won't be shown again):"
+    echo "  citrine:           $CITRINE_SETUP_CODE"
+    echo
+fi
+grep -q '^CITRINE_PUBLIC_URL=' "$ENV_FILE" || \
+    echo "CITRINE_PUBLIC_URL=https://$APEX_DOMAIN/services/citrine" >> "$ENV_FILE"
+
 # ── timezones (gated Fastify service; SSO-cookie-only) ─────────
 # No SESSION_SECRET / SETUP_CODE_HASH — timezones has no local login; it relies
 # entirely on the shared SSO cookie + admin authz. Only its public URL is seeded.
@@ -243,6 +276,7 @@ fi
 grep -q '^TIMEZONES_HOST_PORT=' "$ENV_FILE" || echo "TIMEZONES_HOST_PORT=$TIMEZONES_PORT" >> "$ENV_FILE"
 grep -q '^VIDEO_DOWNLOADER_HOST_PORT=' "$ENV_FILE" || echo "VIDEO_DOWNLOADER_HOST_PORT=$VIDEO_DOWNLOADER_PORT" >> "$ENV_FILE"
 grep -q '^REDIRECTOR_HOST_PORT=' "$ENV_FILE" || echo "REDIRECTOR_HOST_PORT=$REDIRECTOR_PORT" >> "$ENV_FILE"
+grep -q '^CITRINE_HOST_PORT=' "$ENV_FILE" || echo "CITRINE_HOST_PORT=$CITRINE_PORT" >> "$ENV_FILE"
 sed -i "s|^LANDING_HOST_PORT=.*|LANDING_HOST_PORT=$LANDING_PORT|"     "$ENV_FILE"
 sed -i "s|^BOOKMARK_HOST_PORT=.*|BOOKMARK_HOST_PORT=$BOOKMARK_PORT|"  "$ENV_FILE"
 sed -i "s|^ADMIN_HOST_PORT=.*|ADMIN_HOST_PORT=$ADMIN_APP_PORT|"       "$ENV_FILE"
@@ -250,6 +284,7 @@ sed -i "s|^TTS_HOST_PORT=.*|TTS_HOST_PORT=$TTS_PORT|"                 "$ENV_FILE
 sed -i "s|^TIMEZONES_HOST_PORT=.*|TIMEZONES_HOST_PORT=$TIMEZONES_PORT|" "$ENV_FILE"
 sed -i "s|^VIDEO_DOWNLOADER_HOST_PORT=.*|VIDEO_DOWNLOADER_HOST_PORT=$VIDEO_DOWNLOADER_PORT|" "$ENV_FILE"
 sed -i "s|^REDIRECTOR_HOST_PORT=.*|REDIRECTOR_HOST_PORT=$REDIRECTOR_PORT|" "$ENV_FILE"
+sed -i "s|^CITRINE_HOST_PORT=.*|CITRINE_HOST_PORT=$CITRINE_PORT|" "$ENV_FILE"
 
 # ────────────────────────────────────────────────────────────────────────
 # 4. Docker compose
@@ -261,9 +296,9 @@ log "Building + starting containers"
 if [ "$GROQ_PRESENT" = "1" ]; then
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
 else
-    warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin/timezones/video-downloader/redirector only."
+    warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin/timezones/video-downloader/redirector/citrine only."
     warn "Paste a Groq key into $ENV_FILE and re-run to start tts."
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones video-downloader redirector
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones video-downloader redirector citrine
 fi
 
 log "Waiting for bookmark-manager on 127.0.0.1:$BOOKMARK_PORT"
@@ -293,6 +328,12 @@ done
 log "Waiting for redirector on 127.0.0.1:$REDIRECTOR_PORT"
 for _ in $(seq 1 30); do
     curl -sf "http://127.0.0.1:$REDIRECTOR_PORT/api/health" >/dev/null 2>&1 && { log "redirector up"; break; }
+    sleep 2
+done
+
+log "Waiting for citrine on 127.0.0.1:$CITRINE_PORT"
+for _ in $(seq 1 30); do
+    curl -sf "http://127.0.0.1:$CITRINE_PORT/api/health" >/dev/null 2>&1 && { log "citrine up"; break; }
     sleep 2
 done
 
@@ -373,6 +414,7 @@ install_site() {
     sed -i "s|__TIMEZONES_HOST_PORT__|$TIMEZONES_PORT|g" "$dst"
     sed -i "s|__VIDEO_DOWNLOADER_HOST_PORT__|$VIDEO_DOWNLOADER_PORT|g" "$dst"
     sed -i "s|__REDIRECTOR_HOST_PORT__|$REDIRECTOR_PORT|g" "$dst"
+    sed -i "s|__CITRINE_HOST_PORT__|$CITRINE_PORT|g" "$dst"
 
     [ "$SITES_AVAIL" != "$SITES_ENABLED" ] && ln -sf "$dst" "$SITES_ENABLED/$domain"
 
@@ -454,6 +496,7 @@ echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
 echo "  Timezones:        https://$APEX_DOMAIN/services/timezones/"
 echo "  Video downloader: https://$APEX_DOMAIN/services/video-downloader/"
 echo "  Redirector:       https://$APEX_DOMAIN/services/redirector/"
+echo "  Citrine:          https://$APEX_DOMAIN/services/citrine/"
 echo "  Status:           docker compose -f $COMPOSE_FILE ps"
 echo "  Logs:             docker compose -f $COMPOSE_FILE logs -f"
 echo "  Env file:         $ENV_FILE  (chmod 600)"

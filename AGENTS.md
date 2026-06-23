@@ -16,12 +16,17 @@ Self-hosted on a single Vultr VPS. Everything lives under the apex
 `negativezero.one/`:
 
 - `/` — static landing
-- `/services/bookmark-manager/` — bookmark manager (single-user, WebAuthn)
+- `/services/basalt/` — bookmark manager/Basalt (WebAuthn + SSO)
+- `/services/bookmark-manager/` — 308 redirect to `/services/basalt/`
 - `/services/admin/` — platform admin (registration-code generator,
-  future per-service settings UI)
+  SSO/authz hub, future per-service settings UI)
 - `/services/amethyst/` — Whisper transcription + LLM cleanup pipeline
-  (Bearer API key)
-- `/vtt-transcriber/` — 301 redirect to `/services/amethyst/` (legacy URL)
+  (SSO + Bearer API key for machine clients)
+- `/services/timezones/` — gated cross-timezone planner with per-account presets
+- `/services/video-downloader/` — clear-HLS remux tool
+- `/services/redirector/` — short-link redirects
+- `/services/citrine/` — Citrine web-native presentation builder PWA
+- `/vtt-transcriber/` — 308 redirect to `/services/amethyst/` (legacy URL)
 
 The repo grew out of merging three predecessor repos under
 `chocolatebrownie250` on 2026-05-21: `negativezero` (design
@@ -56,8 +61,8 @@ Dev: `cd apps/bookmark-manager && npm install && npm run dev`.
 **"I need to change the admin"** → `apps/admin/`. Same structure as
 bookmark-manager (Fastify + better-sqlite3 + WebAuthn on the server,
 React + Vite + Tailwind on the client). Today it's a
-passkey-protected registration-code generator; the service whitelist
-lives in `server/src/routes/codes.ts`. Future expansion includes a
+passkey-protected registration-code generator; the gated service list
+lives in `server/src/lib/accounts.ts`. Future expansion includes a
 "tts prompts" page (see PLAN.md Phase 3) for editing the cleanup and
 proofread system prompts that the tts service uses.
 
