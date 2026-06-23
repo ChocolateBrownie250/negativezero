@@ -69,4 +69,52 @@ export default async function presetRoutes(app: FastifyInstance) {
     db.prepare('DELETE FROM presets WHERE id = ?').run(id);
     return { ok: true };
   });
+
+  // Scoped fetch: like delete, a foreign id is indistinguishable from a missing
+  // one (404) — no cross-account existence oracle.
+  app.get('/presets/:id', async (req, reply) => {
+    const acc = await requireAccount(req);
+    const { id } = req.params as { id: string };
+    const row = db
+      .prepare('SELECT * FROM presets WHERE id = ? AND account_id = ?')
+      .get(id, acc) as PresetRow | undefined;
+    if (!row) return reply.code(404).send({ error: 'not_found' });
+    return { preset: rowToApi(row) };
+  });
+
+  // Partial update of name and/or selection. Validation mirrors POST
+  // (cleanName / parseSelection). Account-scoped, so an unknown or foreign id
+  // 404s before any write. Either field may be omitted to leave it unchanged.
+  app.patch('/presets/:id', async (req, reply) => {
+    const acc = await requireAccount(req);
+    const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as { name?: unknown; selection?: unknown };
+
+    const row = db
+      .prepare('SELECT * FROM presets WHERE id = ? AND account_id = ?')
+      .get(id, acc) as PresetRow | undefined;
+    if (!row) return reply.code(404).send({ error: 'not_found' });
+
+    let name = row.name;
+    let selectionJson = row.selection;
+    try {
+      if (body.name !== undefined) name = cleanName(body.name);
+      if (body.selection !== undefined) {
+        selectionJson = JSON.stringify(parseSelection(body.selection));
+      }
+    } catch (err) {
+      if (err instanceof InvalidSelectionError) {
+        return reply.code(400).send({ error: 'validation', field: err.message });
+      }
+      throw err;
+    }
+
+    const now = Date.now();
+    db.prepare(
+      'UPDATE presets SET name = ?, selection = ?, updated_at = ? WHERE id = ? AND account_id = ?',
+    ).run(name, selectionJson, now, id, acc);
+
+    const updated = db.prepare('SELECT * FROM presets WHERE id = ?').get(id) as PresetRow;
+    return { preset: rowToApi(updated) };
+  });
 }
