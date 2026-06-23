@@ -9,6 +9,7 @@ import { config, isProd } from './config.js';
 import { requireAuth } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import presentationRoutes from './routes/presentation.js';
+import presentationsRoutes from './routes/presentations.js';
 import sourceRoutes from './routes/source.js';
 
 export async function createApp() {
@@ -53,6 +54,7 @@ export async function createApp() {
     async (instance) => {
       instance.addHook('onRequest', requireAuth);
       instance.register(presentationRoutes);
+      instance.register(presentationsRoutes);
       instance.register(sourceRoutes);
     },
     { prefix: '/api' },
