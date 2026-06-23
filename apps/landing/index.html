@@ -78,45 +78,6 @@
     pointer-events: none;
   }
 
-  .cursor-aura {
-    position: fixed;
-    left: 0;
-    top: 0;
-    z-index: 20;
-    width: 168px;
-    height: 168px;
-    border: 1px solid rgba(228, 176, 90, 0.22);
-    border-radius: 999px;
-    opacity: 0;
-    pointer-events: none;
-    transform: translate3d(-50%, -50%, 0);
-    transition: opacity 180ms ease, width 220ms ease, height 220ms ease;
-    mix-blend-mode: screen;
-  }
-
-  .cursor-aura::before,
-  .cursor-aura::after {
-    content: "";
-    position: absolute;
-    background: rgba(228, 176, 90, 0.28);
-  }
-
-  .cursor-aura::before {
-    left: 50%;
-    top: 18px;
-    width: 1px;
-    height: calc(100% - 36px);
-  }
-
-  .cursor-aura::after {
-    top: 50%;
-    left: 18px;
-    height: 1px;
-    width: calc(100% - 36px);
-  }
-
-  body.has-pointer .cursor-aura { opacity: 1; }
-
   .page {
     width: min(1040px, calc(100% - 48px));
     margin: 0 auto;
@@ -428,7 +389,6 @@
   }
 
   @media (pointer: coarse) {
-    .cursor-aura { display: none; }
     .service-row::before { transition-duration: 120ms; }
     .service-row:active::before { opacity: 1; transform: translateX(0); }
   }
@@ -538,13 +498,11 @@
       transform: none;
       transition: none;
     }
-    .cursor-aura { display: none; }
   }
 </style>
 </head>
 <body>
 <canvas class="field-canvas" id="field-canvas" aria-hidden="true"></canvas>
-<div class="cursor-aura" id="cursor-aura" aria-hidden="true"></div>
 
 <div class="page">
   <header class="top">
@@ -642,7 +600,6 @@
   const coarse = matchMedia('(pointer: coarse)').matches;
   const fieldCanvas = document.getElementById('field-canvas');
   const heroCanvas = document.getElementById('hero-canvas');
-  const cursorAura = document.getElementById('cursor-aura');
   const heroField = document.querySelector('.hero-field');
   const revealEls = document.querySelectorAll('.reveal');
 
@@ -657,7 +614,6 @@
     tx: innerWidth * 0.5,
     ty: innerHeight * 0.48,
     active: false,
-    ripple: 0,
   };
 
   let dpr = 1;
@@ -672,7 +628,7 @@
   let activeUntil = 0;
   let pointerActiveUntil = 0;
   let lastDrawTime = -Infinity;
-  const FRAME_MS = coarse ? 50 : 33;
+  const FRAME_MS = coarse ? 58 : 42;
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -722,7 +678,7 @@
   }
 
   function rebuildNodes() {
-    const count = coarse ? 64 : 118;
+    const count = coarse ? 32 : 52;
     nodes = Array.from({ length: count }, (_, i) => ({
       nx: seedNoise(i * 2 + 3),
       ny: seedNoise(i * 2 + 9),
@@ -787,12 +743,8 @@
 
     drawGrid(fieldCtx, width, height, time);
 
-    pointer.x += (pointer.tx - pointer.x) * 0.12;
-    pointer.y += (pointer.ty - pointer.y) * 0.12;
-
-    if (!coarse && pointer.active) {
-      cursorAura.style.transform = 'translate3d(' + pointer.x + 'px, ' + pointer.y + 'px, 0) translate3d(-50%, -50%, 0)';
-    }
+    pointer.x += (pointer.tx - pointer.x) * 0.18;
+    pointer.y += (pointer.ty - pointer.y) * 0.18;
 
     fieldCtx.save();
     fieldCtx.globalCompositeOperation = 'screen';
@@ -803,31 +755,18 @@
       const dx = x - pointer.x;
       const dy = y - pointer.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const influence = pointer.active || pointer.ripple > 0 ? clamp(1 - dist / (coarse ? 210 : 180), 0, 1) : 0;
-      x += (dx / dist) * influence * (coarse ? 16 : 26) * (pointer.ripple || 1);
-      y += (dy / dist) * influence * (coarse ? 16 : 26) * (pointer.ripple || 1);
-      const alpha = 0.12 + influence * 0.48 + scrollProgress * 0.08;
+      const influence = pointer.active ? clamp(1 - dist / (coarse ? 42 : 34), 0, 1) : 0;
+      x += (dx / dist) * influence * (coarse ? 2 : 3);
+      y += (dy / dist) * influence * (coarse ? 2 : 3);
+      const alpha = 0.11 + influence * 0.13 + scrollProgress * 0.06;
       fieldCtx.fillStyle = node.sign > 0
         ? 'rgba(134, 217, 204, ' + alpha + ')'
         : 'rgba(228, 176, 90, ' + alpha + ')';
       fieldCtx.beginPath();
-      fieldCtx.arc(x, y, 0.85 + influence * 1.9, 0, Math.PI * 2);
+      fieldCtx.arc(x, y, 0.75 + influence * 0.7, 0, Math.PI * 2);
       fieldCtx.fill();
     }
     fieldCtx.restore();
-
-    if (pointer.ripple > 0.01) {
-      fieldCtx.save();
-      fieldCtx.strokeStyle = 'rgba(228, 176, 90, ' + (0.28 * pointer.ripple) + ')';
-      fieldCtx.lineWidth = 1;
-      fieldCtx.beginPath();
-      fieldCtx.arc(pointer.tx, pointer.ty, (1 - pointer.ripple) * 190 + 24, 0, Math.PI * 2);
-      fieldCtx.stroke();
-      fieldCtx.restore();
-      pointer.ripple *= 0.94;
-    } else {
-      pointer.ripple = 0;
-    }
 
     fieldCtx.save();
     if (noisePattern) {
@@ -853,18 +792,51 @@
     };
   }
 
+  function heroMetrics() {
+    const w = heroRect.width;
+    const h = heroRect.height;
+    return {
+      cx: w * (coarse ? 0.56 : 0.58),
+      cy: h * (coarse ? 0.45 : 0.48),
+      scale: Math.min(w, h) * (coarse ? 0.043 : 0.055),
+      morph: easeInOut(heroProgress),
+      period: Math.PI * 6,
+    };
+  }
+
+  function isNearHeroFigure(clientX, clientY) {
+    const rect = heroCanvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return false;
+
+    const metrics = heroMetrics();
+    const samples = coarse ? 48 : 72;
+    const hitRadius = coarse ? 68 : 56;
+    let nearest = Infinity;
+    for (let i = 0; i <= samples; i++) {
+      const p = signedPoint(metrics.period * i / samples, metrics.cx, metrics.cy, metrics.scale, metrics.morph);
+      const dx = p.x - x;
+      const dy = p.y - y;
+      const dist = dx * dx + dy * dy;
+      if (dist < nearest) nearest = dist;
+    }
+    return nearest <= hitRadius * hitRadius;
+  }
+
   function drawHero(time) {
     const ctx = heroCtx;
     const w = heroRect.width;
     const h = heroRect.height;
     ctx.clearRect(0, 0, w, h);
 
-    const cx = w * (coarse ? 0.56 : 0.58);
-    const cy = h * (coarse ? 0.45 : 0.48);
-    const scale = Math.min(w, h) * (coarse ? 0.043 : 0.055);
-    const period = Math.PI * 6;
-    const drawProgress = reduced ? 1 : clamp(0.2 + easeOutCubic(Math.min(1, time / 4200)) * 0.8, 0, 1);
-    const morph = easeInOut(heroProgress);
+    const metrics = heroMetrics();
+    const cx = metrics.cx;
+    const cy = metrics.cy;
+    const scale = metrics.scale;
+    const period = metrics.period;
+    const drawProgress = reduced ? 1 : clamp(0.2 + easeOutCubic(Math.min(1, time / 3200)) * 0.8, 0, 1);
+    const morph = metrics.morph;
     const loop = reduced ? 0 : Math.sin(time * 0.00045) * 0.5 + 0.5;
     const pointerLocal = heroCanvas.getBoundingClientRect();
     const px = pointer.x - pointerLocal.left;
@@ -873,7 +845,7 @@
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
 
-    for (let band = -3; band <= 3; band++) {
+    for (let band = -2; band <= 2; band++) {
       const alpha = band === 0 ? 0.72 : 0.08 + Math.abs(band) * 0.015;
       const offset = band * (5 + morph * 16);
       ctx.strokeStyle = band === 0
@@ -881,16 +853,17 @@
         : 'rgba(134, 217, 204, ' + alpha + ')';
       ctx.lineWidth = band === 0 ? 1.25 : 0.8;
       ctx.beginPath();
-      const steps = Math.floor(760 * drawProgress);
+      const totalSteps = coarse ? 320 : 440;
+      const steps = Math.floor(totalSteps * drawProgress);
       for (let i = 0; i <= steps; i++) {
-        const t = period * i / 760;
+        const t = period * i / totalSteps;
         const p = signedPoint(t + loop * 0.04, cx, cy + offset, scale * (1 + band * 0.012), morph);
         const dx = p.x - px;
         const dy = p.y - py;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const pull = pointer.active ? clamp(1 - dist / 210, 0, 1) : 0;
-        const x = p.x + (dx / dist) * pull * 18;
-        const y = p.y + (dy / dist) * pull * 18;
+        const pull = pointer.active ? clamp(1 - dist / (coarse ? 54 : 44), 0, 1) : 0;
+        const x = p.x + (dx / dist) * pull * (coarse ? 3 : 4);
+        const y = p.y + (dy / dist) * pull * (coarse ? 3 : 4);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -934,7 +907,6 @@
     if (document.hidden) return;
     if (time > pointerActiveUntil) {
       pointer.active = false;
-      document.body.classList.remove('has-pointer');
     }
     if (time - lastDrawTime < FRAME_MS && time < activeUntil) {
       framePending = true;
@@ -945,46 +917,41 @@
     const frameTime = reduced ? 0 : time;
     drawField(frameTime);
     drawHero(frameTime);
-    if (time < activeUntil || pointer.ripple > 0.01) {
+    if (time < activeUntil) {
       framePending = true;
       requestAnimationFrame(animate);
     }
   }
 
-  if (!reduced) {
-    addEventListener('pointermove', (event) => {
-      pointer.tx = event.clientX;
-      pointer.ty = event.clientY;
-      pointer.active = true;
-      pointerActiveUntil = performance.now() + 900;
-      if (!coarse) document.body.classList.add('has-pointer');
-      scheduleMotion(900);
-    }, { passive: true });
-  }
-
-  addEventListener('pointerdown', (event) => {
+  function updatePointer(event) {
     if (reduced) return;
+    const active = isNearHeroFigure(event.clientX, event.clientY);
     pointer.tx = event.clientX;
     pointer.ty = event.clientY;
-    pointer.active = true;
-    pointer.ripple = coarse ? 1 : 0.55;
-    pointerActiveUntil = performance.now() + 1200;
-    scheduleMotion(1600);
+    pointer.active = active;
+    pointerActiveUntil = active ? performance.now() + 260 : 0;
+    scheduleMotion(active ? 360 : 160);
+  }
+
+  heroField.addEventListener('pointermove', updatePointer, { passive: true });
+
+  heroField.addEventListener('pointerdown', (event) => {
+    updatePointer(event);
   }, { passive: true });
 
-  addEventListener('pointerleave', () => {
+  heroField.addEventListener('pointerleave', () => {
     pointer.active = false;
-    document.body.classList.remove('has-pointer');
-    scheduleMotion(300);
+    pointerActiveUntil = 0;
+    scheduleMotion(160);
   }, { passive: true });
 
   addEventListener('scroll', () => {
     updateScroll();
-    scheduleMotion(900);
+    scheduleMotion(500);
   }, { passive: true });
   addEventListener('resize', resize);
   addEventListener('visibilitychange', () => {
-    if (!document.hidden) scheduleMotion(700);
+    if (!document.hidden) scheduleMotion(420);
   });
 
   if ('IntersectionObserver' in window) {
@@ -1003,7 +970,7 @@
   }
 
   resize();
-  scheduleMotion(5200);
+  scheduleMotion(3400);
 })();
 </script>
 </body>
