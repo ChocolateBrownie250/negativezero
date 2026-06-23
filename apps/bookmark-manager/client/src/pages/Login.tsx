@@ -94,7 +94,10 @@ export default function Login({ onLoggedIn }: Props) {
         <button
           type="button"
           onClick={() =>
-            window.location.assign(
+            // replace() not assign(): don't leave this login page in history, or
+            // pressing Back from the admin SSO page / the destination drops the
+            // user out of the app instead of going where they came from.
+            window.location.replace(
               '/services/admin/?return=/services/basalt/',
             )
           }
