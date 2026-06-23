@@ -895,10 +895,14 @@ function SelectionOverlay({
   element,
   getStageRect,
   onFrameChange,
+  onHistoryBegin,
+  onHistoryEnd,
 }: {
   element: ElementNode;
   getStageRect: () => DOMRect | null;
   onFrameChange: (frame: ElementNode['frame']) => void;
+  onHistoryBegin: () => void;
+  onHistoryEnd: () => void;
 }) {
   const drag = useRef<{
     mode: 'move' | ResizeHandle;
@@ -906,6 +910,7 @@ function SelectionOverlay({
     startY: number;
     frame: ElementNode['frame'];
     rect: DOMRect;
+    committed: boolean;
   } | null>(null);
   const MIN = 5;
 
@@ -920,6 +925,7 @@ function SelectionOverlay({
       startY: e.clientY,
       frame: { ...element.frame },
       rect,
+      committed: false,
     };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
@@ -927,6 +933,11 @@ function SelectionOverlay({
   function move(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
+    // First actual movement opens a single undo transaction for the gesture.
+    if (!d.committed) {
+      d.committed = true;
+      onHistoryBegin();
+    }
     const dx = ((e.clientX - d.startX) / d.rect.width) * 100;
     const dy = ((e.clientY - d.startY) / d.rect.height) * 100;
     let { x, y, width, height } = d.frame;
@@ -961,8 +972,10 @@ function SelectionOverlay({
   }
 
   function end(e: React.PointerEvent) {
-    if (!drag.current) return;
+    const d = drag.current;
+    if (!d) return;
     drag.current = null;
+    if (d.committed) onHistoryEnd();
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -1030,9 +1043,13 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   // Undo/redo history: snapshots of the document before each edit. Capped so a
-  // long session can't grow memory unbounded.
+  // long session can't grow memory unbounded. suspendHistoryRef groups a
+  // continuous gesture (a drag) into a single undo step (snapshot once at the
+  // start, skip per-frame snapshots) — research: one interaction = one undo.
   const pastRef = useRef<PresentationDocument[]>([]);
   const futureRef = useRef<PresentationDocument[]>([]);
+  const suspendHistoryRef = useRef(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   useEffect(() => {
     saveStoredDocument(document);
@@ -1080,12 +1097,16 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   // localStorage mirror above keeps offline edits safe meanwhile).
   useEffect(() => {
     if (isOffline || !currentId) return;
+    setSaveStatus('saving');
     if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
     serverSaveTimer.current = setTimeout(() => {
-      void api.presentations.save(currentId, document).catch((err) => {
-        if (err instanceof UnauthorizedError) onUnauthorized();
-        // else: transient — the next edit retries.
-      });
+      void api.presentations
+        .save(currentId, document)
+        .then(() => setSaveStatus('saved'))
+        .catch((err) => {
+          if (err instanceof UnauthorizedError) onUnauthorized();
+          else setSaveStatus('idle');
+        });
     }, 800);
     return () => {
       if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
@@ -1108,17 +1129,32 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
     [editLevel],
   );
 
-  function updateDocument(mutator: (draft: PresentationDocument) => void) {
-    // Snapshot the pre-edit document for undo, then clear the redo stack.
+  function pushHistory() {
     pastRef.current.push(document);
     if (pastRef.current.length > 80) pastRef.current.shift();
     futureRef.current = [];
+  }
+
+  function updateDocument(mutator: (draft: PresentationDocument) => void) {
+    // During a grouped gesture (a drag) the snapshot was already taken at the
+    // start, so per-frame edits don't each become an undo step.
+    if (!suspendHistoryRef.current) pushHistory();
     setDocument((current) => {
       const draft = cloneValue(current);
       mutator(draft);
       return draft;
     });
     setValidation({ status: 'idle' });
+  }
+
+  // Wrap a continuous interaction so it collapses to one undo step.
+  function beginHistoryGroup() {
+    pushHistory();
+    suspendHistoryRef.current = true;
+  }
+
+  function endHistoryGroup() {
+    suspendHistoryRef.current = false;
   }
 
   function undo() {
@@ -1530,7 +1566,20 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
         <div className="flex items-center gap-3 min-w-0">
           <LayoutTemplate size={20} color={COLORS.accent} />
           <div className="min-w-0">
-            <h1 className="text-[15px] font-semibold truncate">Citrine</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[15px] font-semibold truncate">Citrine</h1>
+              {saveStatus !== 'idle' && (
+                <span
+                  className="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={{
+                    color: saveStatus === 'saved' ? COLORS.accent : LABEL_TERTIARY,
+                    background: 'rgba(255,255,255,0.06)',
+                  }}
+                >
+                  {saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+                </span>
+              )}
+            </div>
             <p className="text-[12px] truncate" style={{ color: LABEL_TERTIARY }}>
               {document.title} · {document.source.status === 'imported' ? 'Claude Design source imported' : 'MCP import pending'}
             </p>
@@ -1770,6 +1819,8 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
                       element={selectedElement}
                       getStageRect={() => stageRef.current?.getBoundingClientRect() ?? null}
                       onFrameChange={(frame) => patchElement({ frame })}
+                      onHistoryBegin={beginHistoryGroup}
+                      onHistoryEnd={endHistoryGroup}
                     />
                   )}
                 </div>
