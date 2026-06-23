@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { db, rowToApi, type ApiNode, type DbNodeRow } from '../db.js';
+import { db, rowToApi, type ApiNode, type DbNodeRow, type NodeIcon } from '../db.js';
 import { newId } from '../lib/ids.js';
 import { fetchMetadata, BlockedTargetError, normalizeUrl } from '../lib/fetcher.js';
 import { encryptString, encryptNullable } from '../lib/crypto.js';
@@ -185,6 +185,7 @@ export default async function nodeRoutes(app: FastifyInstance) {
       url?: unknown;
       parentId?: unknown;
       position?: unknown;
+      icon?: unknown;
     };
 
     // nameDb / urlDb are the already-encrypted values to write to the
@@ -226,6 +227,35 @@ export default async function nodeRoutes(app: FastifyInstance) {
       }
     }
 
+    // Custom icon: null clears it; an object sets exactly one of emoji / lucide
+    // (a client-known icon name) on a #rrggbb background. Stored as encrypted
+    // JSON. `'icon' in body` distinguishes "clear" from "leave unchanged".
+    let iconDb: string | null = row.icon;
+    if ('icon' in body) {
+      const v = body.icon;
+      if (v === null) {
+        iconDb = null;
+      } else if (v && typeof v === 'object') {
+        const icon = v as { bg?: unknown; emoji?: unknown; lucide?: unknown };
+        const bg = typeof icon.bg === 'string' ? icon.bg : '';
+        const hasEmoji =
+          typeof icon.emoji === 'string' &&
+          icon.emoji.length > 0 &&
+          icon.emoji.length <= 8;
+        const hasLucide =
+          typeof icon.lucide === 'string' && /^[a-z0-9-]{1,32}$/.test(icon.lucide);
+        if (!/^#[0-9a-fA-F]{6}$/.test(bg) || hasEmoji === hasLucide) {
+          return reply.code(400).send({ error: 'validation', field: 'icon' });
+        }
+        const clean: NodeIcon = { bg };
+        if (hasEmoji) clean.emoji = icon.emoji as string;
+        else clean.lucide = icon.lucide as string;
+        iconDb = encryptString(JSON.stringify(clean));
+      } else {
+        return reply.code(400).send({ error: 'validation', field: 'icon' });
+      }
+    }
+
     if (typeof body.parentId === 'string' && body.parentId !== row.parent_id) {
       const pid = body.parentId;
       const parent = getRow(pid);
@@ -250,9 +280,9 @@ export default async function nodeRoutes(app: FastifyInstance) {
       const oldParent = row.parent_id;
       db.prepare(
         `UPDATE nodes
-            SET name = ?, url = ?, parent_id = ?, position = ?, updated_at = ?
+            SET name = ?, url = ?, icon = ?, parent_id = ?, position = ?, updated_at = ?
           WHERE id = ?`,
-      ).run(nameDb, urlDb, newParentId, newPosition, now, id);
+      ).run(nameDb, urlDb, iconDb, newParentId, newPosition, now, id);
 
       // re-sequence: if parent changed, both old and new parent
       if (parentChanged && oldParent) reseqSiblings(oldParent);
@@ -347,9 +377,9 @@ export default async function nodeRoutes(app: FastifyInstance) {
     const src = getRow(srcId)!;
     const id = newId();
     db.prepare(
-      `INSERT INTO nodes (id, parent_id, type, name, url, favicon_url, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(id, newParentId, src.type, src.name, src.url, src.favicon_url, position, now, now);
+      `INSERT INTO nodes (id, parent_id, type, name, url, favicon_url, icon, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, newParentId, src.type, src.name, src.url, src.favicon_url, src.icon, position, now, now);
     const kids = db
       .prepare('SELECT * FROM nodes WHERE parent_id = ? ORDER BY position ASC, created_at ASC')
       .all(srcId) as DbNodeRow[];

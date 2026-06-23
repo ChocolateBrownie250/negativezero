@@ -17,7 +17,8 @@ import {
   SEPARATOR,
 } from '../lib/colors';
 import { externalLinkHref, hostFromUrl } from '../lib/platform';
-import type { TreeNode } from '../lib/tree';
+import { NODE_ICONS } from '../lib/nodeIcons';
+import type { NodeIcon, TreeNode } from '../lib/tree';
 
 interface Props {
   node: TreeNode;
@@ -40,6 +41,7 @@ interface Props {
   onContextMenu: (e: MouseEvent) => void;
   onOpenFolder?: () => void;
   onOpenActions: (anchor: HTMLElement) => void;
+  onOpenIconPicker: (anchor: HTMLElement) => void;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: (e: DragEvent) => void;
   onDragOver: (e: DragEvent) => void;
@@ -73,6 +75,27 @@ function Favicon({ url, alt }: { url: string | null; alt: string }) {
         </span>
       )}
     </div>
+  );
+}
+
+// A custom node icon: an emoji or a named icon (from NODE_ICONS) on a chosen
+// background color. Replaces the favicon / folder glyph when the user sets one.
+function NodeGlyph({ icon }: { icon: NodeIcon }) {
+  const Lucide = icon.lucide ? NODE_ICONS[icon.lucide] : null;
+  return (
+    <span
+      className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+      style={{
+        background: icon.bg,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
+      }}
+    >
+      {icon.emoji ? (
+        <span className="text-[18px] leading-none">{icon.emoji}</span>
+      ) : Lucide ? (
+        <Lucide size={20} color="#fff" />
+      ) : null}
+    </span>
   );
 }
 
@@ -127,6 +150,7 @@ export default function ItemRow({
   onContextMenu,
   onOpenFolder,
   onOpenActions,
+  onOpenIconPicker,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -162,11 +186,24 @@ export default function ItemRow({
   // single click selects (modifier-aware in the parent), a drag moves the item.
   // Opening is a separate, explicitly-bordered button so the two actions never
   // fight — this is what fixes click-select being swallowed by the open link.
-  const iconTitle = (
-    <>
-      {isFolder ? (
+  const iconButton = (
+    <button
+      type="button"
+      data-icon-btn="1"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onOpenIconPicker(e.currentTarget);
+      }}
+      className="shrink-0 rounded-lg transition-transform active:scale-95"
+      aria-label="Change icon"
+      title="Change icon — pick an emoji or color"
+    >
+      {node.icon ? (
+        <NodeGlyph icon={node.icon} />
+      ) : isFolder ? (
         <span
-          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+          className="w-9 h-9 rounded-lg flex items-center justify-center"
           style={{
             background: COLORS.surface,
             boxShadow: `inset 0 0 0 1px ${RING_SUBTLE}`,
@@ -177,6 +214,11 @@ export default function ItemRow({
       ) : (
         <Favicon url={node.faviconUrl} alt={node.name} />
       )}
+    </button>
+  );
+  const iconTitle = (
+    <>
+      {iconButton}
       <span className="flex-1 min-w-0 block">
         <span
           className="text-[15px] font-medium truncate block"
