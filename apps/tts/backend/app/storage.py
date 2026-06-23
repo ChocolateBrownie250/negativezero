@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .config import settings
@@ -13,7 +13,7 @@ GROQ_AUDIO_LIMIT_BYTES = 25 * 1024 * 1024  # Groq Whisper hard limit
 
 
 def audio_path_for(transcription_id: str, ext: str) -> Path:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     sub = settings.audio_dir / f"{now.year:04d}" / f"{now.month:02d}"
     sub.mkdir(parents=True, exist_ok=True)
     safe_ext = ext.lstrip(".") or "bin"

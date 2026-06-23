@@ -11,9 +11,8 @@ from ..config import settings
 from ..db import get_db
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
-from ..groq_client import map_upstream_error
+from ..groq_client import map_upstream_error, validate_chat_model, validate_whisper_model
 from ..groq_client import transcribe as groq_transcribe
-from ..groq_client import validate_chat_model, validate_whisper_model
 from ..models import CleanupMode, TranscriptionResponse
 from ..storage import GROQ_AUDIO_LIMIT_BYTES, save_audio
 

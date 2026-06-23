@@ -11,7 +11,6 @@ import pytest
 
 from backend.app.chunker import chunk_text, estimate_tokens
 
-
 # ----- estimate_tokens ------------------------------------------------------
 
 def test_estimate_tokens_empty():
@@ -128,8 +127,11 @@ def test_chunk_preserves_content():
     )
     chunks = chunk_text(text, max_chunk_tokens=15)
     rejoined = " ".join(chunks)
+
     # Strip whitespace differences and compare the dense character stream.
-    norm = lambda s: "".join(s.split())
+    def norm(s):
+        return "".join(s.split())
+
     assert norm(rejoined) == norm(text)
 
 
@@ -140,6 +142,9 @@ def test_chunk_invariant_across_budgets(budget):
     # Regardless of budget, every chunk must respect it.
     for c in chunks:
         assert estimate_tokens(c) <= budget
+
     # And the union still covers the input.
-    norm = lambda s: "".join(s.split())
+    def norm(s):
+        return "".join(s.split())
+
     assert norm(" ".join(chunks)) == norm(text)
