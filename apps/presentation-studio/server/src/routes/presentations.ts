@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { db, type PresentationRow } from '../db.js';
 
 // 2 MB cap per stored document — generous for slide JSON, blunts abuse.
-const MAX_DOC_BYTES = 2_000_000;
+export const MAX_DOC_BYTES = 2_000_000;
 
 // Light structural gate for stored documents: enough to reject garbage without
 // blocking transient mid-edit states. The /presentation/validate endpoint does
