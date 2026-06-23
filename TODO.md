@@ -129,10 +129,10 @@ bookmark-manager server tests pass 15/15, and runtime smoke tests
 confirm secure-session cookies, rate-limit headers, WebAuthn options,
 and SPA static serving all work under fastify 5.
 
-- [ ] **Still wants a browser smoke test** (couldn't run headless
-      here): Tailwind 4 preflight cosmetic defaults (e.g. button
-      cursor) and the vite-8 admin dev server. Verify the two SPAs
-      render correctly before relying on the deploy.
+- [x] **2026-06-23 browser/deploy follow-up completed:** admin now builds on
+      the patched Vite 7 line with a clean audit; Citrine production mobile PWA
+      smoke passed with manifest/apple metadata, scoped service worker, no
+      horizontal overflow, no console errors, and no failed network responses.
 
 ---
 
@@ -145,7 +145,7 @@ and SPA static serving all work under fastify 5.
       touch layouts, freeform canvas Pan/Move modes, preview swipe navigation,
       authenticated Claude Design source import, JSON validation, admin SSO
       authorization via the `citrine` service grant, compose/deploy/nginx
-      wiring, and production smoke verification.
+      wiring, GitHub `main` sync, CI coverage, and production smoke verification.
 - [x] **2026-06-18** Mobile UI polish — **Batch 1** (commits `db69761`, `57d714c`,
       `78f518e`; deployed + verified live). Fixed *why fresh UI wasn't reaching the
       device* and the clear quick wins:
