@@ -147,12 +147,22 @@ export default function ItemRow({
       ? 'rgba(91,147,240,0.18)'
       : 'transparent';
 
-  // The full-row tap target: icon + title/subtitle + a trailing disclosure
-  // indicator. Shared between the folder (button → navigate) and bookmark
-  // (anchor → open link) variants so the whole row reads as one tappable cell.
-  const openTargetClass =
-    'flex-1 flex items-center gap-3 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer';
-  const inner = (
+  // Open the item: navigate into a folder, or open the bookmark URL in a new
+  // tab. Triggered by the dedicated outlined Open button and by a double-click
+  // on the card body (Chrome-style: single click selects, double click opens).
+  function openItem() {
+    if (isFolder) {
+      onOpenFolder?.();
+      return;
+    }
+    if (safeHref) window.open(safeHref, '_blank', 'noopener,noreferrer');
+  }
+
+  // The card body: icon + title/subtitle. This is the SELECT + DRAG surface — a
+  // single click selects (modifier-aware in the parent), a drag moves the item.
+  // Opening is a separate, explicitly-bordered button so the two actions never
+  // fight — this is what fixes click-select being swallowed by the open link.
+  const iconTitle = (
     <>
       {isFolder ? (
         <span
@@ -184,15 +194,6 @@ export default function ItemRow({
               : `${itemCount} item${itemCount === 1 ? '' : 's'}`
             : hostFromUrl(node.url)}
         </span>
-      </span>
-      {/* Trailing disclosure indicator (decorative — the whole row is the hit
-          target): chevron for folders, open-in-new for bookmarks. */}
-      <span
-        className="w-6 h-9 flex items-center justify-center shrink-0"
-        style={{ color: LABEL_TERTIARY, opacity: !isFolder && !safeHref ? 0.4 : 1 }}
-        aria-hidden="true"
-      >
-        {isFolder ? <ChevronRight size={20} /> : <ExternalLink size={18} />}
       </span>
     </>
   );
@@ -232,7 +233,29 @@ export default function ItemRow({
       )}
       <SelectionToggle selected={selected} onSelect={onSelect} />
 
-      {/* Primary action: tap the row to enter the folder / open the bookmark. */}
+      {/* Card body — single click SELECTS (modifier-aware in the parent),
+          double click opens, and a drag moves the item. Deliberately NOT a
+          link/navigate button: the open action lives in the bordered button to
+          the right, so a plain click can select instead of navigating away. */}
+      <div
+        className="flex-1 flex items-center gap-3 min-w-0 text-left select-none"
+        onClick={(e) => onSelect(e)}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openItem();
+        }}
+        style={{ cursor: draggable ? 'grab' : 'default' }}
+      >
+        {iconTitle}
+      </div>
+
+      {/* Open action — a clearly OUTLINED button so the click target for "open"
+          is unmistakable and distinct from select/drag. Folder → navigate in;
+          bookmark → open in a new tab (a real <a> for accessibility and to
+          avoid popup blocking). A non-http(s) URL renders inert (no href,
+          pointer-events off) so a hostile javascript:/data: URL that slipped
+          past the server can't be opened. */}
       {isFolder ? (
         <button
           type="button"
@@ -241,35 +264,38 @@ export default function ItemRow({
             e.stopPropagation();
             onOpenFolder?.();
           }}
-          className={openTargetClass}
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors"
+          style={{
+            color: LABEL_SECONDARY,
+            background: COLORS.surface,
+            boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
+          }}
           aria-label={`Open folder ${node.name}`}
+          title="Open folder"
         >
-          {inner}
+          <ChevronRight size={18} />
         </button>
-      ) : safeHref ? (
+      ) : (
         <a
-          href={safeHref}
+          href={safeHref ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.stopPropagation()}
-          className={openTargetClass}
-          style={{ textDecoration: 'none' }}
-          aria-label={`Open ${node.name}`}
+          onDoubleClick={(e) => e.stopPropagation()}
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors"
+          style={{
+            color: LABEL_SECONDARY,
+            background: COLORS.surface,
+            boxShadow: `inset 0 0 0 1px ${RING_STRONG}`,
+            textDecoration: 'none',
+            pointerEvents: safeHref ? undefined : 'none',
+            opacity: safeHref ? 1 : 0.4,
+          }}
+          aria-label={`Open ${node.name} in a new tab`}
+          title={safeHref ? 'Open in new tab' : "This link can't be opened"}
         >
-          {inner}
+          <ExternalLink size={17} />
         </a>
-      ) : (
-        // Defense-in-depth: a non-http(s) URL is never a live link. Render an
-        // inert row so a hostile javascript:/data: URL that slipped past the
-        // server can't be tapped into execution.
-        <div
-          className="flex-1 flex items-center gap-3 min-w-0 text-left"
-          aria-label="Link unavailable"
-          title="This link can't be opened"
-        >
-          {inner}
-        </div>
       )}
 
       {/* Reorder grip — visible only on desktop (when draggable=true).
