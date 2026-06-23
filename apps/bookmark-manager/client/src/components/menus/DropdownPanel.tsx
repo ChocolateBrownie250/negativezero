@@ -83,7 +83,7 @@ export default function DropdownPanel({
     <div
       ref={ref}
       role="menu"
-      className="glass-surface fixed z-50 rounded-xl py-1 overflow-hidden"
+      className="glass-surface fixed z-50 rounded-xl py-1 overflow-hidden nz-pop"
       style={{
         top: pos.top,
         left: pos.left,

@@ -24,14 +24,14 @@ export default function Modal({ title, onClose, children, maxWidth = 380 }: Prop
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 nz-fade-in"
       style={{ background: 'rgba(0,0,0,0.65)' }}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="glass-card w-full rounded-2xl overflow-hidden"
+        className="glass-card w-full rounded-2xl overflow-hidden nz-slide-up"
         style={{ maxWidth }}
       >
         <div className="flex items-center justify-between px-4 pt-4 pb-2">

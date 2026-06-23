@@ -250,7 +250,7 @@ export default function ItemRow({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className="relative flex items-center gap-3 px-4 py-3 select-none transition-colors"
+      className="relative flex items-center gap-3 px-4 py-3 select-none nz-row"
       style={{
         borderBottom: isLast ? 'none' : `1px solid ${SEPARATOR}`,
         background,

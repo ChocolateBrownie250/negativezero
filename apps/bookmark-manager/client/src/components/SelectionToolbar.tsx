@@ -33,7 +33,7 @@ export default function SelectionToolbar({
 
   return (
     <div
-      className="sticky top-0 z-30 -mx-4 px-4 py-2 mb-3 backdrop-blur-md"
+      className="sticky top-0 z-30 -mx-4 px-4 py-2 mb-3 backdrop-blur-md nz-slide-up"
       style={{
         // Deep-blue liquid-glass surface matching the app's .glass-surface
         // primitive (menus/toast). Was a leftover flat grey rgba(20,20,24) from
