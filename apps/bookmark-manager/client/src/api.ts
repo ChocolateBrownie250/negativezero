@@ -132,4 +132,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ parentId, orderedIds }),
     }),
+  cloneNodes: (ids: string[], parentId: string) =>
+    request<{ ok: true; newIds: string[] }>('/api/nodes/clone', {
+      method: 'POST',
+      body: JSON.stringify({ ids, parentId }),
+    }),
 };

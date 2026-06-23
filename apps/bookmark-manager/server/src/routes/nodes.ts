@@ -334,4 +334,71 @@ export default async function nodeRoutes(app: FastifyInstance) {
     tx();
     return { ok: true };
   });
+
+  // Recursively copy a node (and its whole subtree) under newParentId at the
+  // given position. The already-encrypted name/url/favicon ciphertext is copied
+  // verbatim — no decrypt needed, encryption is preserved. Returns the new id.
+  function cloneSubtree(
+    srcId: string,
+    newParentId: string,
+    position: number,
+    now: number,
+  ): string {
+    const src = getRow(srcId)!;
+    const id = newId();
+    db.prepare(
+      `INSERT INTO nodes (id, parent_id, type, name, url, favicon_url, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, newParentId, src.type, src.name, src.url, src.favicon_url, position, now, now);
+    const kids = db
+      .prepare('SELECT * FROM nodes WHERE parent_id = ? ORDER BY position ASC, created_at ASC')
+      .all(srcId) as DbNodeRow[];
+    kids.forEach((kid, i) => cloneSubtree(kid.id, id, i, now));
+    return id;
+  }
+
+  // Copy (paste / duplicate) one or more nodes — each with its full subtree —
+  // into a target folder, appended at the end. Powers ⌘C/⌘V and ⌘D on the
+  // client. Cut+paste is a plain move (PATCH parentId), not this endpoint.
+  app.post('/nodes/clone', async (req, reply) => {
+    const body = (req.body ?? {}) as { ids?: unknown; parentId?: unknown };
+    const parentId = (typeof body.parentId === 'string' ? body.parentId : '').trim();
+    const ids = body.ids;
+    if (!parentId) return reply.code(400).send({ error: 'validation', field: 'parentId' });
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.some((x) => typeof x !== 'string' || !x.trim())
+    ) {
+      return reply.code(400).send({ error: 'validation', field: 'ids' });
+    }
+    const parent = getRow(parentId);
+    if (parentId !== ROOT && !parent) {
+      return reply.code(404).send({ error: 'parent_not_found' });
+    }
+    if (parentId !== ROOT && !isFolder(parent)) {
+      return reply.code(400).send({ error: 'validation', field: 'parentId' });
+    }
+
+    // Bound the total work so a pathological paste can't explode the DB.
+    let total = 0;
+    for (const srcId of ids as string[]) {
+      if (getRow(srcId)) total += 1 + getDescendantIds(srcId).length;
+    }
+    if (total > 2000) return reply.code(400).send({ error: 'too_many_nodes' });
+
+    const now = Date.now();
+    const newIds: string[] = [];
+    const tx = db.transaction(() => {
+      for (const srcId of ids as string[]) {
+        const src = getRow(srcId);
+        if (!src) continue; // skip nodes that vanished
+        // Can't paste a folder into itself or one of its own descendants.
+        if (src.type === 'folder' && isDescendantOf(parentId, srcId)) continue;
+        newIds.push(cloneSubtree(srcId, parentId, nextPosition(parentId), now));
+      }
+    });
+    tx();
+    return { ok: true, newIds };
+  });
 }
