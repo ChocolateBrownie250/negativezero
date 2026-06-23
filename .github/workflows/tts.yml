@@ -44,6 +44,12 @@ jobs:
       - name: set up Python 3.12
         run: uv python install 3.12
 
+      # Lint gate: blocking ruff check. --extra dev provides ruff (pinned in the
+      # [project.optional-dependencies] dev group). Runs before pytest so style
+      # regressions fail fast.
+      - name: ruff
+        run: uv run --python 3.12 --extra dev ruff check .
+
       # Run from apps/tts so the tests' `backend.app.*` imports resolve against
       # the repo tree (pytest inserts the rootdir on sys.path). --extra dev pulls
       # in pytest + pytest-asyncio; asyncio_mode=auto is set in pyproject.toml.

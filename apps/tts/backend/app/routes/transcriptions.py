@@ -13,11 +13,10 @@ from ..db import get_db
 from ..fts import build_fts_query
 from ..glossary import load_glossary
 from ..groq_client import cleanup as groq_cleanup
-from ..groq_client import map_upstream_error
+from ..groq_client import map_upstream_error, validate_chat_model, validate_whisper_model
 from ..groq_client import polish as groq_polish
 from ..groq_client import transcribe as groq_transcribe
 from ..groq_client import translate as groq_translate
-from ..groq_client import validate_chat_model, validate_whisper_model
 from ..models import (
     CleanupMode,
     PolishMode,
@@ -123,9 +122,8 @@ async def list_transcriptions(
         """
         bind = [*params, limit + 1]
 
-    async with get_db() as conn:
-        async with conn.execute(sql, bind) as cur:
-            rows = await cur.fetchall()
+    async with get_db() as conn, conn.execute(sql, bind) as cur:
+        rows = await cur.fetchall()
 
     has_more = len(rows) > limit
     rows = rows[:limit]
@@ -147,7 +145,7 @@ async def list_transcriptions(
 
 @router.get("/transcriptions/{tid}", response_model=TranscriptionResponse)
 async def get_transcription(tid: str) -> TranscriptionResponse:
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
     if not row:
@@ -178,11 +176,10 @@ async def delete_transcription(tid: str) -> dict:
 
 @router.get("/transcriptions/{tid}/audio")
 async def get_audio(tid: str):
-    async with get_db() as conn:
-        async with conn.execute(
-            "SELECT audio_path, audio_format FROM transcriptions WHERE id = ?", (tid,)
-        ) as cur:
-            row = await cur.fetchone()
+    async with get_db() as conn, conn.execute(
+        "SELECT audio_path, audio_format FROM transcriptions WHERE id = ?", (tid,)
+    ) as cur:
+        row = await cur.fetchone()
     if not row:
         raise HTTPException(404, "Not found")
     if not row["audio_path"]:
@@ -209,7 +206,7 @@ async def recleanup(
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
     if not row:
@@ -266,7 +263,7 @@ async def retranscribe(
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
     if not row:
@@ -339,7 +336,7 @@ async def polish_transcription(
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
     if not row:
@@ -405,7 +402,7 @@ async def translate_transcription(
     if not target_clean:
         raise HTTPException(400, "Empty target language")
 
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
     if not row:
@@ -486,7 +483,7 @@ async def polish_transcription_queued(
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM transcriptions WHERE id = ?", (tid,)) as cur:
             row = await cur.fetchone()
     if not row:

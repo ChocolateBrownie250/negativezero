@@ -111,9 +111,8 @@ async def list_notes(
         """
         bind = [*params, limit + 1]
 
-    async with get_db() as conn:
-        async with conn.execute(sql, bind) as cur:
-            rows = await cur.fetchall()
+    async with get_db() as conn, conn.execute(sql, bind) as cur:
+        rows = await cur.fetchall()
 
     has_more = len(rows) > limit
     rows = rows[:limit]
@@ -163,7 +162,7 @@ async def create_note(payload: NoteCreate) -> NoteResponse:
 
 @router.get("/notes/{nid}", response_model=NoteResponse)
 async def get_note(nid: str) -> NoteResponse:
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM notes WHERE id = ?", (nid,)) as cur:
             row = await cur.fetchone()
     if not row:
@@ -183,7 +182,7 @@ async def update_note(nid: str, payload: NoteUpdate) -> NoteResponse:
     if not fields:
         # No-op PATCH: still return the current state so the client can
         # re-sync its view without a separate GET.
-        async with get_db() as conn:
+        async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
             async with conn.execute("SELECT * FROM notes WHERE id = ?", (nid,)) as cur:
                 row = await cur.fetchone()
         if not row:
@@ -224,7 +223,7 @@ async def dictate_into_note(
     """Transcribe audio and run it through the note's configured cleanup +
     polish pipeline. Returns the processed text — the client inserts it at
     the saved cursor position and PATCHes the body."""
-    async with get_db() as conn:
+    async with get_db() as conn:  # noqa: SIM117  nested async-with kept explicit (untested route code)
         async with conn.execute("SELECT * FROM notes WHERE id = ?", (nid,)) as cur:
             row = await cur.fetchone()
     if not row:

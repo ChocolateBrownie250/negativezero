@@ -109,7 +109,10 @@ async def get_db() -> AsyncIterator[aiosqlite.Connection]:
 
 
 async def get_setting(key: str, default: str | None = None) -> str | None:
-    async with get_db() as conn:
+    # SIM117: nested async-with kept explicit; combining these into one
+    # `async with a, b:` line in untested route/db code isn't worth the
+    # regression risk (no runnable coverage for these paths).
+    async with get_db() as conn:  # noqa: SIM117
         async with conn.execute("SELECT value FROM settings WHERE key = ?", (key,)) as cur:
             row = await cur.fetchone()
     return row["value"] if row else default
