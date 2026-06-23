@@ -408,6 +408,57 @@ select.selectbox {
   background-position: calc(100% - 19px) 52%, calc(100% - 14px) 52%;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 34px;
 }
+
+/* Themed select — a custom glass dropdown that replaces the native <select>
+   popup (iOS renders that as an unstyleable OS sheet that clashes with the
+   theme). The real <select> stays in the DOM as source-of-truth; app.js builds
+   this overlay (see enhanceSelects). */
+.cselect { position: relative; width: 100%; }
+.cselect-native {
+  position: absolute; left: 0; bottom: 0; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none; clip: rect(0 0 0 0);
+}
+.cselect-trigger {
+  width: 100%; box-sizing: border-box; font-family: inherit; text-align: left;
+  display: flex; align-items: center; cursor: pointer; position: relative;
+  background: rgba(2,6,20,0.38); box-shadow: inset 0 0 0 1px var(--hairline);
+  border: 0; border-radius: 12px; color: var(--fg); font-size: 15px;
+  padding: 12px 36px 12px 13px; transition: box-shadow .15s ease;
+}
+.cselect-trigger[aria-expanded="true"] {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ac) 55%, transparent), 0 0 0 3px var(--glow-2);
+}
+.cselect-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cselect-chev {
+  position: absolute; right: 15px; width: 8px; height: 8px;
+  border-right: 2px solid var(--fg-dim); border-bottom: 2px solid var(--fg-dim);
+  transform: translateY(-2px) rotate(45deg); transition: transform .18s ease;
+}
+.cselect-trigger[aria-expanded="true"] .cselect-chev { transform: translateY(1px) rotate(-135deg); }
+.cselect-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+  max-height: 300px; overflow-y: auto; padding: 6px; border-radius: 16px;
+  background:
+    linear-gradient(177deg, rgba(110,140,205,0.16) 0%, rgba(60,84,152,0.09) 100%),
+    rgba(16,26,52,0.92);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(135%);
+  backdrop-filter: blur(var(--blur)) saturate(135%);
+  box-shadow:
+    inset 0 1px 0 rgba(190,212,255,0.16),
+    inset 0 0 0 1px var(--edge-lo),
+    0 18px 44px rgba(0,1,8,0.62);
+}
+.cselect-menu[hidden] { display: none; }
+.cselect-menu::-webkit-scrollbar { display: none; }
+.cselect-opt {
+  display: flex; align-items: center; width: 100%; text-align: left;
+  background: transparent; border: 0; cursor: pointer; font-family: inherit;
+  color: var(--fg); font-size: 15px; padding: 11px 12px; border-radius: 10px;
+}
+.cselect-opt:hover { background: var(--glass-2); }
+.cselect-opt.sel { color: var(--ac); font-weight: 600; }
+.cselect-opt.sel::after { content: "✓"; margin-left: auto; font-size: 13px; }
+
 .field + .field { margin-top: 14px; }
 .card-pad { padding: 16px; }
 .card-pad + .card-pad { margin-top: 12px; }
