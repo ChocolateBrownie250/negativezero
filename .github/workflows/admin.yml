@@ -1,9 +1,8 @@
 name: admin
 
-# CI for the admin service. Runs typecheck + build, and validates the
-# Dockerfile can produce a runnable image. Mirrors bookmark-manager.yml.
-# No `server tests` step yet — admin has no tests today; add one here when
-# the first test file lands.
+# CI for the admin service. Runs typecheck + build + server tests, and
+# validates the Dockerfile can produce a runnable image. Mirrors
+# bookmark-manager.yml.
 
 on:
   push:
@@ -37,6 +36,9 @@ jobs:
 
       - name: typecheck + build (client + server)
         run: npm run build
+
+      - name: server tests
+        run: npm -w server test
 
   docker-build:
     runs-on: ubuntu-latest
