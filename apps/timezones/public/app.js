@@ -346,15 +346,12 @@
     const { city } = labelFor(state.home);
     spacer.textContent = city + ' — day';
     wrap.appendChild(spacer);
-    const track = document.createElement('div');
-    track.className = 'rtrack';
     for (let h = 0; h < HOURS; h++) {
       const c = document.createElement('div');
       c.className = 'rcell' + (overlap[h] ? ' overlap' : '');
       c.textContent = String(h).padStart(2, '0');
-      track.appendChild(c);
+      wrap.appendChild(c);
     }
-    wrap.appendChild(track);
     return wrap;
   }
 
@@ -415,8 +412,7 @@
     meta.appendChild(big);
     meta.appendChild(sub);
 
-    const track = document.createElement('div');
-    track.className = 'track';
+    card.appendChild(meta);
     for (let h = 0; h < HOURS; h++) {
       const lh = hours[h];
       const cell = document.createElement('div');
@@ -433,11 +429,8 @@
       cell.className = cls;
       cell.textContent = lh === 0 ? 'day' : String(lh).padStart(2, '0');
       cell.title = city + ' ' + clock(lh, 0);
-      track.appendChild(cell);
+      card.appendChild(cell);
     }
-    card.appendChild(meta);
-    card.appendChild(track);
-    card._track = track;
     return card;
   }
 
@@ -454,11 +447,16 @@
   function positionNow(now, dayStart) {
     const frac = (now - dayStart.getTime()) / (HOURS * 3600000);
     if (frac < 0 || frac > 1) return; // now is outside the shown day
-    document.querySelectorAll('.track').forEach((track) => {
+    // The now-line is positioned over the hour area of each row (after the
+    // frozen city column), so it lines up across every zone.
+    document.querySelectorAll('.zonecard').forEach((card) => {
+      const meta = card.querySelector('.zonemeta');
+      const metaW = meta ? meta.offsetWidth : 0;
+      const hoursW = card.scrollWidth - metaW;
       const line = document.createElement('div');
       line.className = 'nowline';
-      line.style.left = (frac * track.scrollWidth) + 'px';
-      track.appendChild(line);
+      line.style.left = (metaW + frac * hoursW) + 'px';
+      card.appendChild(line);
     });
   }
 

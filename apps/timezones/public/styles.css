@@ -38,7 +38,8 @@
   --dusk: linear-gradient(180deg, rgba(150,104,196,0.16) 0%, rgba(243,134,72,0.34) 100%);  /* sunset: amber under violet */
   --work: rgba(118, 150, 226, 0.22);  /* working hours: saturated blue */
   --overlap: rgba(228, 176, 90, 0.22); /* everyone available: gold */
-  --cell-w: 38px;
+  --cell-w: 36px;   /* one hour column */
+  --meta-w: 200px;  /* the frozen city column */
 
   /* Corner radii — one rounded scale shared across the UI so chips, inputs,
      dropdowns and cards all curve consistently (softer than the old 3/6/8). */
@@ -220,25 +221,53 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
 }
 .ctl select option { background: var(--panel-solid); color: var(--ink); }
 
-/* ── board ─────────────────────────────────────────────── */
-.board { overflow-x: auto; padding-bottom: 8px; }
-.grid { border-collapse: collapse; min-width: max-content; }
+/* ── board: a frozen-city-column timeline that scrolls horizontally ─
+   The ruler and every zone row share ONE grid template, so hour columns
+   line up exactly. The 24 hour cells can't shrink below --cell-w, so on a
+   phone the row is wider than the screen and the whole board scrolls as a
+   single unit (instead of clipping the strip, the old bug). The city
+   column is sticky, so you never lose which row is which while scrolling. */
+.board {
+  overflow-x: auto; overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 10px;
+  scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
+}
+.board::-webkit-scrollbar { height: 8px; }
+.board::-webkit-scrollbar-track { background: transparent; }
+.board::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 999px; }
+.board::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
+.ruler,
 .zonecard {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: var(--meta-w) repeat(23, var(--cell-w)) minmax(var(--cell-w), 1fr);
+  width: max-content;
+  min-width: 100%;
+}
+
+.zonecard {
+  position: relative;
   align-items: stretch;
   border: 1px solid var(--rule);
   border-radius: var(--r-lg);
   margin-bottom: 10px;
-  overflow: hidden;
 }
 .zonecard.home { border-color: rgba(228,176,90,0.35); }
 
+/* Frozen first column — the city meta stays pinned while hours scroll. */
 .zonemeta {
+  position: sticky; left: 0; z-index: 3; grid-column: 1;
   padding: 12px 14px; border-right: 1px solid var(--rule);
   display: flex; flex-direction: column; gap: 2px; justify-content: center;
-  min-width: 0; background: var(--panel);
+  min-width: 0; background: var(--panel-solid);
+  border-top-left-radius: var(--r-lg); border-bottom-left-radius: var(--r-lg);
+}
+.zonecard.home .zonemeta {
+  background:
+    linear-gradient(180deg, rgba(228,176,90,0.12), rgba(228,176,90,0.04)),
+    var(--panel-solid);
 }
 .zonemeta .city {
   font-family: var(--font-sans); font-size: var(--fs-ui); font-weight: var(--fw-medium);
@@ -252,8 +281,9 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
 }
 .zonemeta .sub {
   font-family: var(--font-mono); font-size: var(--fs-label); color: var(--muted);
-  display: flex; gap: 8px; align-items: baseline;
+  display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline;
 }
+.zonemeta .sub > span { white-space: nowrap; }
 .zonemeta .bigtime {
   font-family: var(--font-mono); font-size: var(--fs-lead); font-weight: var(--fw-light);
   color: var(--ink); letter-spacing: 0.01em; font-variant-numeric: tabular-nums;
@@ -266,16 +296,18 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
 }
 .zonemeta .rm:hover { color: var(--ink); }
 
-.track { position: relative; display: flex; }
+/* hour cells — direct grid children of the row, so they share the ruler's
+   columns and stay perfectly aligned. */
 .cell {
-  width: var(--cell-w); flex: 0 0 var(--cell-w);
+  min-width: var(--cell-w);
   border-left: 1px solid var(--rule);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-mono); font-size: var(--fs-label);
   color: var(--muted); padding: 14px 0; background: var(--night);
   position: relative; font-variant-numeric: tabular-nums;
 }
-.cell:first-child { border-left: none; }
+.zonemeta + .cell { border-left: none; }
+.cell:last-child { border-top-right-radius: var(--r-lg); border-bottom-right-radius: var(--r-lg); }
 .cell.dawn { background: var(--dawn); color: #EFCEC4; }
 .cell.day { background: var(--day); color: #AEC2DE; }
 .cell.dusk { background: var(--dusk); color: #F0CAA6; }
@@ -286,16 +318,18 @@ button.btn:disabled:hover { border-color: var(--rule); color: var(--ink); }
   pointer-events: none;
 }
 
-/* hour ruler (home zone) on top */
-.ruler { display: grid; grid-template-columns: 200px 1fr; margin-bottom: 6px; }
+/* hour ruler (home zone) on top — same grid, sticky label cell */
+.ruler { margin-bottom: 6px; }
 .ruler .spacer {
+  position: sticky; left: 0; z-index: 3; grid-column: 1;
+  background: var(--panel-solid); border-radius: var(--r-md);
   font-family: var(--font-sans); font-size: var(--fs-micro); font-weight: var(--fw-medium);
   color: var(--muted); text-transform: uppercase; letter-spacing: var(--track-label);
-  display: flex; align-items: flex-end; padding: 0 14px 6px;
+  display: flex; align-items: center; padding: 6px 14px;
 }
-.ruler .rtrack { display: flex; }
 .ruler .rcell {
-  width: var(--cell-w); flex: 0 0 var(--cell-w); text-align: center;
+  min-width: var(--cell-w);
+  display: flex; align-items: flex-end; justify-content: center;
   font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--muted);
   padding-bottom: 6px; font-variant-numeric: tabular-nums;
 }
@@ -343,8 +377,7 @@ footer {
     max(64px, env(safe-area-inset-bottom))
     max(16px, env(safe-area-inset-left));
   }
-  .zonecard, .ruler { grid-template-columns: 132px 1fr; }
-  .ruler .spacer { padding: 0 10px 6px; }
-  .zonemeta { padding: 10px; }
-  :root { --cell-w: 34px; }
+  .ruler .spacer { padding: 6px 12px; }
+  .zonemeta { padding: 10px 12px; }
+  :root { --cell-w: 34px; --meta-w: 140px; }
 }
