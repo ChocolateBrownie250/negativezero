@@ -459,6 +459,24 @@ select.selectbox {
 .cselect-opt.sel { color: var(--ac); font-weight: 600; }
 .cselect-opt.sel::after { content: "✓"; margin-left: auto; font-size: 13px; }
 
+/* Advanced disclosure (result card) — tucks the re-processing controls away so
+   the default view stays simple. */
+.adv-toggle {
+  display: flex; align-items: center; width: 100%;
+  background: transparent; border: 0; cursor: pointer; font-family: inherit;
+  color: var(--fg-dim); font-size: 13.5px; font-weight: 600;
+  padding: 14px 4px 4px; margin-top: 2px;
+}
+.adv-toggle::after {
+  content: ""; margin-left: auto; width: 7px; height: 7px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg); transition: transform .18s ease;
+}
+.adv-toggle[aria-expanded="true"] { color: var(--fg-mid); }
+.adv-toggle[aria-expanded="true"]::after { transform: translateY(1px) rotate(-135deg); }
+.adv-tools { margin-top: 4px; }
+.adv-tools[hidden] { display: none; }
+
 .field + .field { margin-top: 14px; }
 .card-pad { padding: 16px; }
 .card-pad + .card-pad { margin-top: 12px; }

@@ -1723,3 +1723,31 @@ function enhanceSelects(root) {
   });
 }
 enhanceSelects();
+
+// Advanced disclosure on the result card: keep the common actions (switch
+// Source, Copy, Translate) up top and tuck the re-processing controls
+// (Intensity, Cleanup, Polish, Re-transcribe) behind an Advanced toggle.
+// Nothing is removed; the preference is remembered.
+(function setupAdvancedTools() {
+  const toggle = document.getElementById("advancedToggle");
+  const tools = document.getElementById("advancedTools");
+  if (!toggle || !tools) return;
+  const KEY = "amethyst.advancedTools";
+  function set(open) {
+    tools.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    try {
+      localStorage.setItem(KEY, open ? "1" : "0");
+    } catch {
+      /* ignore storage failures */
+    }
+  }
+  let open = false;
+  try {
+    open = localStorage.getItem(KEY) === "1";
+  } catch {
+    /* ignore */
+  }
+  set(open);
+  toggle.addEventListener("click", () => set(tools.hidden));
+})();
