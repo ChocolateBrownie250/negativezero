@@ -1,0 +1,77 @@
+name: presentation-studio
+
+# CI for Citrine, the web-native presentation builder service. Runs
+# typecheck/build/tests/audit and validates the Dockerfile can produce a
+# runnable image.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/presentation-studio/**'
+      - '.github/workflows/presentation-studio.yml'
+  pull_request:
+    paths:
+      - 'apps/presentation-studio/**'
+      - '.github/workflows/presentation-studio.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/presentation-studio
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/presentation-studio/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      - name: typecheck + build (client + server)
+        run: npm run build
+
+      - name: server tests
+        run: npm run test
+
+      - name: dependency audit
+        run: npm audit
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/presentation-studio
+          push: false
+          load: true
+          tags: negativezero-citrine:ci
+          cache-from: type=gha,scope=presentation-studio
+          cache-to: type=gha,scope=presentation-studio,mode=max
+
+      - name: smoke-test image starts + serves health
+        run: |
+          docker run --rm --name citrine-smoke -d \
+            -e SESSION_SECRET=$(openssl rand -hex 32) \
+            -e SETUP_CODE_HASH='stub' \
+            -e SSO_SESSION_SECRET=$(openssl rand -hex 32) \
+            -e PUBLIC_URL=http://localhost:3000 \
+            -p 3000:3000 \
+            negativezero-citrine:ci
+          for _ in $(seq 1 15); do
+            curl -sf http://127.0.0.1:3000/api/health >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker logs citrine-smoke
+          curl -sf http://127.0.0.1:3000/api/health | grep -q '"ok":true'
+          docker stop citrine-smoke

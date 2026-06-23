@@ -72,6 +72,7 @@ jobs:
               -e 's|__TIMEZONES_HOST_PORT__|3024|g' \
               -e 's|__VIDEO_DOWNLOADER_HOST_PORT__|3025|g' \
               -e 's|__REDIRECTOR_HOST_PORT__|3026|g' \
+              -e 's|__CITRINE_HOST_PORT__|3027|g' \
               platform/nginx/negativezero.one.conf > "$tmp/negativezero.one.conf"
           cp platform/nginx/negativezero-connection-upgrade.conf "$tmp/"
 
