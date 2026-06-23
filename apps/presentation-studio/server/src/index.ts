@@ -9,7 +9,7 @@ import { config, isProd } from './config.js';
 import { requireAuth } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import presentationRoutes from './routes/presentation.js';
-import presentationsRoutes from './routes/presentations.js';
+import presentationsRoutes, { MAX_DOC_BYTES } from './routes/presentations.js';
 import sourceRoutes from './routes/source.js';
 
 export async function createApp() {
@@ -19,14 +19,15 @@ export async function createApp() {
       redact: ['req.headers.cookie', 'req.headers.authorization'],
     },
     trustProxy: true,
-    // Persistence routes cap a stored document at 2 MB (MAX_DOC_BYTES in
-    // routes/presentations.ts). Fastify's default body limit is 1 MiB, which
-    // would reject any 1 MiB–2 MB document with a generic framework error
-    // before the route's own check runs — making the handler's 2 MB rule and
-    // its { error: 'document_too_large' } response unreachable. Raise the
-    // transport limit above the document cap (with headroom for the JSON
-    // envelope) so the route is the real boundary.
-    bodyLimit: 4 * 1024 * 1024,
+    // The persistence routes cap a stored document at MAX_DOC_BYTES and return
+    // { error: 'document_too_large' } for anything larger. Fastify's default
+    // body limit is 1 MiB, which would reject any 1 MiB–MAX_DOC_BYTES document
+    // with a generic framework error before the route's own check runs — making
+    // the cap and its error shape unreachable. Derive the transport limit from
+    // the SAME constant (single source of truth) plus headroom for the JSON
+    // request envelope (the `{ "document": … }` wrapper), so the route's cap is
+    // the real boundary. Bump MAX_DOC_BYTES alone and this tracks it.
+    bodyLimit: MAX_DOC_BYTES + 200_000,
   });
 
   await app.register(rateLimit, { global: false });

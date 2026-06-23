@@ -338,9 +338,10 @@ describe('presentations CRUD routes', () => {
     });
 
     it('rejects an over-2MB document with the handler 413 (document_too_large)', async () => {
-      // With bodyLimit raised to 4 MiB, this 2.1 MB document now reaches the
-      // handler, so its own MAX_DOC_BYTES check fires and returns the specific
-      // { error: 'document_too_large' } body — not the generic framework 413.
+      // With bodyLimit derived from MAX_DOC_BYTES (2 MB + envelope headroom),
+      // this 2.1 MB document now reaches the handler, so its own MAX_DOC_BYTES
+      // check fires and returns the specific { error: 'document_too_large' }
+      // body — not the generic framework 413.
       const res = await inject({
         method: 'POST',
         url: '/api/presentations',
