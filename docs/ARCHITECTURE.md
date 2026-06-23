@@ -5,8 +5,19 @@ when the architecture meaningfully changes — new component, replaced
 dependency, storage model change, deployment target shift. Not a daily
 file.
 
+This doc is the static map — what exists and where: services, stacks,
+the URL/repo layout, data stores, the component map, and the deployment
+topology. The dynamic narrative (request lifecycle, the SSO/auth state
+machine end to end) lives in `docs/SYSTEM_DESIGN.md`.
+
 For day-to-day status and what's being worked on, see `PLAN.md`. For the
 reasoning behind architectural choices, see `DECISIONS.md`.
+
+The platform is eight services behind one nginx apex: a static landing
+page plus seven path-mounted services (Basalt, admin, Amethyst,
+timezones, video-downloader, redirector, Citrine). Admin is the SSO hub;
+every gated service shares one `nz_session` cookie and asks admin for
+per-account authorization.
 
 ---
 
@@ -19,16 +30,18 @@ reasoning behind architectural choices, see `DECISIONS.md`.
   stays client-side via the `Intl` API; the backend gates the service on the
   apex SSO cookie + admin authz and stores per-account presets in SQLite
   (SSO-cookie-only — no local login of its own).
-- **Bookmark service backend:** Node 22 + Fastify 5 + TypeScript +
+- **Bookmark service backend (Basalt):** Node 22 + Fastify 5 + TypeScript +
   better-sqlite3 12. SQLite file lives on the VPS via a bind-mount
-  volume. Per-service WebAuthn + setup-code auth (no shared identity
-  provider).
+  volume. Mounted at `/services/basalt/`. Auth is the shared apex SSO
+  cookie + admin authz, with a local WebAuthn + setup-code fallback.
 - **Bookmark service frontend:** React 18 + Vite 8 + Tailwind 4.
-- **Admin backend:** Node 22 + Fastify 5 + TypeScript +
-  better-sqlite3 12. Same shape as bookmark-manager, separate state.
-  Single-purpose tool today: passkey-protected registration-code
-  generator for other services. Future: per-service settings UI
-  (e.g., cleanup/proofread prompts for tts).
+- **Admin backend (SSO hub):** Node 22 + Fastify 5 + TypeScript +
+  better-sqlite3 12. Same shape as Basalt, separate state. Owns the
+  `accounts` table, mints the apex `nz_session` cookie on passkey login,
+  and answers per-account, per-service authorization at
+  `/api/internal/authz`. Also the passkey-protected registration-code
+  generator. Future: per-service settings UI (e.g., cleanup/proofread
+  prompts for tts).
 - **Admin frontend:** React 18 + Vite 8 + Tailwind 4.
 - **TTS service:** Python 3.12 + FastAPI + uvicorn + aiosqlite (with
   FTS5). Whisper transcription via Groq, LLM cleanup / proofreading
@@ -36,11 +49,26 @@ reasoning behind architectural choices, see `DECISIONS.md`.
   Imported as-is from the upstream amethyst project; see
   DECISIONS.md 2026-05-28 entries on the absorption and the
   Python+FastAPI exception to the TS+Fastify convention.
-- **Citrine service:** Node 22 + Fastify 5 + TypeScript backend and a
-  React 18 + Vite 8 + Tailwind 4 PWA frontend. Web-native presentation
-  editor mounted at `/services/citrine/`; V1 keeps the active project in
-  browser `localStorage`, serves the imported Claude Design source behind
-  auth, and validates JSON exports on the backend.
+- **Citrine service:** Node 22 + Fastify 5 + TypeScript + better-sqlite3
+  12 backend and a React 18 + Vite 8 + Tailwind 4 PWA frontend.
+  Web-native presentation editor mounted at `/services/citrine/`.
+  Presentations are persisted server-side in `citrine.db` (owner-scoped
+  CRUD), it serves the imported Claude Design source behind auth, and
+  validates JSON documents/exports on the backend. Auth is the shared
+  SSO cookie with a local passkey fallback.
+- **Video-downloader service:** Node 22 + Fastify 5 + TypeScript +
+  better-sqlite3 12 backend and a React 18 + Vite 8 + Tailwind 4 SPA
+  frontend. Clear-HLS remux tool mounted at `/services/video-downloader/`:
+  accepts a public `.m3u8` URL, downloads segments, and remuxes to
+  `.mov`/`.mp4` with ffmpeg stream copy. Shared SSO cookie + local
+  passkey fallback; per-account job state in SQLite.
+- **Redirector service:** Node 22 + Fastify 5 + TypeScript +
+  better-sqlite3 12 backend and a React 18 + Vite 8 + Tailwind 4 SPA
+  frontend. Short-link service mounted at `/services/redirector/`: the
+  owner pastes a destination and gets a permanent 16-char hash that
+  302-redirects publicly. Management UI behind the shared SSO cookie +
+  local passkey fallback; the `<hash>` endpoint is public. Links in
+  SQLite; no at-rest encryption, no outbound fetch.
 - **Reverse proxy:** nginx on the host (shared with unrelated tenants).
   Containers bind to 127.0.0.1 only; nginx is the public entry point.
 - **TLS:** Let's Encrypt via certbot, one cert on the apex
@@ -52,13 +80,62 @@ reasoning behind architectural choices, see `DECISIONS.md`.
 
 ---
 
+## Component map
+
+nginx is the only public entry point. It reverse-proxies the apex `/`
+to the static landing container and strips the `/services/<name>/`
+prefix for each path-mounted service. Every container binds to
+`127.0.0.1` only. Admin is the SSO hub: it mints the apex `nz_session`
+cookie and answers per-account authorization checks at
+`GET /api/internal/authz` (internal docker-network only; nginx 404s
+`/services/admin/api/internal/`). Each TypeScript service owns its own
+better-sqlite3 DB; tts owns a FastAPI + SQLite (FTS5) store; landing is
+static.
+
+```mermaid
+flowchart TD
+    Browser["Browser (HTTPS)"] --> Nginx["nginx apex reverse-proxy<br/>negativezero.one (Let's Encrypt TLS)"]
+
+    Nginx -->|"/"| Landing["landing<br/>nginx:alpine, static"]
+    Nginx -->|"/services/basalt/"| Basalt["Basalt (bookmark-manager)<br/>Fastify + React"]
+    Nginx -->|"/services/admin/"| Admin["admin — SSO hub<br/>Fastify + React"]
+    Nginx -->|"/services/amethyst/"| Tts["Amethyst (tts)<br/>FastAPI + PWA"]
+    Nginx -->|"/services/timezones/"| Tz["timezones<br/>Fastify + vanilla JS"]
+    Nginx -->|"/services/video-downloader/"| Vd["video-downloader<br/>Fastify + React"]
+    Nginx -->|"/services/redirector/"| Rd["redirector<br/>Fastify + React"]
+    Nginx -->|"/services/citrine/"| Citrine["Citrine (presentation-studio)<br/>Fastify + React PWA"]
+
+    Basalt -.->|"GET /api/internal/authz"| Admin
+    Tts -.->|"GET /api/internal/authz"| Admin
+    Tz -.->|"GET /api/internal/authz"| Admin
+    Vd -.->|"GET /api/internal/authz"| Admin
+    Rd -.->|"GET /api/internal/authz"| Admin
+    Citrine -.->|"GET /api/internal/authz"| Admin
+
+    Basalt --> BasaltDB[("better-sqlite3<br/>bookmarks")]
+    Admin --> AdminDB[("better-sqlite3<br/>accounts + authz + audit")]
+    Tts --> TtsDB[("SQLite + FTS5<br/>+ audio cache")]
+    Tz --> TzDB[("better-sqlite3<br/>presets")]
+    Vd --> VdDB[("better-sqlite3<br/>jobs")]
+    Rd --> RdDB[("better-sqlite3<br/>links")]
+    Citrine --> CitrineDB[("better-sqlite3<br/>citrine.db presentations")]
+
+    Tts -->|"outbound HTTPS"| Groq["Groq API<br/>(Whisper + Llama)"]
+```
+
+Loopback binds and the internal authz fan-out are static facts about
+where things live; the step-by-step cookie/authz request lifecycle is
+documented in `docs/SYSTEM_DESIGN.md`.
+
+---
+
 ## Repository layout
 
 ```
 apps/
   landing/              static landing page (negativezero.one/)
-  bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
-  admin/                registration-code generator (negativezero.one/services/admin/)
+  bookmark-manager/     Basalt bookmark service (negativezero.one/services/basalt/)
+  admin/                SSO hub + registration-code generator (negativezero.one/services/admin/)
   tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/amethyst/)
   timezones/            gated cross-timezone planner (negativezero.one/services/timezones/)
   video-downloader/     clear-HLS remux tool (negativezero.one/services/video-downloader/)
@@ -95,21 +172,28 @@ reverse-proxies `/` to it. No build, no JS framework, no runtime
 dependencies. Canvas animation is vanilla JS with `prefers-reduced-motion`
 respected.
 
-**`apps/bookmark-manager/`** — single-user self-hosted bookmark service
-(formerly the `url-vault` repo). Fastify backend + React SPA in one
-Docker image. Owns: bookmark CRUD, folders, JSON import/export, server-
-side title/favicon fetching (SSRF-guarded), at-rest AES-256-GCM
-encryption of bookmark names/URLs, full-text search. Auth is its own
-WebAuthn (passkey) flow with a one-time setup code. State is one
-SQLite file on a bind-mount volume.
+**`apps/bookmark-manager/`** — Basalt, the self-hosted bookmark service
+(formerly the `url-vault` repo; mounted at `/services/basalt/`, container
++ data dir keep the `bookmark-manager` name). Fastify backend + React SPA
+in one Docker image. Owns: bookmark CRUD, folders, JSON import/export,
+server-side title/favicon fetching (SSRF-guarded), at-rest AES-256-GCM
+encryption of bookmark names/URLs, full-text search. Auth is the shared
+apex SSO cookie plus admin authz, with its own WebAuthn (passkey) +
+setup-code flow as the local fallback. State is one SQLite file on a
+bind-mount volume.
 
-**`apps/admin/`** — platform-level admin tool. Fastify + React, same
-shape as bookmark-manager. Today it's a passkey-protected
-registration-code generator (operator generates a code for a service,
-shares it with a new user, user registers a passkey using that code).
-The gated service list lives in `apps/admin/server/src/lib/accounts.ts`.
-Future expansion: per-service settings UI (e.g., editing the LLM
-cleanup and proofread system prompts that tts uses).
+**`apps/admin/`** — platform-level admin tool and the **SSO hub**.
+Fastify + React, same shape as Basalt. Owns the `accounts` table, mints
+the apex `nz_session` cookie on passkey login, and answers per-account,
+per-service authorization at `GET /api/internal/authz` (internal
+docker-network only — nginx 404s the public path). It's also the
+passkey-protected registration-code generator: the operator generates a
+setup key for a service, shares it with a new account, the account
+registers a passkey with it, and the operator toggles each account's
+per-service access. The gated service list lives in
+`apps/admin/server/src/lib/accounts.ts`. Future expansion: per-service
+settings UI (e.g., editing the LLM cleanup and proofread system prompts
+that tts uses).
 
 **`apps/tts/`** — Whisper transcription + LLM cleanup/proofreading
 pipeline. FastAPI backend, vanilla-JS PWA frontend, one container.
@@ -123,15 +207,34 @@ one SQLite file plus an audio cache directory on a bind-mount volume.
 Fastify backend verifies the apex SSO cookie + admin authz and stores
 per-account presets in SQLite; the vanilla client still does timezone
 math with `Intl` in the browser. The service has no local passkey
-fallback of its own.
+fallback of its own (SSO-cookie-only).
+
+**`apps/video-downloader/`** — passkey-protected clear-HLS remux tool.
+Fastify backend + React SPA in one Docker image. Owns: accepting a
+direct public clear-HLS `.m3u8` URL, downloading segments to a temp dir,
+and remuxing to `.mov`/`.mp4` with ffmpeg stream copy (no decrypt, no
+player scraping). Guarded by segment/byte/concurrency/timeout limits.
+Auth is the shared SSO cookie + admin authz, with a local passkey +
+setup-code fallback. State is one SQLite file on a bind-mount volume.
+
+**`apps/redirector/`** — passkey-protected short-link service. Fastify
+backend + React SPA in one Docker image. Owns: minting a permanent
+16-char hash for a pasted destination URL and 302-redirecting the public
+`<hash>` endpoint to it. The management UI is behind the shared SSO
+cookie + admin authz (with a local passkey + setup-code fallback); the
+`<hash>` redirect is public. No at-rest encryption and no outbound fetch
+(the server only emits a `Location` header). State is one SQLite file on
+a bind-mount volume.
 
 **`apps/presentation-studio/`** — Citrine, a private web-native
 presentation editor. Fastify backend + React SPA in one Docker image.
-Owns: SSO/local passkey auth fallback, authenticated serving of the
-imported `ISG Studio.html` Claude Design source, JSON document
-validation, PWA app shell, freeform canvas, premade element registry,
-preview mode, and JSON import/export. V1 project persistence is
-browser-local (`localStorage`); server-side project storage is deferred.
+Owns: shared SSO cookie + admin authz with a local passkey fallback,
+authenticated serving of the imported `ISG Studio.html` Claude Design
+source, JSON document validation, PWA app shell, freeform canvas,
+premade element registry, preview mode, and JSON import/export.
+Presentations are persisted **server-side** in `citrine.db` (one
+better-sqlite3 file on a bind-mount volume) via owner-scoped CRUD —
+keyed on `'owner'` for the local passkey or on the SSO account id.
 
 **`platform/`** — orchestration. `docker-compose.yml` defines landing
 + bookmark-manager + admin + tts + timezones + video-downloader +
@@ -150,12 +253,15 @@ clean root paths.
 
 ```
 negativezero.one/                              → static landing (apps/landing)
-negativezero.one/services/bookmark-manager/    → bookmark SPA
-negativezero.one/services/bookmark-manager/api/...  → bookmark API
-negativezero.one/services/admin/               → admin SPA + API
+negativezero.one/services/basalt/              → Basalt (bookmark) SPA
+negativezero.one/services/basalt/api/...       → Basalt API
+negativezero.one/services/bookmark-manager/    → 308 redirect → /services/basalt/ (old URL)
+negativezero.one/services/admin/               → admin SPA + API (SSO hub)
+negativezero.one/services/admin/api/internal/  → 404 (internal authz; sibling containers only)
 negativezero.one/services/amethyst/                 → tts PWA + API
-negativezero.one/services/amethyst/api/v1/...       → tts API (Bearer-authed)
-negativezero.one/services/timezones/           → static timezone planner
+negativezero.one/services/amethyst/api/v1/...       → tts API (Bearer or SSO cookie)
+negativezero.one/services/tts/                 → 308 redirect → /services/amethyst/ (old URL)
+negativezero.one/services/timezones/           → gated timezone planner (client + API)
 negativezero.one/services/video-downloader/    → video-downloader SPA + API
 negativezero.one/services/redirector/          → redirector SPA + API
 negativezero.one/services/redirector/<hash>    → public 302 redirect (16-char hash)
@@ -169,10 +275,10 @@ negativezero.one/services/<future>/            → future services (add a locati
 before proxying to the upstream container. Both the `location` directive
 and the `proxy_pass` target end in `/`, which makes nginx rewrite the
 matched prefix to `/` for the upstream. For the SPA-bearing services
-(bookmark-manager, admin, video-downloader, redirector, citrine),
-Vite's `base` config bakes the prefix back into asset references in
-the bundle. For tts and timezones, the
-frontend uses relative URLs, so no client-side base config is needed.
+(Basalt, admin, video-downloader, redirector, citrine), Vite's `base`
+config bakes the prefix back into asset references in the bundle. For
+tts and the timezones client, the frontend uses relative URLs, so no
+client-side base config is needed.
 
 ---
 
@@ -180,58 +286,50 @@ frontend uses relative URLs, so no client-side base config is needed.
 
 - **Browser → nginx:** HTTPS (Let's Encrypt cert on `negativezero.one`).
 - **nginx → landing container:** loopback HTTP on `LANDING_HOST_PORT`.
-- **nginx → bookmark-manager:** loopback HTTP on `BOOKMARK_HOST_PORT`.
+- **nginx → bookmark-manager (Basalt):** loopback HTTP on `BOOKMARK_HOST_PORT`.
 - **nginx → admin:** loopback HTTP on `ADMIN_HOST_PORT`.
-- **nginx → tts:** loopback HTTP on `TTS_HOST_PORT`.
+- **nginx → tts (Amethyst):** loopback HTTP on `TTS_HOST_PORT`.
 - **nginx → timezones:** loopback HTTP on `TIMEZONES_HOST_PORT`.
+- **nginx → video-downloader:** loopback HTTP on `VIDEO_DOWNLOADER_HOST_PORT`.
+- **nginx → redirector:** loopback HTTP on `REDIRECTOR_HOST_PORT`.
 - **nginx → citrine:** loopback HTTP on `CITRINE_HOST_PORT`.
-- **Browser ↔ bookmark-manager / admin:** HTTPS, session cookies
-  (per-service `@fastify/secure-session`).
-- **iPhone Shortcut / PWA ↔ tts:** HTTPS, `Authorization: Bearer
-  <TTS_API_KEY>` on every `/api/v1/...` request.
+- **Browser ↔ gated services:** HTTPS with the shared apex `nz_session`
+  SSO cookie (HS256, signed with `SSO_SESSION_SECRET`); each service also
+  keeps its own `@fastify/secure-session` for its local passkey fallback.
+- **Gated service → admin (internal):** loopback within the docker
+  `negativezero-internal` network, `GET http://admin:3000/api/internal/authz`
+  for per-account, per-service authorization (cached ~30s). Never
+  reachable from the public internet.
+- **iPhone Shortcut ↔ tts:** HTTPS, `Authorization: Bearer
+  <TTS_API_KEY>` on every `/api/v1/...` request (the Amethyst PWA itself
+  now rides the SSO cookie).
 - **tts → Groq (outbound):** HTTPS to the Groq API for Whisper
   transcription and Llama-based cleanup/proofreading.
 
 ---
 
-## Data flow — bookmark / admin
+## Data stores
 
-First-time setup: user enters a service-specific setup code →
-registers a passkey via WebAuthn → server stores credential in SQLite.
-Subsequent sessions: WebAuthn assertion → server signs a session
-cookie scoped to `/services/<name>/`. All reads/writes are
-single-tenant.
+Each service owns its own data store under `platform/data/<service>/`,
+bind-mounted into the container. There is no shared database. Backup is
+a directory-tree snapshot. The step-by-step read/write and auth request
+lifecycle for each service lives in `docs/SYSTEM_DESIGN.md`; this is the
+static "what is persisted, and where" map.
 
-For bookmark-manager: bookmark names + URLs are encrypted with the
-server-side `BOOKMARK_ENCRYPTION_KEY` (AES-256-GCM) before being
-stored in SQLite.
+| Service | Store | Owns |
+| --- | --- | --- |
+| landing | — | Static files only; no persistence. |
+| Basalt (bookmark-manager) | better-sqlite3 (WAL) | Bookmarks, folders, FTS index; names/URLs AES-256-GCM-encrypted with `BOOKMARK_ENCRYPTION_KEY`. Local passkey credentials. |
+| admin (SSO hub) | better-sqlite3 (WAL) | `accounts` table, per-service authorization, registration/setup codes, audit log, admin passkey credentials. |
+| Amethyst (tts) | SQLite + FTS5 (`amethyst.sqlite`) + `audio/` | Recording metadata + transcripts (FTS5-indexed); cached audio kept for `AUDIO_RETENTION_DAYS` (default 90). |
+| timezones | better-sqlite3 (WAL) | Per-account meeting/timezone presets. No local credentials (SSO-cookie-only). |
+| video-downloader | better-sqlite3 (WAL) | Remux job state. Local passkey credentials. |
+| redirector | better-sqlite3 (WAL) | Short-link `<hash>` → destination map. Local passkey credentials. No at-rest encryption. |
+| Citrine (presentation-studio) | better-sqlite3 (WAL, `citrine.db`) | Owner-scoped saved presentations (`presentations` table). Local passkey credentials. |
 
-For admin: stores its own credentials + an audit log + a registration-
-code table.
-
----
-
-## Data flow — tts
-
-1. Client (iPhone Shortcut, PWA, or external script) sends
-   `POST /services/amethyst/api/v1/transcribe` with `Authorization: Bearer
-   <TTS_API_KEY>` and a multipart audio body.
-2. nginx strips the prefix; FastAPI receives `POST /api/v1/transcribe`.
-3. Auth middleware checks the Bearer token against `AMETHYST_API_KEY`
-   (env name kept upstream for source compatibility; mapped from
-   `TTS_API_KEY` in compose).
-4. Audio is forwarded to Groq Whisper. Glossary terms from
-   `glossary_data/builtin.json` plus user-added entries seed the
-   Whisper prompt.
-5. Raw transcript goes through Groq Llama for cleanup, applying the
-   glossary as ground truth for recognition errors.
-6. Result + metadata stored in `/data/amethyst.sqlite` (FTS5 indexed).
-   Audio file stored under `/data/audio/` for `AUDIO_RETENTION_DAYS`
-   (default 90).
-7. Response returned to the client.
-
-Optional "polish" mode runs an additional LLM pass with a stronger
-model (default `openai/gpt-oss-120b`) for proofreading-quality output.
+The tts pipeline additionally calls Groq (Whisper transcription + Llama
+cleanup, with an optional stronger-model "polish" pass); Groq is the
+only outbound third-party dependency in any request path.
 
 ---
 
@@ -240,17 +338,19 @@ model (default `openai/gpt-oss-120b`) for proofreading-quality output.
 - **Vultr VPS** — single host. Hard dependency. Outage = everything
   goes down. No HA fallback at this scale.
 - **Groq** — Whisper and Llama inference for tts. Hard dependency for
-  the tts service only; bookmark-manager and admin work without it.
+  the tts service only; every other service works without it.
   Rate-limited per the Groq account tier.
 - **Let's Encrypt** — TLS certs. Soft dependency at request time;
   certbot renews automatically every 60 days.
 - **WebAuthn platform authenticators** (iCloud Keychain, Touch ID,
-  Windows Hello) — passkey storage on user devices for bookmark and
-  admin. If a user loses all passkey-storing devices, the backup code
-  is the recovery path.
-- **No third-party APIs in the bookmark-manager request path** —
-  bookmark fetcher reaches arbitrary URLs to grab titles/favicons but
-  those are user-initiated and SSRF-guarded.
+  Windows Hello) — passkey storage on user devices for admin and the
+  gated services' local fallback. If a user loses all passkey-storing
+  devices, the backup code is the recovery path.
+- **No third-party APIs in the Basalt request path** — the bookmark
+  fetcher reaches arbitrary URLs to grab titles/favicons but those are
+  user-initiated and SSRF-guarded. video-downloader fetches the
+  user-supplied `.m3u8` and its segments; redirector makes no outbound
+  request at all.
 
 ---
 
@@ -267,10 +367,12 @@ DECISIONS.md.
   one TLS cert, one DNS A record, one nginx site file. See
   DECISIONS.md 2026-05-21 (still in force; the Logto subdomain
   exception was removed when Logto was removed).
-- **Per-service WebAuthn (no central identity).** Each service owns
-  its own passkey + setup-code flow. Simpler than OIDC at single-user
-  scale; if multi-user becomes a real need, re-introduce an identity
-  layer. See DECISIONS.md 2026-05-28 "Logto removed from the platform".
+- **No third-party identity provider (no Logto/OIDC).** Auth is built
+  in-house on WebAuthn passkeys + setup codes. Simpler than running an
+  OIDC server at this scale. Originally each service owned an isolated
+  passkey flow; this was later centralized under admin as the SSO hub
+  (see the next bullet). See DECISIONS.md 2026-05-28 "Logto removed from
+  the platform".
 - **Multi-account + per-service authorization (admin-owned).** The
   single-owner model was extended (2026-06-18) so the owner can invite
   friends via admin-generated setup keys and toggle each account's
@@ -286,9 +388,10 @@ DECISIONS.md.
   functional gain. See DECISIONS.md 2026-05-28.
 - **Landing is one HTML file.** No build, no framework. Three fonts +
   ~80 lines of canvas JS. Anything more would be lifestyle, not need.
-- **Per-service SQLite, bind-mounted.** Bookmark, admin, and tts each
-  own their own SQLite file under `platform/data/<service>/`. Backup
-  = snapshot a directory tree. See DECISIONS.md 2026-05-21.
+- **Per-service SQLite, bind-mounted.** Every persistent service (Basalt,
+  admin, tts, timezones, video-downloader, redirector, Citrine) owns its
+  own SQLite file under `platform/data/<service>/`. No shared database.
+  Backup = snapshot a directory tree. See DECISIONS.md 2026-05-21.
 - **Single server-side `ENCRYPTION_KEY` for bookmark data.** Server
   can decrypt all bookmarks. Accepted vs E2E because (a) it's
   single-tenant today, (b) "see my bookmarks across devices" requires
@@ -297,6 +400,26 @@ DECISIONS.md.
 ---
 
 ## Deployment topology
+
+A push to `main` triggers `.github/workflows/deploy.yml`: the runner
+checks out main, rsyncs the tree to the VPS over SSH (excluding
+`.git/`, `node_modules/`, `dist/`, `platform/.env*`, and
+`platform/data/`), then runs `platform/deploy.sh` on the box. The VPS
+has no GitHub credentials, so the runner pushes rather than the box
+pulling. `deploy.sh` brings up all eight services via `docker compose`
+behind the host nginx, which terminates Let's Encrypt TLS on the apex.
+
+```mermaid
+flowchart LR
+    Dev["git push → main"] --> GH["GitHub Actions<br/>deploy.yml"]
+    GH -->|"rsync over SSH<br/>(excludes .env, data/, .git)"| VPS["Vultr VPS (Ubuntu)<br/>/srv/negativezero"]
+    GH -->|"ssh: run deployer"| Deploy["platform/deploy.sh<br/>(idempotent)"]
+    Deploy --> Compose["docker compose up --build"]
+    Compose --> Svcs["8 containers<br/>(loopback-only binds)"]
+    Svcs --> Nginx["host nginx<br/>(apex reverse-proxy)"]
+    Nginx --> TLS["Let's Encrypt TLS<br/>(certbot, negativezero.one)"]
+    TLS --> Net["public internet"]
+```
 
 ```
 Vultr VPS (Ubuntu)
@@ -312,31 +435,37 @@ Vultr VPS (Ubuntu)
 │   │   ├── deploy.sh
 │   │   ├── .env             (secrets — gitignored, generated on first deploy)
 │   │   └── data/
-│   │       ├── bookmark-manager/  (SQLite + WAL, bind-mounted)
+│   │       ├── bookmark-manager/  (Basalt; SQLite + WAL, bind-mounted)
 │   │       ├── admin/             (SQLite + WAL, bind-mounted)
 │   │       ├── tts/               (SQLite + WAL + audio/ cache, bind-mounted)
+│   │       ├── timezones/         (SQLite + WAL, bind-mounted)
 │   │       ├── video-downloader/  (SQLite + WAL, bind-mounted)
-│   │       └── redirector/        (SQLite + WAL, bind-mounted)
-│   ├── apps/landing/        (bind-mounted into nginx-alpine container)
-│   ├── apps/bookmark-manager/  (built into image at deploy time)
-│   ├── apps/admin/             (built into image at deploy time)
-│   ├── apps/tts/               (built into image at deploy time)
-│   ├── apps/video-downloader/  (built into image at deploy time)
-│   └── apps/redirector/        (built into image at deploy time)
+│   │       ├── redirector/        (SQLite + WAL, bind-mounted)
+│   │       └── citrine/           (citrine.db + WAL, bind-mounted)
+│   ├── apps/landing/             (bind-mounted into nginx-alpine container)
+│   ├── apps/bookmark-manager/    (built into image at deploy time)
+│   ├── apps/admin/               (built into image at deploy time)
+│   ├── apps/tts/                 (built into image at deploy time)
+│   ├── apps/timezones/           (built into image at deploy time)
+│   ├── apps/video-downloader/    (built into image at deploy time)
+│   ├── apps/redirector/          (built into image at deploy time)
+│   └── apps/presentation-studio/ (Citrine; built into image at deploy time)
 │
-└── containers:
+└── containers (all bind 127.0.0.1 only):
     ├── negativezero-landing            (nginx:alpine serving apps/landing/)
-    ├── negativezero-bookmark-manager   (Fastify + built React, SQLite on volume)
-    ├── negativezero-admin              (Fastify + built React, SQLite on volume)
-    ├── negativezero-tts                (FastAPI + PWA, SQLite + audio on volume)
+    ├── negativezero-bookmark-manager   (Basalt; Fastify + built React, SQLite on volume)
+    ├── negativezero-admin              (SSO hub; Fastify + built React, SQLite on volume)
+    ├── negativezero-tts                (Amethyst; FastAPI + PWA, SQLite + audio on volume)
+    ├── negativezero-timezones          (Fastify + vanilla JS, SQLite on volume)
     ├── negativezero-video-downloader   (Fastify + built React, SQLite on volume)
-    └── negativezero-redirector         (Fastify + built React, SQLite on volume)
+    ├── negativezero-redirector         (Fastify + built React, SQLite on volume)
+    └── negativezero-citrine            (Fastify + built React PWA, citrine.db on volume)
 ```
 
 Deploy flow (idempotent): `platform/deploy.sh` ensures `.env` exists
 (generates per-service secrets + a fresh `TTS_API_KEY` on first run;
 operator pastes `GROQ_API_KEY` separately), picks free loopback ports,
-runs `docker compose up --build`, installs nginx site files
-(substituting the actual loopback ports), runs `nginx -t`, reloads,
-then certbot for TLS. Re-runnable any time; preserves all `.env`
-secrets across re-runs.
+runs `docker compose up --build`, installs a `negativezero-compose`
+systemd unit for boot survival, installs nginx site files (substituting
+the actual loopback ports), runs `nginx -t`, reloads, then certbot for
+TLS. Re-runnable any time; preserves all `.env` secrets across re-runs.
