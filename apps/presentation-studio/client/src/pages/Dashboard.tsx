@@ -864,6 +864,154 @@ function FreeformCanvas({
   );
 }
 
+type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+function handlePosition(h: ResizeHandle): React.CSSProperties {
+  const s: React.CSSProperties = { position: 'absolute' };
+  if (h.includes('n')) s.top = -6;
+  if (h.includes('s')) s.bottom = -6;
+  if (h.includes('w')) s.left = -6;
+  if (h.includes('e')) s.right = -6;
+  if (h === 'n' || h === 's') s.left = 'calc(50% - 6px)';
+  if (h === 'e' || h === 'w') s.top = 'calc(50% - 6px)';
+  return s;
+}
+
+function handleCursor(h: ResizeHandle): string {
+  if (h === 'n' || h === 's') return 'ns-resize';
+  if (h === 'e' || h === 'w') return 'ew-resize';
+  if (h === 'nw' || h === 'se') return 'nwse-resize';
+  return 'nesw-resize';
+}
+
+const roundPct = (v: number) => Math.round(v * 10) / 10;
+
+// Direct-manipulation overlay over the selected element: drag the body to move,
+// drag a handle to resize. Pixel deltas are converted to frame % against the
+// live stage rect. Deliberately layered ON TOP of the element so it never
+// touches the 11 per-type element renders.
+function SelectionOverlay({
+  element,
+  getStageRect,
+  onFrameChange,
+}: {
+  element: ElementNode;
+  getStageRect: () => DOMRect | null;
+  onFrameChange: (frame: ElementNode['frame']) => void;
+}) {
+  const drag = useRef<{
+    mode: 'move' | ResizeHandle;
+    startX: number;
+    startY: number;
+    frame: ElementNode['frame'];
+    rect: DOMRect;
+  } | null>(null);
+  const MIN = 5;
+
+  function begin(mode: 'move' | ResizeHandle, e: React.PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = getStageRect();
+    if (!rect) return;
+    drag.current = {
+      mode,
+      startX: e.clientX,
+      startY: e.clientY,
+      frame: { ...element.frame },
+      rect,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function move(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    const dx = ((e.clientX - d.startX) / d.rect.width) * 100;
+    const dy = ((e.clientY - d.startY) / d.rect.height) * 100;
+    let { x, y, width, height } = d.frame;
+    if (d.mode === 'move') {
+      x = d.frame.x + dx;
+      y = d.frame.y + dy;
+    } else {
+      if (d.mode.includes('e')) width = d.frame.width + dx;
+      if (d.mode.includes('s')) height = d.frame.height + dy;
+      if (d.mode.includes('w')) {
+        width = d.frame.width - dx;
+        x = d.frame.x + dx;
+      }
+      if (d.mode.includes('n')) {
+        height = d.frame.height - dy;
+        y = d.frame.y + dy;
+      }
+      if (width < MIN) {
+        if (d.mode.includes('w')) x = d.frame.x + (d.frame.width - MIN);
+        width = MIN;
+      }
+      if (height < MIN) {
+        if (d.mode.includes('n')) y = d.frame.y + (d.frame.height - MIN);
+        height = MIN;
+      }
+    }
+    x = Math.max(0, Math.min(100 - MIN, x));
+    y = Math.max(0, Math.min(100 - MIN, y));
+    width = Math.max(MIN, Math.min(100 - x, width));
+    height = Math.max(MIN, Math.min(100 - y, height));
+    onFrameChange({ x: roundPct(x), y: roundPct(y), width: roundPct(width), height: roundPct(height) });
+  }
+
+  function end(e: React.PointerEvent) {
+    if (!drag.current) return;
+    drag.current = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* pointer already released */
+    }
+  }
+
+  return (
+    <div
+      className="absolute"
+      style={{
+        left: `${element.frame.x}%`,
+        top: `${element.frame.y}%`,
+        width: `${element.frame.width}%`,
+        height: `${element.frame.height}%`,
+        boxShadow: `0 0 0 1.5px ${COLORS.accent}`,
+        borderRadius: 6,
+        cursor: 'move',
+        zIndex: 60,
+        touchAction: 'none',
+      }}
+      onPointerDown={(e) => begin('move', e)}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={end}
+    >
+      {RESIZE_HANDLES.map((h) => (
+        <div
+          key={h}
+          onPointerDown={(e) => begin(h, e)}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerCancel={end}
+          style={{
+            ...handlePosition(h),
+            width: 12,
+            height: 12,
+            background: '#fff',
+            boxShadow: `0 0 0 1.5px ${COLORS.accent}`,
+            borderRadius: 3,
+            cursor: handleCursor(h),
+            touchAction: 'none',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const [document, setDocument] = useState<PresentationDocument>(() => loadStoredDocument());
   const [selectedSceneId, setSelectedSceneId] = useState(() => document.scenes[0]?.id ?? '');
@@ -880,6 +1028,7 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const skipNextStageClickRef = useRef(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     saveStoredDocument(document);
@@ -1508,6 +1657,7 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
             <>
               <div className="stage-wrap">
                 <div
+                  ref={stageRef}
                   className={`stage stage-${selectedScene?.transition.kind ?? 'fade'}`}
                   style={{ background: `radial-gradient(circle at 80% 20%, rgba(242,85,47,0.18), transparent 34%), ${document.theme.background}` }}
                   onPointerDown={onStagePointerDown}
@@ -1524,6 +1674,13 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
                       onAction={onAction}
                     />
                   ))}
+                  {mode === 'edit' && selectedElement && (
+                    <SelectionOverlay
+                      element={selectedElement}
+                      getStageRect={() => stageRef.current?.getBoundingClientRect() ?? null}
+                      onFrameChange={(frame) => patchElement({ frame })}
+                    />
+                  )}
                 </div>
               </div>
 
