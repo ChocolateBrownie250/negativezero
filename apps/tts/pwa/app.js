@@ -1617,3 +1617,109 @@ if ("serviceWorker" in navigator) {
     }).catch(() => {});
   });
 }
+
+// ---------------------------------------------------------------------------
+// Themed selects. iOS renders native <select> popups as an unstyleable OS sheet
+// that clashes with the glass theme. Replace each with a custom glass dropdown
+// while keeping the real <select> as the source of truth — its value, change
+// events, and every existing handler keep working untouched.
+// ---------------------------------------------------------------------------
+function enhanceSelects(root) {
+  const valueDesc = Object.getOwnPropertyDescriptor(
+    HTMLSelectElement.prototype,
+    "value",
+  );
+  (root || document).querySelectorAll("select.selectbox").forEach((sel) => {
+    if (sel.dataset.cselect) return;
+    sel.dataset.cselect = "1";
+
+    const wrap = document.createElement("div");
+    wrap.className = "cselect";
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "cselect-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+    const label = document.createElement("span");
+    label.className = "cselect-label";
+    const chev = document.createElement("span");
+    chev.className = "cselect-chev";
+    chev.setAttribute("aria-hidden", "true");
+    trigger.append(label, chev);
+    const menu = document.createElement("div");
+    menu.className = "cselect-menu";
+    menu.setAttribute("role", "listbox");
+    menu.hidden = true;
+
+    function syncLabel() {
+      const opt = sel.options[sel.selectedIndex];
+      label.textContent = opt ? opt.textContent : "";
+      menu.querySelectorAll(".cselect-opt").forEach((o) => {
+        o.classList.toggle("sel", o.dataset.value === sel.value);
+      });
+    }
+
+    Array.from(sel.options).forEach((o) => {
+      const opt = document.createElement("button");
+      opt.type = "button";
+      opt.className = "cselect-opt";
+      opt.setAttribute("role", "option");
+      opt.dataset.value = o.value;
+      opt.textContent = o.textContent;
+      opt.addEventListener("click", () => {
+        if (sel.value !== o.value) {
+          sel.value = o.value;
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        syncLabel();
+        close();
+      });
+      menu.appendChild(opt);
+    });
+
+    function onDoc(e) {
+      if (!wrap.contains(e.target)) close();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+    function open() {
+      if (!menu.hidden) return;
+      syncLabel();
+      menu.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      document.addEventListener("pointerdown", onDoc, true);
+      document.addEventListener("keydown", onKey, true);
+    }
+    function close() {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      trigger.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", onDoc, true);
+      document.removeEventListener("keydown", onKey, true);
+    }
+    trigger.addEventListener("click", () => (menu.hidden ? open() : close()));
+
+    // Programmatic `sel.value = …` (paintSettings, opening a note, etc.) does
+    // not emit a change event; shim the setter so the trigger label follows it.
+    if (valueDesc && valueDesc.configurable) {
+      Object.defineProperty(sel, "value", {
+        configurable: true,
+        get() {
+          return valueDesc.get.call(this);
+        },
+        set(v) {
+          valueDesc.set.call(this, v);
+          syncLabel();
+        },
+      });
+    }
+    sel.addEventListener("change", syncLabel);
+
+    sel.classList.add("cselect-native");
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.append(trigger, menu, sel);
+    syncLabel();
+  });
+}
+enhanceSelects();
