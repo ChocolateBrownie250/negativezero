@@ -21,7 +21,7 @@
 				<key>CustomOutputName</key>
 				<string>API Key</string>
 				<key>UUID</key>
-				<string>91D10E9B-E333-4071-8F9A-A0C2598771CE</string>
+				<string>8281EA3A-3F2E-4137-A728-0705D7AA29F5</string>
 				<key>WFTextActionText</key>
 				<dict>
 					<key>Value</key>
@@ -29,7 +29,7 @@
 						<key>attachmentsByRange</key>
 						<dict/>
 						<key>string</key>
-						<string>PASTE_YOUR_AMETHYST_API_KEY</string>
+						<string>PASTE_YOUR_AMETHYST_API_KEY_HERE</string>
 					</dict>
 					<key>WFSerializationType</key>
 					<string>WFTextTokenString</string>
@@ -42,9 +42,7 @@
 			<key>WFWorkflowActionParameters</key>
 			<dict>
 				<key>UUID</key>
-				<string>2FEA4D65-CB98-4F75-96A6-3FB1718C60CA</string>
-				<key>WFAudioRecordingQuality</key>
-				<string>Normal</string>
+				<string>0A953ED0-DBA4-47E8-AD14-8E399713800B</string>
 				<key>WFRecordingStart</key>
 				<string>Immediately</string>
 			</dict>
@@ -57,7 +55,7 @@
 				<key>ShowHeaders</key>
 				<true/>
 				<key>UUID</key>
-				<string>2CEF8503-AE37-4B3D-8EF9-9EE56E8A0AD4</string>
+				<string>0D301BE6-C805-4AB7-888D-E9718C0B2A93</string>
 				<key>WFFormValues</key>
 				<dict>
 					<key>Value</key>
@@ -66,7 +64,7 @@
 						<array>
 							<dict>
 								<key>WFItemType</key>
-								<integer>0</integer>
+								<integer>5</integer>
 								<key>WFKey</key>
 								<dict>
 									<key>Value</key>
@@ -83,15 +81,20 @@
 								<dict>
 									<key>Value</key>
 									<dict>
-										<key>OutputName</key>
-										<string>Recorded Audio</string>
-										<key>OutputUUID</key>
-										<string>2FEA4D65-CB98-4F75-96A6-3FB1718C60CA</string>
-										<key>Type</key>
-										<string>ActionOutput</string>
+										<key>Value</key>
+										<dict>
+											<key>OutputName</key>
+											<string>Recorded Audio</string>
+											<key>OutputUUID</key>
+											<string>0A953ED0-DBA4-47E8-AD14-8E399713800B</string>
+											<key>Type</key>
+											<string>ActionOutput</string>
+										</dict>
+										<key>WFSerializationType</key>
+										<string>WFTextTokenAttachment</string>
 									</dict>
 									<key>WFSerializationType</key>
-									<string>WFTextTokenAttachment</string>
+									<string>WFTokenAttachmentParameterState</string>
 								</dict>
 							</dict>
 							<dict>
@@ -161,7 +164,7 @@
 												<key>OutputName</key>
 												<string>API Key</string>
 												<key>OutputUUID</key>
-												<string>91D10E9B-E333-4071-8F9A-A0C2598771CE</string>
+												<string>8281EA3A-3F2E-4137-A728-0705D7AA29F5</string>
 												<key>Type</key>
 												<string>ActionOutput</string>
 											</dict>
@@ -192,7 +195,7 @@
 				<key>CustomOutputName</key>
 				<string>Transcript</string>
 				<key>UUID</key>
-				<string>A811F163-A381-46DA-ACDD-F1572B45A0DB</string>
+				<string>58F684EC-BDE0-4E22-9144-8889372D2E1C</string>
 				<key>WFDictionaryKey</key>
 				<string>text</string>
 				<key>WFGetDictionaryValueType</key>
@@ -204,7 +207,7 @@
 						<key>OutputName</key>
 						<string>Contents of URL</string>
 						<key>OutputUUID</key>
-						<string>2CEF8503-AE37-4B3D-8EF9-9EE56E8A0AD4</string>
+						<string>0D301BE6-C805-4AB7-888D-E9718C0B2A93</string>
 						<key>Type</key>
 						<string>ActionOutput</string>
 					</dict>
@@ -225,7 +228,7 @@
 						<key>OutputName</key>
 						<string>Transcript</string>
 						<key>OutputUUID</key>
-						<string>A811F163-A381-46DA-ACDD-F1572B45A0DB</string>
+						<string>58F684EC-BDE0-4E22-9144-8889372D2E1C</string>
 						<key>Type</key>
 						<string>ActionOutput</string>
 					</dict>
@@ -246,7 +249,7 @@
 						<key>OutputName</key>
 						<string>Transcript</string>
 						<key>OutputUUID</key>
-						<string>A811F163-A381-46DA-ACDD-F1572B45A0DB</string>
+						<string>58F684EC-BDE0-4E22-9144-8889372D2E1C</string>
 						<key>Type</key>
 						<string>ActionOutput</string>
 					</dict>
@@ -273,7 +276,7 @@
 						<key>OutputName</key>
 						<string>Transcript</string>
 						<key>OutputUUID</key>
-						<string>A811F163-A381-46DA-ACDD-F1572B45A0DB</string>
+						<string>58F684EC-BDE0-4E22-9144-8889372D2E1C</string>
 						<key>Type</key>
 						<string>ActionOutput</string>
 					</dict>
@@ -283,8 +286,10 @@
 			</dict>
 		</dict>
 	</array>
+	<key>WFWorkflowClientRelease</key>
+	<string>2.0</string>
 	<key>WFWorkflowClientVersion</key>
-	<string>2607.0.2</string>
+	<integer>2607</integer>
 	<key>WFWorkflowHasShortcutInputVariables</key>
 	<false/>
 	<key>WFWorkflowIcon</key>
@@ -296,18 +301,6 @@
 	</dict>
 	<key>WFWorkflowImportQuestions</key>
 	<array>
-		<dict>
-			<key>ActionIndex</key>
-			<integer>1</integer>
-			<key>Category</key>
-			<string>Parameter</string>
-			<key>DefaultValue</key>
-			<string></string>
-			<key>ParameterKey</key>
-			<string>WFTextActionText</string>
-			<key>Text</key>
-			<string>Your Amethyst API key (AMETHYST_API_KEY)</string>
-		</dict>
 		<dict>
 			<key>ActionIndex</key>
 			<integer>3</integer>
@@ -347,10 +340,5 @@
 	<string>900</string>
 	<key>WFWorkflowName</key>
 	<string>Amethyst Dictate</string>
-	<key>WFWorkflowTypes</key>
-	<array>
-		<string>NCWidget</string>
-		<string>WatchKit</string>
-	</array>
 </dict>
 </plist>

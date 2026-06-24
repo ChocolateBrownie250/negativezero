@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
-"""Generate the "Amethyst Dictate" iPhone Shortcut as an unsigned plist.
+"""Generate the "Amethyst Dictate" iPhone Shortcut SOURCE plist.
 
-The signed `.shortcut` binary is per-device, so we ship the *unsigned* plist
-instead. With **Settings → Shortcuts → Advanced → Allow Sharing Untrusted
-Shortcuts** enabled, iOS imports this file directly (AirDrop it, or open it from
-Files/iCloud). On import the user is prompted for their endpoint URL and API key
-via the two import questions wired below — nothing else to edit.
+IMPORTANT — iOS will NOT import this file as-is. Since iOS 15, Apple requires
+every shortcut to be cryptographically *signed* before the Shortcuts app will
+import it, and signing cannot be done on an iPhone. The "Settings → Shortcuts →
+Advanced → Allow Sharing Untrusted Shortcuts" toggle only controls whether a
+shortcut may *run*; it does NOT let you import an unsigned, hand-authored file.
+
+So this plist is a *source*, not a tap-to-install artifact. To get it onto a
+phone you must do one of:
+
+  * Sign it on a Mac, then share the signed file or an iCloud link:
+        shortcuts sign --mode anyone \
+            --input "Amethyst Dictate.plist" \
+            --output "Amethyst Dictate.shortcut"
+    Import that signed .shortcut once, then Share → Copy iCloud Link to get a
+    tap-to-add https://www.icloud.com/shortcuts/… link anyone can install.
+  * Rebuild the same actions by hand in Shortcuts.app — the only path that
+    needs no Mac. See README.md.
 
 The shortcut:
   1. Records audio (starts immediately, stop by tapping the recording UI).
@@ -75,6 +87,15 @@ def text_with_var(prefix: str, output_uuid: str, output_name: str) -> dict:
     }
 
 
+def file_attachment(output_uuid: str, output_name: str) -> dict:
+    """The value shape Shortcuts uses for a *file* field in a form/dictionary:
+    a WFTokenAttachmentParameterState wrapping the variable reference."""
+    return {
+        "WFSerializationType": "WFTokenAttachmentParameterState",
+        "Value": var_attachment(output_uuid, output_name),
+    }
+
+
 def dict_field(items: list[dict]) -> dict:
     return {
         "WFSerializationType": "WFDictionaryFieldValue",
@@ -83,8 +104,17 @@ def dict_field(items: list[dict]) -> dict:
 
 
 def text_kv(key: str, value: dict) -> dict:
-    """A text->text dictionary item (WFItemType 0)."""
+    """A text->text dictionary item (WFItemType 0 = text)."""
     return {"WFItemType": 0, "WFKey": text_token(key), "WFValue": value}
+
+
+def file_kv(key: str, output_uuid: str, output_name: str) -> dict:
+    """A text->file dictionary item (WFItemType 5 = file)."""
+    return {
+        "WFItemType": 5,
+        "WFKey": text_token(key),
+        "WFValue": file_attachment(output_uuid, output_name),
+    }
 
 
 def build() -> dict:
@@ -111,27 +141,28 @@ def build() -> dict:
         }
     )
 
-    # 1. Text — the API key. Surfaced as an import question so it is filled in
-    #    at import time and never hard-coded into the shared file.
+    # 1. Text — holds the API key. Edit this in Shortcuts.app after import/
+    #    signing (an import question can't safely target this token field).
     actions.append(
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
             "WFWorkflowActionParameters": {
                 "UUID": apikey_uuid,
                 "CustomOutputName": "API Key",
-                "WFTextActionText": text_token("PASTE_YOUR_AMETHYST_API_KEY"),
+                "WFTextActionText": text_token("PASTE_YOUR_AMETHYST_API_KEY_HERE"),
             },
         }
     )
 
     # 2. Record Audio — start immediately, stop on tap. Output: "Recorded Audio".
+    #    Quality defaults to Normal, so the quality key is intentionally omitted
+    #    (the real key is WFRecordingCompression, not WFAudioRecordingQuality).
     actions.append(
         {
             "WFWorkflowActionIdentifier": "is.workflow.actions.recordaudio",
             "WFWorkflowActionParameters": {
                 "UUID": record_uuid,
                 "WFRecordingStart": "Immediately",
-                "WFAudioRecordingQuality": "Normal",
             },
         }
     )
@@ -142,13 +173,10 @@ def build() -> dict:
     )
     form = dict_field(
         [
-            # File field: value is the recorded-audio variable. WFItemType 0 with
-            # a token attachment value is how Shortcuts stores a file form field.
-            {
-                "WFItemType": 0,
-                "WFKey": text_token("file"),
-                "WFValue": var_attachment(record_uuid, "Recorded Audio"),
-            },
+            # File field (WFItemType 5): value is the recorded-audio variable
+            # wrapped in WFTokenAttachmentParameterState — the shape Shortcuts
+            # uses for files. A plain text token here uploads no file.
+            file_kv("file", record_uuid, "Recorded Audio"),
             text_kv("source", text_token("action_button")),
         ]
     )
@@ -217,18 +245,17 @@ def build() -> dict:
     return {
         "WFWorkflowName": "Amethyst Dictate",
         "WFWorkflowActions": actions,
-        "WFWorkflowClientVersion": "2607.0.2",
+        # Integer build number (NOT a dotted string — the semver lives in
+        # WFWorkflowClientRelease) so the plist matches real Apple exports.
+        "WFWorkflowClientVersion": 2607,
+        "WFWorkflowClientRelease": "2.0",
         "WFWorkflowMinimumClientVersion": 900,
         "WFWorkflowMinimumClientVersionString": "900",
         "WFWorkflowHasShortcutInputVariables": False,
+        # Only the URL is exposed as an import question — WFURL is a plain string
+        # so the answer slots in cleanly. The API key lives in the Text action
+        # (action 1); edit it once after import/signing.
         "WFWorkflowImportQuestions": [
-            {
-                "ParameterKey": "WFTextActionText",
-                "Category": "Parameter",
-                "ActionIndex": 1,
-                "Text": "Your Amethyst API key (AMETHYST_API_KEY)",
-                "DefaultValue": "",
-            },
             {
                 "ParameterKey": "WFURL",
                 "Category": "Parameter",
@@ -237,7 +264,6 @@ def build() -> dict:
                 "DefaultValue": DEFAULT_URL,
             },
         ],
-        "WFWorkflowTypes": ["NCWidget", "WatchKit"],
         "WFWorkflowInputContentItemClasses": [
             "WFAppStoreAppContentItem",
             "WFArticleContentItem",

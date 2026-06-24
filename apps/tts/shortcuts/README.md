@@ -4,44 +4,61 @@ Records voice with one press of the **Action Button** and converts it to text
 through the Amethyst Whisper + LLM-cleanup pipeline; the transcript lands in
 your clipboard within a few seconds.
 
-Two ways to get it on your phone:
+## Read this first: installing needs signing
 
-- **Import the bundled file** (`Amethyst Dictate.plist`) — fastest, see
-  [Import the ready-made shortcut](#import-the-ready-made-shortcut) below.
-- **Build it by hand** — the signed `.shortcut` binary is per-device, so if the
-  import path doesn't suit you, the manual recipe under [Build it](#build-it)
-  takes ~3 minutes and you understand exactly what it does.
+iOS will **not** import a hand-authored shortcut file. Since iOS 15, Apple
+requires every shortcut to be cryptographically **signed**, and signing cannot
+be done on an iPhone. The **Settings → Shortcuts → Advanced → Allow Sharing
+Untrusted Shortcuts** toggle only controls whether an already-installed shortcut
+may *run* — it does **not** let you import an unsigned file. So the bundled
+`Amethyst Dictate.plist` is a **source**, not a tap-to-install download.
 
-Either way, jump to [Assign it to the Action Button](#assign-it-to-the-action-button)
-once it's installed.
+Pick the path that matches what you have:
+
+- **No Mac → [build it by hand](#build-it).** ~3 minutes in Shortcuts.app, no
+  file transfer, always works. This is the recommended path for most people.
+- **Have a Mac → [sign it into an iCloud link](#sign-it-into-an-installable-link).**
+  Sign the bundled file once, then you (or anyone) install it with a single tap.
+
+Either way, finish with [Assign it to the Action Button](#assign-it-to-the-action-button).
 
 ## Required values
 
-Have these ready before importing or opening Shortcuts.app:
+Have these ready:
 
 - **Server URL**: `https://<your-host>/api/v1/transcribe`
   (for this deployment:
   `https://negativezero.one/services/amethyst/api/v1/transcribe`)
-- **API key**: value of `AMETHYST_API_KEY` from your `.env`
+- **API key**: value of `AMETHYST_API_KEY` from `platform/.env` on the VPS.
+  This is the password to *your own* server — it isn't in this repo (zero
+  secrets by design) and it isn't something the shortcut can supply for you.
+  If the service was never deployed with a key, set one first.
 
-## Import the ready-made shortcut
+## Sign it into an installable link
 
-The repo ships `Amethyst Dictate.plist` — the same shortcut as the manual recipe
-below, as an *unsigned* shortcut. Regenerate it any time with
-`python3 build_shortcut.py`.
+Needs a Mac (signing is macOS-only). Produces a tap-to-add link you can reuse on
+any iPhone.
 
-1. On the iPhone, enable untrusted shortcuts once: **Settings → Shortcuts →
-   Advanced → Allow Sharing Untrusted Shortcuts** (the toggle only appears after
-   you've run at least one shortcut on the device).
-2. Get `Amethyst Dictate.plist` onto the phone — AirDrop it from a Mac, or drop
-   it in iCloud Drive / Files and tap it. Open it **with Shortcuts** (use the
-   Share sheet → **Shortcuts** if it opens as text).
-3. On import you'll be asked two questions:
-   - **Your Amethyst API key** — paste the value of `AMETHYST_API_KEY`.
-   - **Transcribe endpoint URL** — defaults to the URL above; change it only if
-     your deployment differs.
-4. Tap **Add Shortcut**. Done — skip to
-   [Assign it to the Action Button](#assign-it-to-the-action-button).
+1. Get `Amethyst Dictate.plist` onto the Mac (it's in this repo, or regenerate
+   it with `python3 build_shortcut.py`).
+2. Sign it:
+   ```sh
+   shortcuts sign --mode anyone \
+     --input "Amethyst Dictate.plist" \
+     --output "Amethyst Dictate.shortcut"
+   ```
+3. Double-click `Amethyst Dictate.shortcut` to add it to Shortcuts on the Mac
+   (or AirDrop the signed file to the iPhone and tap it there).
+4. Open the shortcut, edit the first **Text** action and replace
+   `PASTE_YOUR_AMETHYST_API_KEY_HERE` with your real key. (The endpoint URL is
+   asked as an import question; the key is not, so you set it here.)
+5. To share it: in Shortcuts, **⋯ → Share → Copy iCloud Link**. Anyone can open
+   that `https://www.icloud.com/shortcuts/…` link and tap **Add Shortcut** — no
+   toggles, no Files app.
+
+> Heads-up: an iCloud link bakes in whatever API key the shortcut held when you
+> shared it. Only share the link with people you'd hand the key to, or strip the
+> key before sharing and have each person paste their own.
 
 ## Build it
 
@@ -61,7 +78,7 @@ below, as an *unsigned* shortcut. Regenerate it any time with
      - **Request Body**: **Form**
        - Add field: **File** named `file`, value = magic variable **Recorded
          Audio** (output of step 2)
-       - Add field: **Text** named `source`, value = `ios_shortcut`
+       - Add field: **Text** named `source`, value = `action_button`
        - (Optional) **Text** field `language` = `ru` if you mostly dictate in
          Russian, otherwise leave it out for auto-detect.
 
@@ -141,7 +158,7 @@ Translate → Send via Messages" is a single chain.
   step 2.
 - **Times out on cellular**: large uploads on weak networks may exceed the
   nginx/Caddy timeout. Wait for Wi-Fi for long recordings.
-- **Import opens as text, not a shortcut**: enable **Settings → Shortcuts →
-  Advanced → Allow Sharing Untrusted Shortcuts**, then re-open the file via the
-  Share sheet → **Shortcuts**. If the toggle is missing, run any shortcut once
-  to make it appear.
+- **The `.plist` file won't import / opens as text**: expected — iOS does not
+  import unsigned shortcut files, and no toggle changes that (see
+  [Read this first: installing needs signing](#read-this-first-installing-needs-signing)).
+  Either build it by hand or sign it on a Mac into an iCloud link.
