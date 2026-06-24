@@ -61,7 +61,7 @@ file. tts only starts once `GROQ_API_KEY` is present.
 ```bash
 docker compose -f platform/docker-compose.yml ps    # all Up
 curl -fsS https://negativezero.one/services/admin/api/health     # {"ok":true}
-curl -fsS https://negativezero.one/services/tts/api/v1/health    # {"status":"ok",...}
+curl -fsS https://negativezero.one/services/amethyst/api/v1/health  # {"status":"ok",...}
 # internal authz must NOT be reachable publicly (expect 404):
 curl -s -o /dev/null -w '%{http_code}\n' https://negativezero.one/services/admin/api/internal/authz
 ```

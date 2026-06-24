@@ -25,7 +25,6 @@ https://negativezero.one/services/basalt/            → bookmark-manager/Basalt
 https://negativezero.one/services/bookmark-manager/  → 308 redirect → /services/basalt/
 https://negativezero.one/services/admin/             → admin (registration-code generator)
 https://negativezero.one/services/amethyst/          → tts/Amethyst PWA + API
-https://negativezero.one/services/tts/               → 308 redirect → /services/amethyst/
 https://negativezero.one/services/timezones/         → gated cross-timezone planner
 https://negativezero.one/services/video-downloader/  → video-downloader SPA + API (clear-HLS remux)
 https://negativezero.one/services/redirector/        → redirector SPA + API (short-link redirects)
@@ -319,7 +318,7 @@ For the strategic view see `docs/PLAN.md`. Quick pointers:
   cohabiting tenant at the time at `/vtt-transcriber/`.
 - **Phase 2 — tts absorbed.** Done. Amethyst pulled
   into `apps/tts/`, deployed via this monorepo at `/services/amethyst/`,
-  legacy URLs `/services/tts/` and `/vtt-transcriber/` kept as 308 redirects.
+  legacy URL `/vtt-transcriber/` kept as a 308 redirect.
   Logto + Neon
   (previously planned for Phase 2) dropped; the existing per-service
   WebAuthn flow stays.

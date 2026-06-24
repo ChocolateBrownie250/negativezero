@@ -19,7 +19,6 @@ interface Props {
 // user knows which service they are signing in to continue to.
 const SERVICE_NAMES: Record<string, string> = {
   amethyst: 'Amethyst',
-  tts: 'Amethyst', // legacy path, kept while old /services/tts/ links redirect
   basalt: 'Basalt',
   'bookmark-manager': 'Basalt', // legacy path, kept while old /services/bookmark-manager/ links redirect
   'video-downloader': 'Video Downloader',
@@ -34,7 +33,6 @@ const SERVICE_NAMES: Record<string, string> = {
 // the old "negativezero" wordmark + "continue to X" sentence.
 const SERVICE_TAGLINES: Record<string, string> = {
   amethyst: 'speech to text · transcriber',
-  tts: 'speech to text · transcriber',
   basalt: 'save & organize links',
   'bookmark-manager': 'save & organize links',
   'video-downloader': 'download & save videos',

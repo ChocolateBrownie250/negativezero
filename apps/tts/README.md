@@ -1,7 +1,7 @@
 # tts (Amethyst) — voice-to-text dictation service
 
 > **Part of the `negativezero` monorepo.** This service lives at `apps/tts/` and
-> runs as a container at `https://negativezero.one/services/tts/`, deployed by
+> runs as a container at `https://negativezero.one/services/amethyst/`, deployed by
 > [`../../platform/deploy.sh`](../../platform/deploy.sh) — **not** the standalone
 > flow in the lower sections. For the platform shape and current deployed state
 > read [`../../HANDOVER.md`](../../HANDOVER.md),

@@ -12,6 +12,35 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-24 — retire the legacy `/services/tts/` redirect
+
+The `/services/tts/` → `/services/amethyst/` 308 redirect added in the
+2026-06-19 rename entry below was removed. `/services/tts/` no longer resolves
+to the service — with no matching `location`, it falls through to the catch-all
+landing route like any other unknown path and yields a not-found.
+
+**Decision:** drop the `location = /services/tts` and
+`location ~ ^/services/tts/(.*)$` blocks from the apex nginx config; the service
+is reachable only at `/services/amethyst/`. The now-dead `tts` SSO-destination
+labels in admin's `Login.tsx` (`SERVICE_NAMES`/`SERVICE_TAGLINES`) were removed
+with it, and the route was dropped from the deployed-surface tables in
+`HANDOVER.md` and `ARCHITECTURE.md`.
+
+**Scope:** public URL path only, and only the `/services/tts/` alias. The
+separate `/vtt-transcriber/` legacy redirect (the iPhone Shortcut target) is
+**kept** — it was not part of this change. The internal `tts` identifier
+(compose/container name, `GATED_SERVICES`/authz key, per-account grants,
+`TTS_HOST_PORT`) is unchanged, exactly as the 2026-06-19 rename entry scoped it.
+
+**Alternatives considered:** keeping the redirect indefinitely — rejected, the
+owner confirmed the old link is no longer meant to work; returning an explicit
+404/410 from a dedicated block instead of falling through to landing — not worth
+a block, the catch-all already produces a not-found for the unknown path.
+
+**What would invalidate this:** evidence that a client (an un-updated PWA install
+or an old bookmark) still depends on `/services/tts/` — then restore the 308
+redirect.
+
 ## 2026-06-23 — Citrine persistence: server is the source of truth, localStorage is an offline cache
 
 Server-side per-presentation storage landed for Citrine: owner-scoped

@@ -260,7 +260,6 @@ negativezero.one/services/admin/               → admin SPA + API (SSO hub)
 negativezero.one/services/admin/api/internal/  → 404 (internal authz; sibling containers only)
 negativezero.one/services/amethyst/                 → tts PWA + API
 negativezero.one/services/amethyst/api/v1/...       → tts API (Bearer or SSO cookie)
-negativezero.one/services/tts/                 → 308 redirect → /services/amethyst/ (old URL)
 negativezero.one/services/timezones/           → gated timezone planner (client + API)
 negativezero.one/services/video-downloader/    → video-downloader SPA + API
 negativezero.one/services/redirector/          → redirector SPA + API
