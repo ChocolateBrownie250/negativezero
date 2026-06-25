@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     cleanup_default_enabled: bool = Field(True, alias="CLEANUP_DEFAULT_ENABLED")
     cleanup_default_mode: str = Field("standard", alias="CLEANUP_DEFAULT_MODE")
 
+    # Strip Whisper hallucinations (trailing "thanks for watching" /
+    # "Продолжение следует" / "Субтитры сделал …" sign-offs, decoder repetition
+    # loops, ALL-CAPS noise) from raw transcripts. On by default; set
+    # SANITIZE_TRANSCRIPTS=false to get Whisper's output verbatim.
+    sanitize_transcripts: bool = Field(True, alias="SANITIZE_TRANSCRIPTS")
+
     log_level: str = Field("INFO", alias="LOG_LEVEL")
 
     # /docs, /redoc, /openapi.json — off by default to avoid leaking the
