@@ -108,3 +108,17 @@ async def test_verify_credentials_is_cached(monkeypatch):
     await verify_credentials(force=True)
     await verify_credentials()  # within TTL → served from cache, no second call
     assert calls["n"] == 1
+
+
+# ----- transcript marker guard ---------------------------------------------
+
+def test_strip_transcript_markers_removes_leaked_fence():
+    # If a chat model echoes the <transcript> fence we wrap input in, those
+    # literal tags must be scrubbed from the stored/returned text.
+    leaked = "<transcript>\nПривет, как дела?\n</transcript>"
+    assert gc._strip_transcript_markers(leaked) == "Привет, как дела?"
+
+
+def test_strip_transcript_markers_noop_on_clean_text():
+    clean = "Обычный транскрипт без всяких тегов."
+    assert gc._strip_transcript_markers(clean) == clean

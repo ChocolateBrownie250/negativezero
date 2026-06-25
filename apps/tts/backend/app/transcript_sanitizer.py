@@ -111,14 +111,22 @@ _REAL_ACRONYMS: frozenset[str] = frozenset(
 _MIN_REPEATS = 3
 
 
+# Precompiled once: `_normalise` runs on every segment of every transcript.
+_NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
+_WS_RUN_RE = re.compile(r"\s+")
+# Punctuation stripped from token edges before comparison. Includes both
+# straight (') and curly (’‘) apostrophes so "don't"/"don’t" compare equal.
+_TOKEN_EDGE_PUNCT = ".,!?;:…\"'’‘()[]«»-—"
+
+
 def _normalise(segment: str) -> str:
     """Lower-case and strip everything that isn't a word character or space, so
     boilerplate matches regardless of punctuation, emoji, or casing."""
     s = segment.lower()
     # Drop apostrophes inside words ("don't" -> "dont") then non-word -> space.
     s = s.replace("'", "").replace("’", "")
-    s = re.sub(r"[^\w\s]", " ", s, flags=re.UNICODE)
-    s = re.sub(r"\s+", " ", s)
+    s = _NON_WORD_RE.sub(" ", s)
+    s = _WS_RUN_RE.sub(" ", s)
     return s.strip()
 
 
@@ -144,7 +152,7 @@ def strip_boilerplate(text: str) -> str:
     if not text.strip():
         return text
 
-    segments = [s for s in _SEGMENT_SPLIT_RE.split(text) if s is not None and s.strip()]
+    segments = [s.strip() for s in _SEGMENT_SPLIT_RE.split(text) if s.strip()]
     if not segments:
         return text
 
@@ -154,14 +162,14 @@ def strip_boilerplate(text: str) -> str:
     while segments and _is_boilerplate_segment(segments[0]):
         segments.pop(0)
 
-    return " ".join(s.strip() for s in segments).strip()
+    return " ".join(segments).strip()
 
 
 def _norm_token(token: str) -> str:
     """Compare tokens case- and punctuation-insensitively, so a decoder loop
     whose copies differ only in trailing comma/period or capitalisation
     ("Продолжение следует, продолжение следует.") is still recognised as one."""
-    return token.lower().strip(".,!?;:…\"'()[]«»-—")
+    return token.lower().strip(_TOKEN_EDGE_PUNCT)
 
 
 def collapse_repeats(text: str) -> str:
@@ -217,7 +225,7 @@ def collapse_repeats(text: str) -> str:
 
 def _is_caps_gibberish(token: str) -> bool:
     # Strip surrounding punctuation the tokenizer left attached.
-    core = token.strip(".,!?;:…\"'()[]«»-—")
+    core = token.strip(_TOKEN_EDGE_PUNCT)
     if not core or core.upper() in _REAL_ACRONYMS:
         return False
     return bool(_CAPS_TOKEN_RE.match(core))

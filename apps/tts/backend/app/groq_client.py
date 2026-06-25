@@ -268,6 +268,14 @@ def _wrap_transcript(label: str, text: str) -> str:
     return f"{label}:\n<transcript>\n{text}\n</transcript>"
 
 
+def _strip_transcript_markers(text: str) -> str:
+    """Belt-and-suspenders: a model occasionally echoes the ``<transcript>``
+    fence we wrap the input in back into its answer. Those literal markers are
+    never legitimate output, so drop any that leaked through before we store or
+    return the text. (Real dictation never contains the literal tag.)"""
+    return text.replace("<transcript>", "").replace("</transcript>", "").strip()
+
+
 def _build_cleanup_messages(
     *,
     raw_text: str,
@@ -341,7 +349,7 @@ async def cleanup(
     cleaned: str
     try:
         parsed = json.loads(raw_content)
-        cleaned = (parsed.get("text") or "").strip()
+        cleaned = _strip_transcript_markers(parsed.get("text") or "")
         if not cleaned:
             log.warning("Empty 'text' in cleanup response, falling back to raw")
             cleaned = raw_text
@@ -501,7 +509,7 @@ async def polish(
     polished: str
     try:
         parsed = json.loads(raw_content)
-        polished = (parsed.get("text") or "").strip()
+        polished = _strip_transcript_markers(parsed.get("text") or "")
         if not polished:
             log.warning("Empty 'text' in polish response, falling back to input")
             polished = text
@@ -599,7 +607,7 @@ async def translate(
     translated: str
     try:
         parsed = json.loads(raw_content)
-        translated = (parsed.get("text") or "").strip()
+        translated = _strip_transcript_markers(parsed.get("text") or "")
         if not translated:
             log.warning("Empty 'text' in translate response, falling back to input")
             translated = text

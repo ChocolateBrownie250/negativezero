@@ -89,6 +89,12 @@ def test_collapse_preserves_surrounding_text():
     assert collapse_repeats(text) == "начало so конец"
 
 
+def test_collapse_treats_curly_and_straight_edge_quotes_alike():
+    # A repeated word quoted with mixed straight (') and curly (’) trailing
+    # quotes must still collapse — _norm_token strips both from token edges.
+    assert collapse_repeats("стоп' стоп’ стоп'") == "стоп'"
+
+
 # ----- strip_caps_gibberish -------------------------------------------------
 
 def test_strips_trailing_caps_pair():
