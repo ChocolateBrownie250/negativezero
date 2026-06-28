@@ -26,13 +26,13 @@ Either way, finish with [Assign it to the Action Button](#assign-it-to-the-actio
 
 Have these ready:
 
-- **Server URL**: `https://<your-host>/api/v1/transcribe`
+- **Server URL**: `https://<your-host>/api/v1/shortcuts/transcribe`
   (for this deployment:
-  `https://negativezero.one/services/amethyst/api/v1/transcribe`)
-- **API key**: value of `AMETHYST_API_KEY` from `platform/.env` on the VPS.
-  This is the password to *your own* server — it isn't in this repo (zero
-  secrets by design) and it isn't something the shortcut can supply for you.
-  If the service was never deployed with a key, set one first.
+  `https://negativezero.one/services/amethyst/api/v1/shortcuts/transcribe`)
+- **API token**: a TTS token minted in Admin, used as
+  `Authorization: Bearer <token>`. The legacy owner key from `platform/.env`
+  also works for operator-only shortcuts, but the Admin-minted token is the
+  preferred path because it can be revoked without rotating service secrets.
 
 ## Sign it into an installable link
 
@@ -71,16 +71,17 @@ any iPhone.
    - This produces a `.m4a` file.
 
 3. Add action **Get Contents of URL**.
-   - **URL**: `https://negativezero.one/services/amethyst/api/v1/transcribe`
+   - **URL**:
+     `https://negativezero.one/services/amethyst/api/v1/shortcuts/transcribe?source=action_button&keep_audio=false`
    - Tap **Show More**:
      - **Method**: POST
-     - **Headers**: add one — `Authorization` = `Bearer <your-api-key>`
-     - **Request Body**: **Form**
-       - Add field: **File** named `file`, value = magic variable **Recorded
-         Audio** (output of step 2)
-       - Add field: **Text** named `source`, value = `action_button`
-       - (Optional) **Text** field `language` = `ru` if you mostly dictate in
-         Russian, otherwise leave it out for auto-detect.
+     - **Headers**:
+       - `Authorization` = `Bearer <your-api-token>`
+       - `Content-Type` = `audio/mp4`
+     - **Request Body**: **File**
+       - File = magic variable **Recorded Audio** (output of step 2)
+     - Optional query parameter: add `&language=ru` to the URL if you mostly
+       dictate in Russian; otherwise leave language out for auto-detect.
 
 4. Add action **Get Dictionary Value**.
    - **Get**: Value
@@ -100,6 +101,21 @@ any iPhone.
    Apple Intelligence.
 
 8. Top-right: **Done**.
+
+## Legacy multipart route
+
+The older route still exists for the PWA and already-installed clients:
+
+```text
+POST https://negativezero.one/services/amethyst/api/v1/transcribe
+Request Body: Form
+  file   = Recorded Audio
+  source = action_button
+```
+
+For new iPhone Shortcuts, prefer `/api/v1/shortcuts/transcribe` with
+**Request Body = File**. It has fewer moving parts in Shortcuts.app and all
+Shortcut-facing errors return a JSON dictionary with a `text` field.
 
 ## Assign it to the Action Button
 
@@ -148,8 +164,11 @@ Translate → Send via Messages" is a single chain.
 
 ## Troubleshooting
 
-- **401 Unauthorized**: double-check the `Authorization` header value. It
-  must be `Bearer <key>` with one space, exact case.
+- **401 Unauthorized**: the server is reachable and returning JSON. The
+  Shortcut token is missing, revoked, mistyped, or no longer present in Admin
+  state. Restore Admin state or mint a fresh TTS API token in Admin, then update
+  the `Authorization` header. It must be `Bearer <token>` with one space, exact
+  case.
 - **"File field required"**: the `file` form field must be the **Recorded
   Audio** magic variable, not a text representation of it. If Shortcuts shows
   it as text, tap the field and switch to the variable.

@@ -504,6 +504,39 @@ issue_tls "$APEX_DOMAIN"
 
 systemctl reload nginx || true
 
+log "Amethyst Shortcut route smoke"
+if [ "$GROQ_PRESENT" = "1" ]; then
+    shortcut_body="$(mktemp)"
+    shortcut_code="$(curl -s -o "$shortcut_body" -w '%{http_code}' \
+        -X POST -H 'Content-Type: audio/mp4' \
+        --data-binary 'not real audio' \
+        "http://127.0.0.1:$TTS_PORT/api/v1/shortcuts/transcribe" || echo 000)"
+    if [ "$shortcut_code" != "401" ]; then
+        warn "Expected unauthenticated Shortcut route to return 401 JSON, got HTTP $shortcut_code"
+        cat "$shortcut_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst Shortcut route smoke failed"
+    elif ! grep -F '"text"' "$shortcut_body" >/dev/null; then
+        warn "Shortcut route returned 401 without a text field"
+        cat "$shortcut_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst Shortcut JSON contract failed"
+    fi
+    file_alias_body="$(mktemp)"
+    file_alias_code="$(curl -s -o "$file_alias_body" -w '%{http_code}' \
+        -X POST -H 'Content-Type: audio/mp4' \
+        --data-binary 'not real audio' \
+        "http://127.0.0.1:$TTS_PORT/api/v1/transcribe/file" || echo 000)"
+    if [ "$file_alias_code" = "405" ]; then
+        warn "Amethyst raw file alias still returns 405"
+        cat "$file_alias_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst raw file alias is missing"
+    elif ! grep -F '"text"' "$file_alias_body" >/dev/null; then
+        warn "Amethyst raw file alias did not return Shortcut-readable JSON"
+        cat "$file_alias_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst raw file alias JSON contract failed"
+    fi
+    rm -f "$shortcut_body" "$file_alias_body"
+fi
+
 # ────────────────────────────────────────────────────────────────────────
 # 7. Done
 # ────────────────────────────────────────────────────────────────────────
