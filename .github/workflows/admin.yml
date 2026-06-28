@@ -1,9 +1,8 @@
 name: admin
 
-# CI for the admin service. Runs typecheck + build, and validates the
-# Dockerfile can produce a runnable image. Mirrors bookmark-manager.yml.
-# No `server tests` step yet — admin has no tests today; add one here when
-# the first test file lands.
+# CI for the admin service. Runs typecheck + build + server tests, and
+# validates the Dockerfile can produce a runnable image. Mirrors
+# bookmark-manager.yml.
 
 on:
   push:
@@ -23,7 +22,7 @@ jobs:
       run:
         working-directory: apps/admin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -38,10 +37,13 @@ jobs:
       - name: typecheck + build (client + server)
         run: npm run build
 
+      - name: server tests
+        run: npm -w server test
+
   docker-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 

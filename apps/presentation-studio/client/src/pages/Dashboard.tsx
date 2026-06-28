@@ -40,6 +40,7 @@ import {
   cloneValue,
   elementDefinitions,
   newElement,
+  blankDocument,
   seedDocument,
   slug,
   type Action,
@@ -58,6 +59,22 @@ import {
   RING_STRONG,
   RING_SUBTLE,
 } from '../lib/colors';
+import {
+  actionLabel,
+  documentStats,
+  elementDisplayName,
+  elementSurfaceStyle,
+  frameStyle,
+  listProp,
+  normalizeColor,
+  numberProp,
+  publicAssetHref,
+  radiusFor,
+  resolvedStyle,
+  safeExternalHref,
+  safeImageHref,
+  textProp,
+} from '../lib/elementHelpers';
 
 interface Props {
   isOffline: boolean;
@@ -95,135 +112,6 @@ function loadEditLevel(): EditLevel {
   } catch {
     return 'simple';
   }
-}
-
-function frameStyle(element: ElementNode): React.CSSProperties {
-  return {
-    left: `${element.frame.x}%`,
-    top: `${element.frame.y}%`,
-    width: `${element.frame.width}%`,
-    minHeight: `${element.frame.height}%`,
-  };
-}
-
-function textProp(element: ElementNode, key: string, fallback = ''): string {
-  const value = element.props[key];
-  return typeof value === 'string' ? value : fallback;
-}
-
-function numberProp(element: ElementNode, key: string, fallback = 0): number {
-  const value = element.props[key];
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
-}
-
-function listProp(element: ElementNode, key: string): string[] {
-  return textProp(element, key)
-    .split(/\n|->/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function safeImageHref(href: string): string | null {
-  try {
-    const url = new URL(href);
-    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeColor(value?: string): string {
-  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : COLORS.accent;
-}
-
-function resolvedStyle(element: ElementNode): Required<ElementStyle> {
-  return {
-    tone: element.style?.tone ?? 'solid',
-    radius: element.style?.radius ?? 'soft',
-    accent: normalizeColor(element.style?.accent),
-  };
-}
-
-function radiusFor(style: ElementStyle | undefined): number {
-  const radius = style?.radius ?? 'soft';
-  if (radius === 'sharp') return 8;
-  if (radius === 'pill') return 999;
-  return 12;
-}
-
-function elementSurfaceStyle(element: ElementNode, fallbackBackground = COLORS.card): React.CSSProperties {
-  const style = resolvedStyle(element);
-  const radius = radiusFor(style);
-  if (style.tone === 'glass') {
-    return {
-      borderRadius: radius,
-      background: 'rgba(255,255,255,0.045)',
-      boxShadow: `inset 0 0 0 1px ${RING_STRONG}, 0 16px 44px rgba(0,0,0,0.18)`,
-    };
-  }
-  if (style.tone === 'outline') {
-    return {
-      borderRadius: radius,
-      background: 'rgba(255,255,255,0.012)',
-      boxShadow: `inset 0 0 0 1px ${style.accent}`,
-    };
-  }
-  return {
-    borderRadius: radius,
-    background: fallbackBackground,
-    boxShadow: `0 0 0 1px ${RING_STRONG}, 0 20px 45px rgba(0,0,0,0.28)`,
-  };
-}
-
-function actionLabel(action?: Action): string {
-  if (!action || action.kind === 'none') return 'No action';
-  if (action.kind === 'scene') return `Scene: ${action.target}`;
-  if (action.kind === 'anchor') return `Anchor: ${action.target}`;
-  return action.href;
-}
-
-function safeExternalHref(href: string): string | null {
-  try {
-    const url = new URL(href);
-    return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function documentStats(document: PresentationDocument) {
-  return {
-    scenes: document.scenes.length,
-    elements: document.scenes.reduce((total, scene) => total + scene.elements.length, 0),
-    actions: document.scenes.reduce(
-      (total, scene) => total + scene.elements.filter((element) => element.action && element.action.kind !== 'none').length,
-      0,
-    ),
-  };
-}
-
-function publicAssetHref(path?: string): string | null {
-  if (!path) return null;
-  const base = import.meta.env.BASE_URL || '/';
-  return `${base}${path.replace(/^\/+/, '')}`;
-}
-
-function elementDisplayName(element: ElementNode): string {
-  if (element.type === 'headline') return textProp(element, 'title', element.id);
-  if (element.type === 'button') return textProp(element, 'label', element.id);
-  if (element.type === 'metric') return textProp(element, 'label', element.id);
-  if (element.type === 'chart') return textProp(element, 'title', element.id);
-  if (element.type === 'timeline') return 'Timeline';
-  if (element.type === 'media') return textProp(element, 'title', element.id);
-  if (element.type === 'quote') return 'Quote';
-  if (element.type === 'checklist') return textProp(element, 'title', element.id);
-  if (element.type === 'divider') return textProp(element, 'label', element.id);
-  return textProp(element, 'title', element.id);
 }
 
 function defaultCanvasPosition(index: number): { x: number; y: number } {
@@ -864,6 +752,167 @@ function FreeformCanvas({
   );
 }
 
+type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+function handlePosition(h: ResizeHandle): React.CSSProperties {
+  const s: React.CSSProperties = { position: 'absolute' };
+  if (h.includes('n')) s.top = -6;
+  if (h.includes('s')) s.bottom = -6;
+  if (h.includes('w')) s.left = -6;
+  if (h.includes('e')) s.right = -6;
+  if (h === 'n' || h === 's') s.left = 'calc(50% - 6px)';
+  if (h === 'e' || h === 'w') s.top = 'calc(50% - 6px)';
+  return s;
+}
+
+function handleCursor(h: ResizeHandle): string {
+  if (h === 'n' || h === 's') return 'ns-resize';
+  if (h === 'e' || h === 'w') return 'ew-resize';
+  if (h === 'nw' || h === 'se') return 'nwse-resize';
+  return 'nesw-resize';
+}
+
+const roundPct = (v: number) => Math.round(v * 10) / 10;
+
+// Direct-manipulation overlay over the selected element: drag the body to move,
+// drag a handle to resize. Pixel deltas are converted to frame % against the
+// live stage rect. Deliberately layered ON TOP of the element so it never
+// touches the 11 per-type element renders.
+function SelectionOverlay({
+  element,
+  getStageRect,
+  onFrameChange,
+  onHistoryBegin,
+  onHistoryEnd,
+}: {
+  element: ElementNode;
+  getStageRect: () => DOMRect | null;
+  onFrameChange: (frame: ElementNode['frame']) => void;
+  onHistoryBegin: () => void;
+  onHistoryEnd: () => void;
+}) {
+  const drag = useRef<{
+    mode: 'move' | ResizeHandle;
+    startX: number;
+    startY: number;
+    frame: ElementNode['frame'];
+    rect: DOMRect;
+    committed: boolean;
+  } | null>(null);
+  const MIN = 5;
+
+  function begin(mode: 'move' | ResizeHandle, e: React.PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = getStageRect();
+    if (!rect) return;
+    drag.current = {
+      mode,
+      startX: e.clientX,
+      startY: e.clientY,
+      frame: { ...element.frame },
+      rect,
+      committed: false,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function move(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    // First actual movement opens a single undo transaction for the gesture.
+    if (!d.committed) {
+      d.committed = true;
+      onHistoryBegin();
+    }
+    const dx = ((e.clientX - d.startX) / d.rect.width) * 100;
+    const dy = ((e.clientY - d.startY) / d.rect.height) * 100;
+    let { x, y, width, height } = d.frame;
+    if (d.mode === 'move') {
+      x = d.frame.x + dx;
+      y = d.frame.y + dy;
+    } else {
+      if (d.mode.includes('e')) width = d.frame.width + dx;
+      if (d.mode.includes('s')) height = d.frame.height + dy;
+      if (d.mode.includes('w')) {
+        width = d.frame.width - dx;
+        x = d.frame.x + dx;
+      }
+      if (d.mode.includes('n')) {
+        height = d.frame.height - dy;
+        y = d.frame.y + dy;
+      }
+      if (width < MIN) {
+        if (d.mode.includes('w')) x = d.frame.x + (d.frame.width - MIN);
+        width = MIN;
+      }
+      if (height < MIN) {
+        if (d.mode.includes('n')) y = d.frame.y + (d.frame.height - MIN);
+        height = MIN;
+      }
+    }
+    x = Math.max(0, Math.min(100 - MIN, x));
+    y = Math.max(0, Math.min(100 - MIN, y));
+    width = Math.max(MIN, Math.min(100 - x, width));
+    height = Math.max(MIN, Math.min(100 - y, height));
+    onFrameChange({ x: roundPct(x), y: roundPct(y), width: roundPct(width), height: roundPct(height) });
+  }
+
+  function end(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    drag.current = null;
+    if (d.committed) onHistoryEnd();
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* pointer already released */
+    }
+  }
+
+  return (
+    <div
+      className="absolute"
+      style={{
+        left: `${element.frame.x}%`,
+        top: `${element.frame.y}%`,
+        width: `${element.frame.width}%`,
+        height: `${element.frame.height}%`,
+        boxShadow: `0 0 0 1.5px ${COLORS.accent}`,
+        borderRadius: 6,
+        cursor: 'move',
+        zIndex: 60,
+        touchAction: 'none',
+      }}
+      onPointerDown={(e) => begin('move', e)}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={end}
+    >
+      {RESIZE_HANDLES.map((h) => (
+        <div
+          key={h}
+          onPointerDown={(e) => begin(h, e)}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerCancel={end}
+          style={{
+            ...handlePosition(h),
+            width: 12,
+            height: 12,
+            background: '#fff',
+            boxShadow: `0 0 0 1.5px ${COLORS.accent}`,
+            borderRadius: 3,
+            cursor: handleCursor(h),
+            touchAction: 'none',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const [document, setDocument] = useState<PresentationDocument>(() => loadStoredDocument());
   const [selectedSceneId, setSelectedSceneId] = useState(() => document.scenes[0]?.id ?? '');
@@ -878,10 +927,88 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const stageSwipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const skipNextStageClickRef = useRef(false);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [decks, setDecks] = useState<
+    Array<{ id: string; title: string; updatedAt: number }>
+  >([]);
+  const [decksOpen, setDecksOpen] = useState(false);
+  const serverSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const decksRef = useRef<HTMLDivElement | null>(null);
+  // Undo/redo history: snapshots of the document before each edit. Capped so a
+  // long session can't grow memory unbounded. suspendHistoryRef groups a
+  // continuous gesture (a drag) into a single undo step (snapshot once at the
+  // start, skip per-frame snapshots) — research: one interaction = one undo.
+  const pastRef = useRef<PresentationDocument[]>([]);
+  const futureRef = useRef<PresentationDocument[]>([]);
+  const suspendHistoryRef = useRef(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   useEffect(() => {
     saveStoredDocument(document);
   }, [document]);
+
+  // Cross-device persistence: on mount, adopt the owner's most-recent saved
+  // presentation from the server (the source of truth across devices), or
+  // create one from the current local document if none exists yet. Offline or
+  // unauthenticated, we keep working from the localStorage copy loaded above.
+  useEffect(() => {
+    if (isOffline) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { presentations } = await api.presentations.list();
+        if (cancelled) return;
+        setDecks(presentations);
+        if (presentations.length > 0) {
+          const loaded = await api.presentations.get(presentations[0].id);
+          if (cancelled) return;
+          const doc = loaded.document as PresentationDocument;
+          if (doc?.version === 1 && Array.isArray(doc.scenes)) {
+            setDocument(doc);
+            setSelectedSceneId(doc.scenes[0]?.id ?? '');
+            setSelectedElementId(doc.scenes[0]?.elements[0]?.id ?? null);
+          }
+          setCurrentId(loaded.id);
+        } else {
+          const created = await api.presentations.create(document);
+          if (cancelled) return;
+          setCurrentId(created.id);
+          setDecks([
+            { id: created.id, title: created.title, updatedAt: created.updatedAt },
+          ]);
+        }
+      } catch (err) {
+        if (err instanceof UnauthorizedError) onUnauthorized();
+        // else: keep working locally; saves resume when the server is reachable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Mount-only — intentionally does not re-run on document changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced save to the server on every document change (the instant
+  // localStorage mirror above keeps offline edits safe meanwhile).
+  useEffect(() => {
+    if (isOffline || !currentId) return;
+    setSaveStatus('saving');
+    if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+    serverSaveTimer.current = setTimeout(() => {
+      void api.presentations
+        .save(currentId, document)
+        .then(() => setSaveStatus('saved'))
+        .catch((err) => {
+          if (err instanceof UnauthorizedError) onUnauthorized();
+          else setSaveStatus('idle');
+        });
+    }, 800);
+    return () => {
+      if (serverSaveTimer.current) clearTimeout(serverSaveTimer.current);
+    };
+  }, [document, currentId, isOffline, onUnauthorized]);
 
   useEffect(() => {
     window.localStorage.setItem(EDIT_LEVEL_STORAGE_KEY, editLevel);
@@ -899,7 +1026,16 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
     [editLevel],
   );
 
+  function pushHistory() {
+    pastRef.current.push(document);
+    if (pastRef.current.length > 80) pastRef.current.shift();
+    futureRef.current = [];
+  }
+
   function updateDocument(mutator: (draft: PresentationDocument) => void) {
+    // During a grouped gesture (a drag) the snapshot was already taken at the
+    // start, so per-frame edits don't each become an undo step.
+    if (!suspendHistoryRef.current) pushHistory();
     setDocument((current) => {
       const draft = cloneValue(current);
       mutator(draft);
@@ -907,6 +1043,174 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
     });
     setValidation({ status: 'idle' });
   }
+
+  // Wrap a continuous interaction so it collapses to one undo step.
+  function beginHistoryGroup() {
+    pushHistory();
+    suspendHistoryRef.current = true;
+  }
+
+  function endHistoryGroup() {
+    suspendHistoryRef.current = false;
+  }
+
+  // ---- Decks (multiple saved presentations) ------------------------
+
+  async function refreshDecks() {
+    try {
+      const { presentations } = await api.presentations.list();
+      setDecks(presentations);
+    } catch {
+      /* keep the current list */
+    }
+  }
+
+  function loadDocumentInto(doc: PresentationDocument, id: string) {
+    pastRef.current = [];
+    futureRef.current = [];
+    setDocument(doc);
+    setCurrentId(id);
+    setSelectedSceneId(doc.scenes[0]?.id ?? '');
+    setSelectedElementId(doc.scenes[0]?.elements[0]?.id ?? null);
+    setValidation({ status: 'idle' });
+  }
+
+  async function newDeck() {
+    setDecksOpen(false);
+    if (isOffline) return;
+    const doc = blankDocument('Untitled presentation', String(Date.now()));
+    try {
+      const created = await api.presentations.create(doc);
+      loadDocumentInto(doc, created.id);
+      void refreshDecks();
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+    }
+  }
+
+  async function switchDeck(id: string) {
+    setDecksOpen(false);
+    if (id === currentId || isOffline) return;
+    try {
+      const loaded = await api.presentations.get(id);
+      const doc = loaded.document as PresentationDocument;
+      if (doc?.version === 1 && Array.isArray(doc.scenes)) {
+        loadDocumentInto(doc, loaded.id);
+      }
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+    }
+  }
+
+  async function deleteDeck(id: string) {
+    if (isOffline) return;
+    try {
+      await api.presentations.remove(id);
+      const remaining = decks.filter((d) => d.id !== id);
+      setDecks(remaining);
+      if (id === currentId) {
+        if (remaining.length > 0) await switchDeck(remaining[0].id);
+        else await newDeck();
+      }
+    } catch (err) {
+      if (err instanceof UnauthorizedError) onUnauthorized();
+    }
+  }
+
+  // Close the decks menu when clicking outside it.
+  useEffect(() => {
+    if (!decksOpen) return;
+    function onDown(e: MouseEvent) {
+      if (decksRef.current && !decksRef.current.contains(e.target as Node)) {
+        setDecksOpen(false);
+      }
+    }
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [decksOpen]);
+
+  function undo() {
+    if (pastRef.current.length === 0) return;
+    const prev = pastRef.current.pop() as PresentationDocument;
+    futureRef.current.push(document);
+    setDocument(prev);
+    setValidation({ status: 'idle' });
+  }
+
+  function redo() {
+    if (futureRef.current.length === 0) return;
+    const next = futureRef.current.pop() as PresentationDocument;
+    pastRef.current.push(document);
+    setDocument(next);
+    setValidation({ status: 'idle' });
+  }
+
+  function nudgeSelected(dx: number, dy: number) {
+    if (!selectedElement) return;
+    patchElement({
+      frame: {
+        ...selectedElement.frame,
+        x: Math.max(0, Math.min(95, Math.round((selectedElement.frame.x + dx) * 10) / 10)),
+        y: Math.max(0, Math.min(95, Math.round((selectedElement.frame.y + dy) * 10) / 10)),
+      },
+    });
+  }
+
+  // Keyboard: ⌘Z / ⌘⇧Z undo-redo, ⌘D duplicate, Delete/Backspace remove,
+  // arrows nudge the selected element. Ignored while typing in a field.
+  useEffect(() => {
+    function isTextEntry(t: EventTarget | null): boolean {
+      const el = t as HTMLElement | null;
+      if (!el || !el.tagName) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    }
+    function onKey(e: KeyboardEvent) {
+      if (isTextEntry(e.target)) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (mod && k === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (mode !== 'edit') return;
+      if (mod && k === 'd') {
+        if (!selectedElement) return;
+        e.preventDefault();
+        duplicateElement();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElement) {
+        e.preventDefault();
+        deleteElement();
+        return;
+      }
+      if (selectedElement && e.key.startsWith('Arrow')) {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        if (e.key === 'ArrowLeft') nudgeSelected(-step, 0);
+        else if (e.key === 'ArrowRight') nudgeSelected(step, 0);
+        else if (e.key === 'ArrowUp') nudgeSelected(0, -step);
+        else if (e.key === 'ArrowDown') nudgeSelected(0, step);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // The handlers close over the state in the deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, selectedElement, document]);
 
   async function onLogout() {
     if (isOffline) return;
@@ -1234,10 +1538,87 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
         <div className="flex items-center gap-3 min-w-0">
           <LayoutTemplate size={20} color={COLORS.accent} />
           <div className="min-w-0">
-            <h1 className="text-[15px] font-semibold truncate">Citrine</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[15px] font-semibold truncate">Citrine</h1>
+              {saveStatus !== 'idle' && (
+                <span
+                  className="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={{
+                    color: saveStatus === 'saved' ? COLORS.accent : LABEL_TERTIARY,
+                    background: 'rgba(255,255,255,0.06)',
+                  }}
+                >
+                  {saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+                </span>
+              )}
+            </div>
             <p className="text-[12px] truncate" style={{ color: LABEL_TERTIARY }}>
               {document.title} · {document.source.status === 'imported' ? 'Claude Design source imported' : 'MCP import pending'}
             </p>
+          </div>
+
+          <div className="relative" ref={decksRef}>
+            <button
+              type="button"
+              className="toolbar-button"
+              onClick={() => {
+                setDecksOpen((o) => !o);
+                void refreshDecks();
+              }}
+              disabled={isOffline}
+              aria-haspopup="menu"
+              aria-expanded={decksOpen}
+            >
+              <LayoutTemplate size={14} /> Decks
+            </button>
+            {decksOpen && (
+              <div
+                className="absolute left-0 mt-2 z-50 w-64 rounded-xl overflow-hidden"
+                style={{
+                  background: 'rgba(18,22,32,0.98)',
+                  boxShadow: `0 16px 40px rgba(0,1,8,0.6), inset 0 0 0 1px ${RING_STRONG}`,
+                }}
+                role="menu"
+              >
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2.5 text-[13px] font-medium flex items-center gap-2 hover:bg-white/5"
+                  style={{ color: COLORS.accent }}
+                  onClick={() => void newDeck()}
+                >
+                  <Plus size={14} /> New presentation
+                </button>
+                <div style={{ height: 1, background: RING_SUBTLE }} />
+                <div className="max-h-64 overflow-auto py-1">
+                  {decks.length === 0 && (
+                    <div className="px-3 py-2 text-[12px]" style={{ color: LABEL_TERTIARY }}>
+                      No saved presentations yet.
+                    </div>
+                  )}
+                  {decks.map((d) => (
+                    <div key={d.id} className="flex items-center">
+                      <button
+                        type="button"
+                        className="flex-1 text-left px-3 py-2 text-[13px] truncate hover:bg-white/5"
+                        style={{ color: d.id === currentId ? COLORS.accent : LABEL_SECONDARY }}
+                        onClick={() => void switchDeck(d.id)}
+                      >
+                        {d.title || 'Untitled'}
+                      </button>
+                      <button
+                        type="button"
+                        className="px-2 py-2 hover:bg-white/5"
+                        style={{ color: LABEL_TERTIARY }}
+                        aria-label={`Delete ${d.title || 'Untitled'}`}
+                        onClick={() => void deleteDeck(d.id)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1452,6 +1833,7 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
             <>
               <div className="stage-wrap">
                 <div
+                  ref={stageRef}
                   className={`stage stage-${selectedScene?.transition.kind ?? 'fade'}`}
                   style={{ background: `radial-gradient(circle at 80% 20%, rgba(242,85,47,0.18), transparent 34%), ${document.theme.background}` }}
                   onPointerDown={onStagePointerDown}
@@ -1468,6 +1850,15 @@ export default function Dashboard({ isOffline, onUnauthorized }: Props) {
                       onAction={onAction}
                     />
                   ))}
+                  {mode === 'edit' && selectedElement && (
+                    <SelectionOverlay
+                      element={selectedElement}
+                      getStageRect={() => stageRef.current?.getBoundingClientRect() ?? null}
+                      onFrameChange={(frame) => patchElement({ frame })}
+                      onHistoryBegin={beginHistoryGroup}
+                      onHistoryEnd={endHistoryGroup}
+                    />
+                  )}
                 </div>
               </div>
 

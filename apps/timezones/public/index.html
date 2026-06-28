@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#0d1a44" />
+<meta name="theme-color" content="#08090F" id="themeColor" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="timezones" />
 <title>timezones · negativezero</title>
-<meta name="description" content="A small cross-timezone meeting planner. Line up working hours across cities and find the overlap." />
+<meta name="description" content="A small cross-timezone meeting planner. Line up working hours across cities and find the shared window — drag to scrub any hour." />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" type="image/svg+xml" href="./icon.svg" />
 <link rel="apple-touch-icon" href="./icon.svg" />
@@ -16,6 +16,15 @@
 </head>
 <body>
 <div id="authGate" class="auth-gate">checking access…</div>
+
+<!-- fixed liquid-glass mesh background (covers iOS safe areas) -->
+<div class="mesh" aria-hidden="true">
+  <span class="blob b1"></span>
+  <span class="blob b2"></span>
+  <span class="blob b3"></span>
+  <span class="blob b4"></span>
+</div>
+
 <div class="page">
   <header class="top">
     <a class="mark" href="/">−0 · negativezero.one</a>
@@ -26,40 +35,61 @@
   </header>
 
   <div class="head">
-    <h1>timezones</h1>
-    <p class="lede">Line up working hours across cities and find the overlap. Drag the
-      marker to pick a moment — every row shows its local time.</p>
+    <div class="head-text">
+      <p class="eyebrow">Planner</p>
+      <h1>Time Zones</h1>
+      <p class="lede">Find the shared window · drag any timeline to scrub the day.</p>
+    </div>
+    <div class="theme-seg" role="group" aria-label="Theme">
+      <button id="themeLight" class="theme-btn" type="button" aria-label="Light theme" title="Light">☀</button>
+      <button id="themeDark" class="theme-btn" type="button" aria-label="Dark theme" title="Dark">☾</button>
+    </div>
   </div>
 
-  <div class="toolbar">
-    <div class="add">
-      <input id="search" type="text" autocomplete="off" spellcheck="false"
-             placeholder="add a city or zone…" aria-label="add a timezone" />
-      <div id="results" class="results" hidden></div>
-    </div>
-    <div class="controls">
-      <label class="ctl">
-        <span>date</span>
-        <input id="date" type="date" />
-      </label>
-      <label class="ctl">
-        <span>hours</span>
-        <span class="range">
-          <input id="workStart" type="number" min="0" max="23" step="1" />
-          <i>–</i>
-          <input id="workEnd" type="number" min="1" max="24" step="1" />
-        </span>
-      </label>
-      <button id="fmt" class="ctl btn" type="button" aria-pressed="false">24h</button>
-      <button id="now" class="ctl btn" type="button">now</button>
-      <span class="ctl preset">
-        <span>preset</span>
-        <select id="presetSel" aria-label="load a saved preset">
-          <option value="">— none —</option>
-        </select>
+  <div class="add">
+    <span class="add-ic" aria-hidden="true">⌕</span>
+    <input id="search" type="text" autocomplete="off" spellcheck="false"
+           placeholder="Add a city or time zone…" aria-label="add a timezone" />
+    <div id="results" class="results" hidden></div>
+  </div>
+
+  <div class="controls">
+    <label class="ctl">
+      <span>Date</span>
+      <input id="date" type="date" />
+    </label>
+    <label class="ctl">
+      <span>Work</span>
+      <span class="range">
+        <input id="workStart" type="number" min="0" max="23" step="1" />
+        <i>–</i>
+        <input id="workEnd" type="number" min="1" max="24" step="1" />
       </span>
-      <button id="presetSave" class="ctl btn" type="button">save</button>
-      <button id="presetDel" class="ctl btn" type="button" disabled>del</button>
+    </label>
+    <div class="seg" role="group" aria-label="Time format">
+      <button id="seg24" class="seg-btn" type="button">24h</button>
+      <button id="seg12" class="seg-btn" type="button">12h</button>
+    </div>
+    <label class="ctl preset">
+      <span>Preset</span>
+      <select id="presetSel" aria-label="load a saved preset">
+        <option value="">— none —</option>
+      </select>
+    </label>
+    <button id="presetSave" class="ctl btn" type="button">Save</button>
+    <button id="presetDel" class="ctl btn" type="button" disabled>Del</button>
+    <div class="spacer"></div>
+    <button id="nowBtn" class="now-btn" type="button">Now</button>
+  </div>
+
+  <div id="status" class="statusbar">
+    <div class="status-left">
+      <span id="statusDot" class="dot"></span>
+      <span id="statusReadout" class="readout">—</span>
+    </div>
+    <div class="status-right">
+      <span id="overlapBadge" class="badge">—</span>
+      <button id="resetBtn" class="reset" type="button" hidden>Reset</button>
     </div>
   </div>
 
@@ -67,12 +97,10 @@
   <p id="empty" class="empty" hidden>No zones yet — add a city above. Your own zone is added automatically.</p>
 
   <div class="legend">
-    <span><i class="sw work"></i> working hours</span>
-    <span><i class="sw dawn"></i> sunrise</span>
-    <span><i class="sw day"></i> daytime</span>
-    <span><i class="sw dusk"></i> sunset</span>
-    <span><i class="sw night"></i> night</span>
-    <span><i class="sw overlap"></i> everyone available</span>
+    <span><i class="sw work"></i> Working hours</span>
+    <span><i class="sw overlap"></i> Everyone free</span>
+    <span><i class="sw day"></i> Daytime</span>
+    <span><i class="sw night"></i> Night</span>
   </div>
 
   <footer>

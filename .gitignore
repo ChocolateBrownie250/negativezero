@@ -26,5 +26,9 @@ __pycache__/
 .idea/
 *.swp
 
+# iCloud Drive sync conflict copies, e.g. "icon 2.svg" / "manifest 2.webmanifest"
+# (this repo lives under iCloud Drive on the operator's machine).
+* [0-9].*
+
 # Logs
 *.log

@@ -21,10 +21,23 @@ Voice-to-text dictation service:
 - **Open API** — any other script can hit `/api/v1/transcribe` with a `Bearer`
   token and get the same pipeline.
 
-Pipeline: client uploads audio → Groq Whisper transcribes → Groq Llama corrects
+Pipeline: client uploads audio → Groq Whisper transcribes → hallucination
+sanitiser strips Whisper's boilerplate artifacts → Groq Llama corrects
 recognition errors using a glossary (CNCF + IT terms baked in, plus your own
 additions) → result returned and stored. SQLite for metadata + FTS5 search,
 audio kept on disk with a configurable retention window.
+
+### Hallucination sanitiser
+
+Whisper hallucinates boilerplate on silence/noise — trailing "Thanks for
+watching", "Спасибо за внимание", "Продолжение следует", fan-sub credits
+("Субтитры сделал DimaTorzok"), decoder repetition loops, and short ALL-CAPS
+noise runs ("PYM JBZ"). `transcript_sanitizer.py` removes these from the raw
+transcript before it's stored or fed to the LLM (only from the start/end for
+sign-offs, so phrases used mid-speech survive). Disable with
+`SANITIZE_TRANSCRIPTS=false`. Separately, the cleanup/polish/translate prompts
+fence the transcript in `<transcript>` markers and instruct the model never to
+*answer* questions/commands inside it — it transcribes them as text.
 
 ## Architecture
 
@@ -51,6 +64,7 @@ backend/
     schema.sql          tables + FTS5 + triggers
     auth.py             Bearer-token guard
     groq_client.py      Whisper + LLM cleanup
+    transcript_sanitizer.py  strip Whisper hallucinations from raw transcripts
     glossary.py         load/merge built-in + personal glossary
     glossary_data/
       builtin.json      CNCF + IT terms (core ≤224 tokens, extended unlimited)

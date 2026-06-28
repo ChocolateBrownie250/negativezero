@@ -68,6 +68,12 @@ class HealthResponse(BaseModel):
     version: str
 
 
+class ShortcutErrorResponse(BaseModel):
+    text: str
+    error: str
+    detail: str | list | dict | None = None
+
+
 # ---------- Editable model instructions ----------
 
 class PromptItem(BaseModel):

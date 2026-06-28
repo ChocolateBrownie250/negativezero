@@ -1,4 +1,4 @@
-import type { ApiNode } from './lib/tree';
+import type { ApiNode, NodeIcon } from './lib/tree';
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -111,7 +111,13 @@ export const api = {
     }),
   patchNode: (
     id: string,
-    payload: { name?: string; url?: string; parentId?: string; position?: number },
+    payload: {
+      name?: string;
+      url?: string;
+      parentId?: string;
+      position?: number;
+      icon?: NodeIcon | null;
+    },
   ) =>
     request<{ node: ApiNode }>(`/api/nodes/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -131,5 +137,10 @@ export const api = {
     request<{ ok: true }>('/api/nodes/reorder', {
       method: 'POST',
       body: JSON.stringify({ parentId, orderedIds }),
+    }),
+  cloneNodes: (ids: string[], parentId: string) =>
+    request<{ ok: true; newIds: string[] }>('/api/nodes/clone', {
+      method: 'POST',
+      body: JSON.stringify({ ids, parentId }),
     }),
 };

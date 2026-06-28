@@ -311,6 +311,13 @@ sed -i "s|^CITRINE_HOST_PORT=.*|CITRINE_HOST_PORT=$CITRINE_PORT|" "$ENV_FILE"
 # ────────────────────────────────────────────────────────────────────────
 # 4. Docker compose
 # ────────────────────────────────────────────────────────────────────────
+# Deferred-failure marker. A configured-but-broken tts (dead container or a
+# rejected Groq key) must FAIL the deploy so the outage can't ship green — but
+# not by aborting mid-script, which would leave the OTHER healthy services
+# without their nginx/TLS/systemd refresh. So we record the problem here and
+# `die` on it at the very end, after every healthy service is fully wired.
+DEPLOY_ERROR=""
+
 log "Building + starting containers"
 if [ "$GROQ_PRESENT" = "1" ]; then
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
@@ -359,10 +366,21 @@ done
 
 if [ "$GROQ_PRESENT" = "1" ]; then
     log "Waiting for tts on 127.0.0.1:$TTS_PORT"
+    tts_up=0
     for _ in $(seq 1 30); do
-        curl -sf "http://127.0.0.1:$TTS_PORT/api/v1/health" >/dev/null 2>&1 && { log "tts up"; break; }
+        curl -sf "http://127.0.0.1:$TTS_PORT/api/v1/health" >/dev/null 2>&1 && { tts_up=1; log "tts up"; break; }
         sleep 2
     done
+    # A configured-but-unreachable tts means Amethyst is DOWN: nginx returns a
+    # 502 HTML page and the iOS Shortcut fails with "couldn't convert Rich Text
+    # to Dictionary". The old loop only `break`ed — it never failed — so a tts
+    # that crash-looped (or never started) shipped a GREEN deploy and the outage
+    # stayed invisible until a user hit it. Record it (logs now, die at the end).
+    if [ "$tts_up" != "1" ]; then
+        warn "tts did NOT answer /api/v1/health on 127.0.0.1:$TTS_PORT after 60s. Recent container logs:"
+        docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail=40 tts 2>&1 || true
+        DEPLOY_ERROR="Amethyst (tts) failed to start. Common causes: invalid GROQ_API_KEY, port conflict on $TTS_PORT, or /data permissions. See the tts logs above."
+    fi
     # Actively verify the Groq key is ACCEPTED, not just present. A present-but-
     # rejected key (expired/revoked) is the classic cause of "502/503 when a
     # recording finishes" — catch it here, at deploy time, instead of leaving a
@@ -373,8 +391,10 @@ if [ "$GROQ_PRESENT" = "1" ]; then
     if [ "$groq_code" = "200" ]; then
         log "Groq API key accepted — transcription ready"
     elif [ "$groq_code" = "401" ] || [ "$groq_code" = "403" ]; then
-        warn "GROQ_API_KEY is set but REJECTED by Groq (HTTP $groq_code) — transcription will fail (503)."
-        warn "Get a valid key at https://console.groq.com/keys, set it in $ENV_FILE, and re-run."
+        # A definitively rejected key (not a transient network blip) means every
+        # recording will 503. Record it so the deploy fails at the end rather
+        # than shipping a transcription service that 503s on every request.
+        DEPLOY_ERROR="GROQ_API_KEY is set but REJECTED by Groq (HTTP $groq_code) — transcription would fail. Get a valid key at https://console.groq.com/keys, set it in $ENV_FILE, and re-run."
     else
         warn "Could not verify GROQ_API_KEY against Groq (HTTP $groq_code) — check connectivity; transcription may be degraded."
     fi
@@ -504,6 +524,52 @@ issue_tls "$APEX_DOMAIN"
 
 systemctl reload nginx || true
 
+log "Amethyst Shortcut route smoke"
+if [ "$GROQ_PRESENT" = "1" ]; then
+    shortcut_body="$(mktemp)"
+    shortcut_code="$(curl -s -o "$shortcut_body" -w '%{http_code}' \
+        -X POST -H 'Content-Type: audio/mp4' \
+        --data-binary 'not real audio' \
+        "http://127.0.0.1:$TTS_PORT/api/v1/shortcuts/transcribe" || echo 000)"
+    if [ "$shortcut_code" != "401" ]; then
+        warn "Expected unauthenticated Shortcut route to return 401 JSON, got HTTP $shortcut_code"
+        cat "$shortcut_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst Shortcut route smoke failed"
+    elif ! grep -F '"text"' "$shortcut_body" >/dev/null; then
+        warn "Shortcut route returned 401 without a text field"
+        cat "$shortcut_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst Shortcut JSON contract failed"
+    fi
+    legacy_body="$(mktemp)"
+    legacy_code="$(curl -s -o "$legacy_body" -w '%{http_code}' \
+        -X POST \
+        "http://127.0.0.1:$TTS_PORT/api/v1/transcribe" || echo 000)"
+    if [ "$legacy_code" != "401" ] && [ "$legacy_code" != "422" ]; then
+        warn "Expected legacy transcribe route error JSON, got HTTP $legacy_code"
+        cat "$legacy_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst legacy transcribe smoke failed"
+    elif ! grep -F '"text"' "$legacy_body" >/dev/null || ! grep -F '"detail"' "$legacy_body" >/dev/null; then
+        warn "Legacy transcribe route error did not include both text and detail"
+        cat "$legacy_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst legacy transcribe JSON contract failed"
+    fi
+    file_alias_body="$(mktemp)"
+    file_alias_code="$(curl -s -o "$file_alias_body" -w '%{http_code}' \
+        -X POST -H 'Content-Type: audio/mp4' \
+        --data-binary 'not real audio' \
+        "http://127.0.0.1:$TTS_PORT/api/v1/transcribe/file" || echo 000)"
+    if [ "$file_alias_code" = "405" ]; then
+        warn "Amethyst raw file alias still returns 405"
+        cat "$file_alias_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst raw file alias is missing"
+    elif ! grep -F '"text"' "$file_alias_body" >/dev/null; then
+        warn "Amethyst raw file alias did not return Shortcut-readable JSON"
+        cat "$file_alias_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst raw file alias JSON contract failed"
+    fi
+    rm -f "$shortcut_body" "$legacy_body" "$file_alias_body"
+fi
+
 # ────────────────────────────────────────────────────────────────────────
 # 7. Landing route smoke
 # ────────────────────────────────────────────────────────────────────────
@@ -539,6 +605,10 @@ echo "  Basalt:           https://$APEX_DOMAIN/services/basalt/"
 echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
 if [ "$GROQ_PRESENT" = "1" ] || [ "$PRESERVED_TTS_PORT" = "1" ]; then
     echo "  Amethyst:         https://$APEX_DOMAIN/services/amethyst/"
+else
+    # Never let a skipped Amethyst be silent — that is exactly how a missing
+    # GROQ_API_KEY went unnoticed while the Shortcut returned 502s.
+    warn "Amethyst (tts) NOT deployed — GROQ_API_KEY missing in $ENV_FILE. Set a gsk_… key and re-run to enable transcription."
 fi
 echo "  Timezones:        https://$APEX_DOMAIN/services/timezones/"
 echo "  Video downloader: https://$APEX_DOMAIN/services/video-downloader/"
@@ -549,3 +619,12 @@ echo "  Logs:             docker compose -f $COMPOSE_FILE logs -f"
 echo "  Env file:         $ENV_FILE  (chmod 600)"
 echo "  Re-run:           bash $PLATFORM_DIR/deploy.sh"
 echo "  Boot unit:        systemctl status negativezero-compose.service"
+
+# Every healthy service is now fully deployed (containers, nginx, TLS, boot
+# unit). If a configured tts/Groq problem was recorded earlier, fail NOW so the
+# deploy goes red and the operator can't miss it — without having blocked the
+# healthy services above.
+if [ -n "$DEPLOY_ERROR" ]; then
+    echo
+    die "$DEPLOY_ERROR"
+fi

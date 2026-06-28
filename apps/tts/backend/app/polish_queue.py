@@ -37,7 +37,7 @@ from typing import Any
 import aiosqlite
 from ulid import ULID
 
-from .chunker import chunk_text, estimate_tokens
+from .chunker import chunk_text
 from .config import settings
 from .db import get_db
 from .glossary import load_glossary

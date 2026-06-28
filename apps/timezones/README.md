@@ -3,11 +3,17 @@
 A small cross-timezone meeting planner, served at
 `negativezero.one/services/timezones/`.
 
-Add cities/IANA zones, mark one as **home**, and read a 24-hour strip of
-each zone's local time across the home day. Working-hours bands are
-highlighted and columns where *every* zone is within working hours are
-flagged as overlap — the good slots for a call. State (zones, home,
-working hours, 12/24h, date) persists in `localStorage`.
+Add cities/IANA zones, mark one as **home**, and read each zone's local
+time across the home day on an ambient day/night **timeline you drag to
+scrub any hour** — every city's big clock and the status readout follow
+the marker. Working-hours bands are highlighted and the status bar shows
+how many hours *every* zone is within working hours (the overlap — the
+good slots for a call). A **light / dark** theme toggle persists alongside
+the rest of the state (zones, home, working hours, 12/24h, date, theme) in
+`localStorage`.
+
+The UI is the "liquid glass" iOS design (frosted-glass surfaces over an
+animated mesh background), imported from Claude Design.
 
 ## Shape
 
@@ -16,10 +22,10 @@ client-side via the `Intl` API (`Intl.supportedValuesOf('timeZone')` for
 the zone catalogue, `Intl.DateTimeFormat` for offsets and conversions).
 
 ```
-index.html   markup + inline favicon
-styles.css   negativezero dark theme (Geist / Geist Mono)
-app.js       zone catalogue, search, grid + overlap logic
-fonts/       Geist + Geist Mono (shared with apps/landing)
+index.html   markup + fixed mesh background + glass shell
+styles.css   liquid-glass theme system (light/dark via [data-theme])
+app.js       zone catalogue, search, ambient timeline + drag-scrub + overlap
+fonts/       Geist + Geist Mono fallback (SF Pro system fonts preferred)
 ```
 
 Served by an `nginx:alpine` container exactly like `apps/landing/`; the

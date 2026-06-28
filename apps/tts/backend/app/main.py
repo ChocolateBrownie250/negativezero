@@ -3,12 +3,11 @@ import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-from fastapi import Depends
 
 from .auth import verify_auth
 from .config import settings
@@ -105,6 +104,63 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+SHORTCUT_API_PATHS = {
+    "/api/v1/transcribe",
+    "/api/v1/shortcuts/transcribe",
+    "/api/v1/transcribe/file",
+}
+
+
+def _shortcut_error_text(status_code: int, detail: object) -> tuple[str, str]:
+    detail_text = detail if isinstance(detail, str) else ""
+    if status_code == 401:
+        return "Unauthorized. Update the Amethyst Shortcut API token and try again.", "unauthorized"
+    if status_code == 403:
+        return "Amethyst access is not enabled for this account.", "forbidden"
+    if status_code == 400 and "empty" in detail_text.lower():
+        return "Empty recording. Record audio and try again.", "empty_file"
+    if status_code == 413:
+        return "Recording too large. Record a shorter clip and try again.", "payload_too_large"
+    if status_code == 422:
+        return (
+            "Shortcut request is not shaped correctly. Check the URL, method, body, and headers.",
+            "validation",
+        )
+    if status_code >= 500:
+        return (
+            "Transcription service is busy or timed out. Try again in a moment.",
+            "service_unavailable",
+        )
+    return f"Amethyst request failed: {detail_text or status_code}", "request_failed"
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    if request.url.path in SHORTCUT_API_PATHS:
+        text, error = _shortcut_error_text(exc.status_code, exc.detail)
+        return JSONResponse(
+            {"text": text, "error": error, "detail": exc.detail},
+            status_code=exc.status_code,
+            headers=exc.headers,
+        )
+    return JSONResponse(
+        {"detail": exc.detail},
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    if request.url.path in SHORTCUT_API_PATHS:
+        text, error = _shortcut_error_text(422, exc.errors())
+        return JSONResponse(
+            {"text": text, "error": error, "detail": exc.errors()},
+            status_code=422,
+        )
+    return JSONResponse({"detail": exc.errors()}, status_code=422)
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)

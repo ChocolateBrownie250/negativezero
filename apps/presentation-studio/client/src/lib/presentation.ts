@@ -377,3 +377,44 @@ export function slug(value: string): string {
     .replace(/^-|-$/g, '')
     .slice(0, 36);
 }
+
+// A fresh, near-empty deck for "New presentation" — reuses the seed's theme so
+// it looks on-brand, but starts with a single title scene the user fills in.
+export function blankDocument(title: string, idSuffix: string): PresentationDocument {
+  const base = cloneValue(seedDocument);
+  const sceneId = `scene-${idSuffix}`;
+  const headline = newElement('headline', 0);
+  const body = newElement('body', 1);
+  return {
+    ...base,
+    id: `deck-${idSuffix}`,
+    title,
+    source: { ...base.source, status: 'pending_mcp_import' },
+    scenes: [
+      {
+        id: sceneId,
+        title: 'Title slide',
+        layout: 'viewport',
+        transition: { kind: 'fade', durationMs: 360 },
+        canvas: { x: 0, y: 0 },
+        elements: [
+          {
+            ...headline,
+            id: `${sceneId}-headline`,
+            frame: { x: 8, y: 20, width: 74, height: 26 },
+            props: { kicker: '', title, subtitle: 'Double-click to edit · drag to move' },
+          },
+          {
+            ...body,
+            id: `${sceneId}-body`,
+            frame: { x: 8, y: 52, width: 74, height: 22 },
+            props: {
+              title: 'Add your content',
+              text: 'Pick elements from the left, drop them on the slide, drag to move, and resize with the handles.',
+            },
+          },
+        ],
+      },
+    ],
+  };
+}

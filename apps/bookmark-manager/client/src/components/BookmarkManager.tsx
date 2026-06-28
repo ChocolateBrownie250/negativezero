@@ -27,6 +27,7 @@ import {
   countItems,
   findFolder,
   type ApiNode,
+  type NodeIcon,
   type TreeFolder,
   type TreeNode,
 } from '../lib/tree';
@@ -44,6 +45,7 @@ import SelectionToolbar from './SelectionToolbar';
 import AddMenu from './menus/AddMenu';
 import OptionsMenu from './menus/OptionsMenu';
 import RowActionsMenu from './menus/RowActionsMenu';
+import IconPicker from './IconPicker';
 import ContextMenu from './menus/ContextMenu';
 import MenuItem from './menus/MenuItem';
 import BookmarkModal from './modals/BookmarkModal';
@@ -135,10 +137,18 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
   const [addMenuAnchor, setAddMenuAnchor] = useState<HTMLElement | null>(null);
   const [optionsAnchor, setOptionsAnchor] = useState<HTMLElement | null>(null);
   const [rowMenu, setRowMenu] = useState<RowMenuState>(null);
+  const [iconPicker, setIconPicker] = useState<RowMenuState>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
+  // Chrome-style clipboard: copy keeps the originals (paste clones), cut moves
+  // them (paste reparents). Survives folder navigation so you can paste
+  // elsewhere. ids are node ids captured at copy/cut time.
+  const [clipboard, setClipboard] = useState<{
+    ids: string[];
+    mode: 'copy' | 'cut';
+  } | null>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dropFolder, setDropFolder] = useState<string | null>(null);
@@ -364,6 +374,13 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     // Detect mode: dragstart fired from inside the GripVertical handle
     // means "reorder", otherwise "move".
     const target = e.target as HTMLElement | null;
+    // Functional controls (icon button, open button, ⋯ menu, checkbox) never
+    // start a move-drag — only the card body and the grip do. The grip is a
+    // <span data-drag-handle>, not a button, so it's unaffected by this guard.
+    if (target?.closest('button, a')) {
+      e.preventDefault();
+      return;
+    }
     const isReorder = !!target?.closest('[data-drag-handle]');
 
     // If the dragged row is in the existing selection, drag the whole
@@ -673,6 +690,67 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     }
   }
 
+  // ---- Clipboard (⌘C / ⌘X / ⌘V / ⌘D) -------------------------------
+
+  function copySelection(mode: 'copy' | 'cut') {
+    if (selected.size === 0) return;
+    const n = selected.size;
+    setClipboard({ ids: Array.from(selected), mode });
+    setToast(
+      `${mode === 'copy' ? 'Copied' : 'Cut'} ${n} item${n === 1 ? '' : 's'}`,
+    );
+  }
+
+  async function pasteClipboard() {
+    if (!clipboard || !currentFolder) return;
+    const { ids, mode } = clipboard;
+    if (mode === 'cut') {
+      // Move the originals here, then the clipboard is spent.
+      await moveItems(ids, currentFolder.id);
+      setClipboard(null);
+      return;
+    }
+    try {
+      const { newIds } = await api.cloneNodes(ids, currentFolder.id);
+      await refetch();
+      setSelected(new Set(newIds));
+      setAnchor(newIds[newIds.length - 1] ?? null);
+      setToast(`Pasted ${newIds.length} item${newIds.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      if (handleApiError(err)) return;
+      setToast('Paste failed');
+    }
+  }
+
+  async function duplicateSelection() {
+    if (selected.size === 0 || !currentFolder) return;
+    try {
+      const { newIds } = await api.cloneNodes(
+        Array.from(selected),
+        currentFolder.id,
+      );
+      await refetch();
+      setSelected(new Set(newIds));
+      setAnchor(newIds[newIds.length - 1] ?? null);
+      setToast(
+        `Duplicated ${newIds.length} item${newIds.length === 1 ? '' : 's'}`,
+      );
+    } catch (err) {
+      if (handleApiError(err)) return;
+      setToast('Duplicate failed');
+    }
+  }
+
+  async function setNodeIcon(id: string, icon: NodeIcon | null) {
+    try {
+      await api.patchNode(id, { icon });
+      await refetch();
+    } catch (err) {
+      if (handleApiError(err)) return;
+      setToast('Could not update icon');
+    }
+  }
+
   async function renameNode(id: string, name: string, url?: string) {
     try {
       await api.patchNode(id, url ? { name, url } : { name });
@@ -845,17 +923,60 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     onUnauthorized();
   }
 
-  // Esc clears selection and closes the marquee.
+  // Keyboard: Esc clears; Chrome-style ⌘A/⌘C/⌘X/⌘V/⌘D + Delete. Ignored while
+  // typing in a field (or a modal/menu is open) so it never hijacks the rename/
+  // add inputs.
   useEffect(() => {
+    function isTextEntry(t: EventTarget | null): boolean {
+      const el = t as HTMLElement | null;
+      if (!el || !el.tagName) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         if (ctxMenu) return; // ContextMenu handles its own Esc
         if (selected.size > 0) clearSelection();
+        return;
+      }
+      // Don't steal keys from inputs or while a modal/menu is up.
+      if (isTextEntry(e.target) || modal || ctxMenu) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === 'a') {
+        e.preventDefault();
+        selectAll();
+      } else if (mod && k === 'c') {
+        if (selected.size === 0) return;
+        e.preventDefault();
+        copySelection('copy');
+      } else if (mod && k === 'x') {
+        if (selected.size === 0) return;
+        e.preventDefault();
+        copySelection('cut');
+      } else if (mod && k === 'v') {
+        if (!clipboard) return;
+        e.preventDefault();
+        void pasteClipboard();
+      } else if (mod && k === 'd') {
+        if (selected.size === 0) return;
+        e.preventDefault();
+        void duplicateSelection();
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selected.size > 0) {
+        e.preventDefault();
+        void deleteSelected();
       }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selected.size, ctxMenu]);
+    // copySelection/pasteClipboard/etc. close over the state in the deps below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, clipboard, currentFolder, ctxMenu, modal]);
 
   if (!tree || !currentFolder) {
     return (
@@ -879,6 +1000,7 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
     totalCount === 0 ? 'Empty' : `${totalCount} item${totalCount === 1 ? '' : 's'}`;
 
   const rowMenuNode = rowMenu ? nodeById(rowMenu.nodeId) : null;
+  const iconPickerNode = iconPicker ? nodeById(iconPicker.nodeId) : null;
   const renameNodeRef = modal?.kind === 'rename' ? nodeById(modal.nodeId) : null;
 
   // Used by the SelectionToolbar's "Open all" button: count how many of
@@ -1017,6 +1139,9 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
                 onOpenActions={(anchorEl) =>
                   setRowMenu({ anchor: anchorEl, nodeId: child.id })
                 }
+                onOpenIconPicker={(anchorEl) =>
+                  setIconPicker({ anchor: anchorEl, nodeId: child.id })
+                }
                 onDragStart={(e) => onRowDragStart(child.id, e)}
                 onDragEnd={onRowDragEnd}
                 onDragOver={(e) =>
@@ -1072,6 +1197,14 @@ export default function BookmarkManager({ onUnauthorized }: Props) {
           onPasteLinks={() => setModal({ kind: 'paste-links' })}
           onLogout={logout}
           exportDisabled={countItems(tree) === 0}
+        />
+      )}
+      {iconPicker && iconPickerNode && (
+        <IconPicker
+          anchorEl={iconPicker.anchor}
+          current={iconPickerNode.icon}
+          onPick={(icon) => void setNodeIcon(iconPicker.nodeId, icon)}
+          onClose={() => setIconPicker(null)}
         />
       )}
       {rowMenu && rowMenuNode && (

@@ -2,11 +2,10 @@
   'use strict';
 
   const HOURS = 24;
+  const DAY = HOURS * 3600000;
   const STORE_KEY = 'nz.timezones.v1';
 
   // ── timezone catalogue ────────────────────────────────────────
-  // Prefer the runtime list (every IANA zone the browser knows); fall
-  // back to a small curated set on older engines without the API.
   const FALLBACK = [
     'UTC', 'America/Los_Angeles', 'America/Denver', 'America/Chicago',
     'America/New_York', 'America/Sao_Paulo', 'Europe/London', 'Europe/Paris',
@@ -17,13 +16,9 @@
   const ALL_ZONES = (typeof Intl.supportedValuesOf === 'function'
     ? Intl.supportedValuesOf('timeZone')
     : FALLBACK).slice();
-  // 'UTC' is always a valid zone for Intl even when an engine omits it from
-  // supportedValuesOf, so make sure it's selectable (and that gmt/utc aliases
-  // resolve).
   if (!ALL_ZONES.includes('UTC')) ALL_ZONES.unshift('UTC');
   const ZONE_SET = new Set(ALL_ZONES);
 
-  // Human label from an IANA id: "Asia/Kolkata" → "Kolkata", keep region hint.
   function labelFor(zone) {
     const parts = zone.split('/');
     const city = parts[parts.length - 1].replace(/_/g, ' ');
@@ -50,14 +45,12 @@
     return out;
   }
 
-  // Offset (minutes) of `zone` from UTC at the instant `date`.
   function offsetMinutes(zone, date) {
     const p = zoneParts(zone, date);
     const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
     return Math.round((asUTC - date.getTime()) / 60000);
   }
 
-  // UTC instant for a wall-clock time in `zone`. Two-pass to settle DST.
   function zonedToUtc(zone, y, mo, d, h, mi) {
     const guess = Date.UTC(y, mo - 1, d, h, mi, 0);
     let off = offsetMinutes(zone, new Date(guess));
@@ -72,7 +65,7 @@
     const a = Math.abs(min);
     const h = Math.floor(a / 60);
     const m = a % 60;
-    return 'UTC' + sign + h + (m ? ':' + String(m).padStart(2, '0') : '');
+    return 'GMT' + sign + h + (m ? ':' + String(m).padStart(2, '0') : '');
   }
 
   // ── state ─────────────────────────────────────────────────────
@@ -83,10 +76,15 @@
     home: browserZone,
     work: [9, 18],
     fmt24: true,
-    date: null, // YYYY-MM-DD, null = today
+    date: null,          // YYYY-MM-DD, null = today
+    theme: 'dark',       // 'dark' | 'light'
   };
 
   let state = load();
+
+  // Ephemeral (not persisted): scrub marker position + the live "now" instant.
+  let markerFrac = null;       // null → the marker tracks the current moment
+  let nowTs = Date.now();
 
   function load() {
     try {
@@ -98,6 +96,7 @@
       raw.work = Array.isArray(raw.work) ? raw.work : defaults.work;
       raw.fmt24 = raw.fmt24 !== false;
       raw.date = raw.date || null;
+      raw.theme = raw.theme === 'light' ? 'light' : 'dark';
       return raw;
     } catch (_) {
       return structuredClone(defaults);
@@ -114,19 +113,22 @@
   const dateInput = $('date');
   const workStart = $('workStart');
   const workEnd = $('workEnd');
-  const fmtBtn = $('fmt');
-  const nowBtn = $('now');
+  const seg24 = $('seg24');
+  const seg12 = $('seg12');
+  const nowBtn = $('nowBtn');
+  const themeLight = $('themeLight');
+  const themeDark = $('themeDark');
+  const statusReadout = $('statusReadout');
+  const statusDot = $('statusDot');
+  const overlapBadge = $('overlapBadge');
+  const resetBtn = $('resetBtn');
+  const themeColorMeta = $('themeColor');
   const presetSel = $('presetSel');
   const presetSave = $('presetSave');
   const presetDel = $('presetDel');
 
   // ── search / add ──────────────────────────────────────────────
-  // Friendly input aliases: abbreviations that never appear in an IANA id,
-  // mapped to a representative zone (or a few, when genuinely ambiguous — e.g.
-  // IST is India / Ireland / Israel). Keys are lowercase. This lets people type
-  // "PT", "EEST", "JST", "sydney" etc. instead of hunting for the city.
   const ALIASES = {
-    // North America
     pt: ['America/Los_Angeles'], pst: ['America/Los_Angeles'], pdt: ['America/Los_Angeles'],
     pacific: ['America/Los_Angeles'],
     mt: ['America/Denver'], mst: ['America/Denver'], mdt: ['America/Denver'], mountain: ['America/Denver'],
@@ -138,7 +140,6 @@
     hst: ['Pacific/Honolulu'], hawaii: ['Pacific/Honolulu'],
     ast: ['America/Halifax', 'Asia/Riyadh'], adt: ['America/Halifax'], atlantic: ['America/Halifax'],
     nst: ['America/St_Johns'], ndt: ['America/St_Johns'], newfoundland: ['America/St_Johns'],
-    // Europe / Africa / Middle East
     gmt: ['UTC'], utc: ['UTC'], zulu: ['UTC'],
     bst: ['Europe/London'], wet: ['Europe/Lisbon'], west: ['Europe/Lisbon'],
     cet: ['Europe/Paris'], cest: ['Europe/Paris'],
@@ -147,7 +148,6 @@
     trt: ['Europe/Istanbul'], istanbul: ['Europe/Istanbul'],
     sast: ['Africa/Johannesburg'], wat: ['Africa/Lagos'], cat: ['Africa/Maputo'], eat: ['Africa/Nairobi'],
     gst: ['Asia/Dubai'], gulf: ['Asia/Dubai'],
-    // South / South-East / East Asia
     ist: ['Asia/Kolkata', 'Europe/Dublin', 'Asia/Jerusalem'], india: ['Asia/Kolkata'],
     pkt: ['Asia/Karachi'], npt: ['Asia/Kathmandu'],
     ict: ['Asia/Bangkok'], wib: ['Asia/Jakarta'],
@@ -155,34 +155,26 @@
     china: ['Asia/Shanghai'], beijing: ['Asia/Shanghai'],
     jst: ['Asia/Tokyo'], japan: ['Asia/Tokyo'],
     kst: ['Asia/Seoul'], korea: ['Asia/Seoul'], seoul: ['Asia/Seoul'],
-    // Oceania
     awst: ['Australia/Perth'], perth: ['Australia/Perth'],
     acst: ['Australia/Adelaide'], acdt: ['Australia/Adelaide'], adelaide: ['Australia/Adelaide'],
     aest: ['Australia/Sydney'], aedt: ['Australia/Sydney'], sydney: ['Australia/Sydney'],
     nzst: ['Pacific/Auckland'], nzdt: ['Pacific/Auckland'], auckland: ['Pacific/Auckland'],
   };
 
-  // Parse an offset query: "gmt+3", "utc+3", "gmt+03:00", "+5:30", "-08:00",
-  // "+0530" → minutes east of UTC (null if it isn't an offset expression).
   function parseOffset(q) {
     const m = q.replace(/\s+/g, '').match(/^(?:gmt|utc)?([+-])(\d{1,2})(?::?(\d{2}))?$/);
     if (!m) return null;
     const h = parseInt(m[2], 10);
     const mm = m[3] ? parseInt(m[3], 10) : 0;
-    if (mm > 59 || h > 14 || (h === 14 && mm > 0)) return null; // real offsets span −12:00…+14:00
+    if (mm > 59 || h > 14 || (h === 14 && mm > 0)) return null;
     return (m[1] === '-' ? -1 : 1) * (h * 60 + mm);
   }
 
-  // Real zones currently at a given UTC offset (reuses offsetMinutes). Only run
-  // for offset queries, so the per-keystroke cost stays off the common path.
   function zonesAtOffset(mins) {
     const now = new Date();
     return ALL_ZONES.filter((z) => offsetMinutes(z, now) === mins);
   }
 
-  // Some engines expose legacy IANA ids from supportedValuesOf (e.g.
-  // "Asia/Calcutta" rather than "Asia/Kolkata", or "Etc/UTC" not "UTC"). Map an
-  // alias target to whichever spelling this runtime actually ships.
   const EQUIV = {
     'UTC': ['Etc/UTC'],
     'Asia/Kolkata': ['Asia/Calcutta'],
@@ -195,10 +187,6 @@
     return null;
   }
 
-  // Zones an alias/offset query should surface, ahead of plain substring hits.
-  // Exact abbreviation match only — partial city names (sydney, moscow…) are
-  // already covered by the substring pass, so prefix-matching aliases would just
-  // add noise (e.g. "as" → Halifax) without new reach.
   function aliasZones(q) {
     const out = [];
     if (ALIASES[q]) out.push.apply(out, ALIASES[q]);
@@ -218,14 +206,13 @@
       const z = resolve(raw);
       if (z && !taken.has(z) && !seen.has(z)) { seen.add(z); ordered.push(z); }
     };
-    // Alias + offset hits first, then plain substring matches on the IANA id.
     aliasZones(q).forEach(add);
     ALL_ZONES
       .filter((z) => z.toLowerCase().replace(/_/g, ' ').includes(q))
       .forEach(add);
     const matches = ordered.slice(0, 40);
     if (!matches.length) {
-      results.innerHTML = '<div class="none">no matching zone</div>';
+      results.innerHTML = '<div class="none">No matching time zone</div>';
       results.hidden = false; return;
     }
     results.innerHTML = matches.map((z, i) => {
@@ -276,191 +263,268 @@
     if (!e.target.closest('.add')) results.hidden = true;
   });
 
+  // ── clock / work helpers ──────────────────────────────────────
+  function clock(h, m) {
+    if (state.fmt24) return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    const ap = h < 12 ? 'AM' : 'PM';
+    let hh = h % 12; if (hh === 0) hh = 12;
+    return hh + ':' + String(m).padStart(2, '0') + ' ' + ap;
+  }
+  function fmtHours(h) {
+    return Number.isInteger(h) ? String(h) + 'h' : h.toFixed(1) + 'h';
+  }
+  function inWork(h, ws, we) {
+    return we > ws ? (h >= ws && h < we) : (h >= ws || h < we);
+  }
+
+  // ── ambient day/night gradient (per zone, across the home day) ─
+  // A soft cosine "sun curve" lights each zone's strip, so each city's local
+  // daytime glows and its night dims — independent of the others. Work / overlap
+  // bands are translucent colour that rides on top of this ambient light.
+  function cellColor(isWork, isOverlap, dark) {
+    if (isOverlap) return dark ? 'rgba(48,209,88,.50)' : 'rgba(52,199,89,.52)';
+    if (isWork) return dark ? 'rgba(96,150,235,.42)' : 'rgba(120,170,250,.52)';
+    return 'transparent';
+  }
+  function lightAt(h) { return (Math.cos((h - 13) / 24 * 2 * Math.PI) + 1) / 2; }
+  function mix(a, b, t) {
+    return [
+      Math.round(a[0] + (b[0] - a[0]) * t),
+      Math.round(a[1] + (b[1] - a[1]) * t),
+      Math.round(a[2] + (b[2] - a[2]) * t),
+    ];
+  }
+  function ambientColor(L, dark) {
+    const A = dark
+      ? [[19, 22, 32], [29, 35, 49], [42, 50, 67]]
+      : [[197, 205, 223], [216, 222, 235], [239, 242, 248]];
+    return L <= 0.5 ? mix(A[0], A[1], L / 0.5) : mix(A[1], A[2], (L - 0.5) / 0.5);
+  }
+  function ambientGradient(zone, dayStart, dark) {
+    const N = 48, stops = [];
+    for (let i = 0; i <= N; i++) {
+      const f = i / N;
+      const p = zoneParts(zone, new Date(dayStart + f * DAY));
+      const hf = +p.hour + (+p.minute) / 60;
+      const c = ambientColor(lightAt(hf), dark);
+      stops.push('rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ') ' + (f * 100).toFixed(2) + '%');
+    }
+    return 'linear-gradient(90deg,' + stops.join(',') + ')';
+  }
+
   // ── board rendering ───────────────────────────────────────────
   function refDayStart() {
-    // Start of the selected calendar day, as read in the home zone,
-    // returned as a UTC instant.
     let y, mo, d;
     if (state.date) {
       [y, mo, d] = state.date.split('-').map(Number);
     } else {
-      const p = zoneParts(state.home, new Date());
+      const p = zoneParts(state.home, new Date(nowTs));
       y = +p.year; mo = +p.month; d = +p.day;
     }
     return zonedToUtc(state.home, y, mo, d, 0, 0);
   }
 
+  // Live values shared between a full render() and the lightweight drag update.
+  let frame = { dayStart: 0, ordered: [], cards: [] };
+
   function render() {
     syncControls();
     board.innerHTML = '';
+    frame.cards = [];
     emptyMsg.hidden = state.zones.length > 0;
-    if (!state.zones.length) return;
+    if (!state.zones.length) { updateStatus(0); return; }
 
+    const dark = state.theme === 'dark';
     const [ws, we] = state.work;
-    const dayStart = refDayStart();
-    const now = Date.now();
+    const dayStart = refDayStart().getTime();
+    frame.dayStart = dayStart;
 
-    // Per-hour instants across the home day (24 columns).
     const instants = [];
-    for (let h = 0; h < HOURS; h++) instants.push(dayStart.getTime() + h * 3600000);
+    for (let h = 0; h < HOURS; h++) instants.push(dayStart + h * 3600000);
 
-    // Local hour of each zone at each column, plus working-hours mask.
     const localHour = {};
     const working = {};
     for (const z of state.zones) {
       localHour[z] = [];
       working[z] = [];
       for (let h = 0; h < HOURS; h++) {
-        const p = zoneParts(z, new Date(instants[h]));
-        const lh = +p.hour;
+        const lh = +zoneParts(z, new Date(instants[h])).hour;
         localHour[z].push(lh);
         working[z].push(inWork(lh, ws, we));
       }
     }
-    // A column is an overlap when every zone is within working hours.
     const overlap = [];
-    for (let h = 0; h < HOURS; h++) {
-      overlap.push(state.zones.every((z) => working[z][h]));
-    }
+    for (let h = 0; h < HOURS; h++) overlap.push(state.zones.every((z) => working[z][h]));
+    const overlapCount = overlap.filter(Boolean).length;
 
-    board.appendChild(buildRuler(dayStart, overlap));
-
-    // Order: home first, then the rest in insertion order.
     const ordered = [state.home].concat(state.zones.filter((z) => z !== state.home));
+    frame.ordered = ordered;
     for (const z of ordered) {
-      board.appendChild(buildCard(z, localHour[z], working[z], overlap, dayStart, now));
+      board.appendChild(buildCard(z, working[z], overlap, dayStart, dark));
     }
 
-    positionNow(now, dayStart);
+    updateStatus(overlapCount);
+    updateMarker();
   }
 
-  function inWork(h, ws, we) {
-    return we > ws ? (h >= ws && h < we) : (h >= ws || h < we);
-  }
-
-  function buildRuler(dayStart, overlap) {
-    const wrap = document.createElement('div');
-    wrap.className = 'ruler';
-    const spacer = document.createElement('div');
-    spacer.className = 'spacer';
-    const { city } = labelFor(state.home);
-    spacer.textContent = city + ' — day';
-    wrap.appendChild(spacer);
-    const track = document.createElement('div');
-    track.className = 'rtrack';
-    for (let h = 0; h < HOURS; h++) {
-      const c = document.createElement('div');
-      c.className = 'rcell' + (overlap[h] ? ' overlap' : '');
-      c.textContent = String(h).padStart(2, '0');
-      track.appendChild(c);
-    }
-    wrap.appendChild(track);
-    return wrap;
-  }
-
-  function buildCard(zone, hours, work, overlap, dayStart, now) {
+  function buildCard(zone, work, overlap, dayStart, dark) {
     const isHome = zone === state.home;
     const card = document.createElement('div');
     card.className = 'zonecard' + (isHome ? ' home' : '');
-
-    const meta = document.createElement('div');
-    meta.className = 'zonemeta';
     const { city } = labelFor(zone);
 
-    const nowParts = zoneParts(zone, new Date(now));
-    const off = offsetMinutes(zone, new Date(now));
-    const homeOff = offsetMinutes(state.home, new Date(now));
+    const off = offsetMinutes(zone, new Date(nowTs));
+    const homeOff = offsetMinutes(state.home, new Date(nowTs));
     const rel = (off - homeOff) / 60;
 
-    const title = document.createElement('div');
-    title.className = 'city';
-    title.appendChild(document.createTextNode(city));
+    // header: city · home tag · offset · rel · set-home / big clock · remove
+    const head = document.createElement('div');
+    head.className = 'zone-head';
+
+    const id = document.createElement('div');
+    id.className = 'zone-id';
+    const titleRow = document.createElement('div');
+    titleRow.className = 'zone-title';
+    const cityEl = document.createElement('span');
+    cityEl.className = 'zone-city';
+    cityEl.textContent = city;
+    titleRow.appendChild(cityEl);
     if (isHome) {
       const tag = document.createElement('span');
-      tag.className = 'tag'; tag.textContent = 'home';
-      title.appendChild(tag);
+      tag.className = 'home-tag'; tag.textContent = 'Home';
+      titleRow.appendChild(tag);
     }
+    const sub = document.createElement('div');
+    sub.className = 'zone-sub';
+    const offEl = document.createElement('span');
+    offEl.textContent = fmtOffset(off);
+    sub.appendChild(offEl);
+    if (!isHome) {
+      const sep1 = document.createElement('span');
+      sep1.className = 'dotsep'; sep1.textContent = '·';
+      const relEl = document.createElement('span');
+      const sign = rel >= 0 ? '+' : '−';
+      relEl.textContent = sign + fmtHours(Math.abs(rel));
+      sub.appendChild(sep1); sub.appendChild(relEl);
+      const sep2 = document.createElement('span');
+      sep2.className = 'dotsep'; sep2.textContent = '·';
+      const setHome = document.createElement('span');
+      setHome.className = 'set-home'; setHome.textContent = 'Set home';
+      setHome.addEventListener('click', () => { state.home = zone; save(); render(); });
+      sub.appendChild(sep2); sub.appendChild(setHome);
+    }
+    id.appendChild(titleRow); id.appendChild(sub);
+
+    const clockWrap = document.createElement('div');
+    clockWrap.className = 'zone-clock';
+    const big = document.createElement('span');
+    big.className = 'bigtime';
     const rm = document.createElement('button');
     rm.className = 'rm'; rm.type = 'button';
     rm.setAttribute('aria-label', 'remove ' + city); rm.textContent = '×';
     rm.addEventListener('click', () => removeZone(zone));
-    title.appendChild(rm);
+    clockWrap.appendChild(big); clockWrap.appendChild(rm);
 
-    const big = document.createElement('div');
-    big.className = 'bigtime';
-    big.textContent = clock(+nowParts.hour, +nowParts.minute) +
-      '  ' + nowParts.weekday;
+    head.appendChild(id); head.appendChild(clockWrap);
+    card.appendChild(head);
 
-    const sub = document.createElement('div');
-    sub.className = 'sub';
-    const offEl = document.createElement('span');
-    offEl.className = 'off'; offEl.textContent = fmtOffset(off);
-    sub.appendChild(offEl);
-    if (!isHome) {
-      const relEl = document.createElement('span');
-      relEl.className = 'home-relative';
-      const sign = rel >= 0 ? '+' : '−';
-      relEl.textContent = sign + fmtHours(Math.abs(rel)) + ' vs home';
-      sub.appendChild(relEl);
-    }
-    if (!isHome) {
-      const make = document.createElement('span');
-      make.className = 'off'; make.style.cursor = 'pointer';
-      make.textContent = 'set home';
-      make.addEventListener('click', () => { state.home = zone; save(); render(); });
-      sub.appendChild(make);
-    }
-
-    meta.appendChild(title);
-    meta.appendChild(big);
-    meta.appendChild(sub);
-
+    // timeline track: ambient gradient + work/overlap cells + sheen + markers
     const track = document.createElement('div');
     track.className = 'track';
+    track.style.background = ambientGradient(zone, dayStart, dark);
     for (let h = 0; h < HOURS; h++) {
-      const lh = hours[h];
       const cell = document.createElement('div');
-      let cls = 'cell';
-      // Day-cycle band (working hours win, then the sky phases). Dawn 5–6 and
-      // dusk 18–20 carry the sunrise/sunset gradients; 7–17 is full day; the
-      // rest stays night.
-      if (work[h]) cls += ' work';
-      else if (lh >= 5 && lh < 7) cls += ' dawn';
-      else if (lh >= 7 && lh < 18) cls += ' day';
-      else if (lh >= 18 && lh < 21) cls += ' dusk';
-      if (lh === 0) cls += ' daystart';
-      if (overlap[h]) cls += ' overlap';
-      cell.className = cls;
-      cell.textContent = lh === 0 ? 'day' : String(lh).padStart(2, '0');
-      cell.title = city + ' ' + clock(lh, 0);
+      cell.className = 'cell';
+      const c = cellColor(work[h], overlap[h], dark);
+      if (c !== 'transparent') cell.style.background = c;
       track.appendChild(cell);
     }
-    card.appendChild(meta);
+    const sheen = document.createElement('div');
+    sheen.className = 'sheen';
+    track.appendChild(sheen);
+    const nowLine = document.createElement('div');
+    nowLine.className = 'nowline';
+    track.appendChild(nowLine);
+    const mLine = document.createElement('div');
+    mLine.className = 'marker-line';
+    const mKnob = document.createElement('div');
+    mKnob.className = 'marker-knob';
+    track.appendChild(mLine); track.appendChild(mKnob);
+    track.addEventListener('pointerdown', (e) => startDrag(e, track));
     card.appendChild(track);
-    card._track = track;
+
+    // ticks
+    const ticks = document.createElement('div');
+    ticks.className = 'ticks';
+    [0, 6, 12, 18, 24].forEach((h) => {
+      const t = document.createElement('span');
+      t.textContent = h === 24 ? '24h' : String(h).padStart(2, '0');
+      t.style.left = (h / 24 * 100) + '%';
+      t.style.transform = h === 0 ? 'none' : h === 24 ? 'translateX(-100%)' : 'translateX(-50%)';
+      ticks.appendChild(t);
+    });
+    card.appendChild(ticks);
+
+    frame.cards.push({ zone, bigEl: big, nowLineEl: nowLine, mLineEl: mLine, mKnobEl: mKnob });
     return card;
   }
 
-  function clock(h, m) {
-    if (state.fmt24) return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-    const ap = h < 12 ? 'am' : 'pm';
-    let hh = h % 12; if (hh === 0) hh = 12;
-    return hh + ':' + String(m).padStart(2, '0') + ap;
-  }
-  function fmtHours(h) {
-    return Number.isInteger(h) ? String(h) + 'h' : h.toFixed(1) + 'h';
+  // Lightweight per-frame update used while scrubbing: repositions the marker /
+  // now-line and refreshes each zone's big clock + the status readout, without
+  // rebuilding gradients or DOM.
+  function updateMarker() {
+    const dayStart = frame.dayStart;
+    const nowFrac = (nowTs - dayStart) / DAY;
+    const nowVisible = nowFrac >= 0 && nowFrac <= 1;
+    const nowPct = (Math.max(0, Math.min(1, nowFrac)) * 100).toFixed(3) + '%';
+    const active = markerFrac != null;
+    const mFrac = active ? markerFrac : Math.max(0, Math.min(1, nowFrac));
+    const markerInstant = dayStart + mFrac * DAY;
+    const markerPct = (mFrac * 100).toFixed(3) + '%';
+
+    for (const c of frame.cards) {
+      const p = zoneParts(c.zone, new Date(markerInstant));
+      c.bigEl.textContent = clock(+p.hour, +p.minute);
+      c.nowLineEl.style.display = nowVisible ? '' : 'none';
+      c.nowLineEl.style.left = nowPct;
+      c.mLineEl.style.left = markerPct;
+      c.mKnobEl.style.left = 'calc(' + markerPct + ' - 7px)';
+    }
+
+    if (frame.ordered.length) {
+      const hp = zoneParts(state.home, new Date(markerInstant));
+      const { city } = labelFor(state.home);
+      statusReadout.textContent = city + '  ' + clock(+hp.hour, +hp.minute) + '  ' + hp.weekday;
+    }
+    resetBtn.hidden = !active;
   }
 
-  function positionNow(now, dayStart) {
-    const frac = (now - dayStart.getTime()) / (HOURS * 3600000);
-    if (frac < 0 || frac > 1) return; // now is outside the shown day
-    document.querySelectorAll('.track').forEach((track) => {
-      const line = document.createElement('div');
-      line.className = 'nowline';
-      line.style.left = (frac * track.scrollWidth) + 'px';
-      track.appendChild(line);
-    });
+  function updateStatus(overlapCount) {
+    const ok = overlapCount > 0;
+    statusDot.classList.toggle('ok', ok);
+    overlapBadge.classList.toggle('ok', ok);
+    overlapBadge.textContent = ok ? (overlapCount + 'h overlap') : 'No shared window';
+    if (!frame.ordered.length) {
+      statusReadout.textContent = '—';
+      resetBtn.hidden = true;
+    }
   }
+
+  // ── drag-to-scrub ─────────────────────────────────────────────
+  let drag = { active: false, rect: null };
+  function setFracFromX(clientX) {
+    if (!drag.rect) return;
+    markerFrac = Math.max(0, Math.min(1, (clientX - drag.rect.left) / drag.rect.width));
+    updateMarker();
+  }
+  function startDrag(e, track) {
+    drag.active = true;
+    drag.rect = track.getBoundingClientRect();
+    if (e.preventDefault) e.preventDefault();
+    setFracFromX(e.clientX);
+  }
+  window.addEventListener('pointermove', (e) => { if (drag.active) setFracFromX(e.clientX); });
+  window.addEventListener('pointerup', () => { drag.active = false; });
 
   function removeZone(zone) {
     state.zones = state.zones.filter((z) => z !== zone);
@@ -471,19 +535,24 @@
   }
 
   // ── controls ──────────────────────────────────────────────────
+  function applyTheme() {
+    document.documentElement.dataset.theme = state.theme;
+    if (themeColorMeta) themeColorMeta.setAttribute('content', state.theme === 'dark' ? '#08090F' : '#EEF0FA');
+  }
   function syncControls() {
     workStart.value = state.work[0];
     workEnd.value = state.work[1];
-    fmtBtn.textContent = state.fmt24 ? '24h' : '12h';
-    fmtBtn.setAttribute('aria-pressed', String(!state.fmt24));
-    if (!dateInput.value) {
-      const p = zoneParts(state.home, new Date());
+    seg24.classList.toggle('active', state.fmt24);
+    seg12.classList.toggle('active', !state.fmt24);
+    if (!dateInput.value || state.date) {
+      const p = zoneParts(state.home, new Date(nowTs));
       dateInput.value = state.date || (p.year + '-' + p.month + '-' + p.day);
     }
   }
 
   dateInput.addEventListener('change', () => {
     state.date = dateInput.value || null;
+    markerFrac = null;
     save(); render();
   });
   function clampWork() {
@@ -498,25 +567,24 @@
   }
   workStart.addEventListener('change', clampWork);
   workEnd.addEventListener('change', clampWork);
-  fmtBtn.addEventListener('click', () => { state.fmt24 = !state.fmt24; save(); render(); });
+  seg24.addEventListener('click', () => { if (!state.fmt24) { state.fmt24 = true; save(); render(); } });
+  seg12.addEventListener('click', () => { if (state.fmt24) { state.fmt24 = false; save(); render(); } });
   nowBtn.addEventListener('click', () => {
-    state.date = null; dateInput.value = '';
+    state.date = null; dateInput.value = ''; markerFrac = null;
     save(); render();
   });
+  resetBtn.addEventListener('click', () => { markerFrac = null; updateMarker(); });
+  themeLight.addEventListener('click', () => { if (state.theme !== 'light') { state.theme = 'light'; save(); applyTheme(); render(); } });
+  themeDark.addEventListener('click', () => { if (state.theme !== 'dark') { state.theme = 'dark'; save(); applyTheme(); render(); } });
 
   // ── presets (server-side, scoped to the signed-in account) ────
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-
-  // Resolve API paths against the current page's directory so the same code
-  // works whether served at /services/timezones/ (prod) or / (dev). A
-  // leading-slash absolute path would hit the apex root, not this service mount.
   function apiUrl(path) {
     return new URL(String(path).replace(/^\/+/, ''), new URL('./', window.location.href)).href;
   }
-
   const api = {
     async list() {
       const r = await fetch(apiUrl('api/presets'), { credentials: 'same-origin' });
@@ -541,8 +609,6 @@
   };
 
   let presets = [];
-
-  // The savable snapshot of the planner — everything except the ephemeral `date`.
   function currentSelection() {
     return {
       zones: state.zones.slice(),
@@ -551,23 +617,16 @@
       fmt24: state.fmt24,
     };
   }
-
   function renderPresetOptions() {
     presetSel.innerHTML = '<option value="">— none —</option>' +
       presets.map((p) => '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>').join('');
     presetDel.disabled = !presetSel.value;
   }
-
   async function initPresets() {
-    try {
-      presets = await api.list();
-    } catch (_) {
-      presets = []; // offline / API error → the planner still works on localStorage
-    }
+    try { presets = await api.list(); }
+    catch (_) { presets = []; }
     renderPresetOptions();
   }
-
-  // Load a saved selection into the live state (validated against known zones).
   function applySelection(s) {
     if (!s || !Array.isArray(s.zones)) return;
     const zones = s.zones.filter((z) => ALL_ZONES.includes(z));
@@ -575,16 +634,15 @@
     state.home = state.zones.includes(s.home) ? s.home : state.zones[0];
     state.work = Array.isArray(s.work) && s.work.length === 2 ? [s.work[0], s.work[1]] : state.work;
     state.fmt24 = s.fmt24 !== false;
+    markerFrac = null;
     save();
     render();
   }
-
   presetSel.addEventListener('change', () => {
     presetDel.disabled = !presetSel.value;
     const p = presets.find((x) => x.id === presetSel.value);
     if (p) applySelection(p.selection);
   });
-
   presetSave.addEventListener('click', async () => {
     const name = (window.prompt('Name this preset') || '').trim();
     if (!name) return;
@@ -598,7 +656,6 @@
       window.alert('Could not save preset.');
     }
   });
-
   presetDel.addEventListener('click', async () => {
     const id = presetSel.value;
     if (!id) return;
@@ -613,23 +670,21 @@
     }
   });
 
-  // ── boot: gate on auth (like the other services), then start ──
+  // ── boot: gate on auth, then start ────────────────────────────
   let clockTimer = null;
   function startClock() {
-    if (!clockTimer) clockTimer = setInterval(render, 60000); // keep "now" honest
+    if (!clockTimer) clockTimer = setInterval(() => {
+      nowTs = Date.now();
+      render(); // keep "now" (and the marker, when tracking now) honest
+    }, 60000);
   }
   function showGate(msg) {
     const gate = document.getElementById('authGate');
     if (gate) gate.textContent = msg;
   }
 
-  window.addEventListener('resize', () => {
-    // Reposition the now-marker on layout change (only once the board is shown).
-    document.querySelectorAll('.nowline').forEach((n) => n.remove());
-    if (document.body.classList.contains('authed')) positionNow(Date.now(), refDayStart());
-  });
-
   async function boot() {
+    applyTheme();
     try {
       const r = await fetch(apiUrl('api/v1/me'), { credentials: 'same-origin' });
       if (r.ok) {
@@ -638,7 +693,6 @@
         render();
         startClock();
       } else if (r.status === 401) {
-        // No / invalid session → the apex SSO hub, which returns here after login.
         location.replace('/services/admin/?return=/services/timezones/');
       } else if (r.status === 403) {
         showGate("Your account doesn't have access to timezones. Ask the owner to enable it, then reload.");
