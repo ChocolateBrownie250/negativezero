@@ -522,7 +522,7 @@ if [ "$GROQ_PRESENT" = "1" ]; then
     fi
     legacy_body="$(mktemp)"
     legacy_code="$(curl -s -o "$legacy_body" -w '%{http_code}' \
-        -X POST -H 'Content-Type: multipart/form-data' \
+        -X POST \
         "http://127.0.0.1:$TTS_PORT/api/v1/transcribe" || echo 000)"
     if [ "$legacy_code" != "401" ] && [ "$legacy_code" != "422" ]; then
         warn "Expected legacy transcribe route error JSON, got HTTP $legacy_code"

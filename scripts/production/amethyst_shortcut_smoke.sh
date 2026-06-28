@@ -17,8 +17,7 @@ grep -i '^content-type: application/json' "$tmp_headers" >/dev/null
 grep -F '"text"' "$tmp_body" >/dev/null
 
 curl -sS -D "$tmp_headers" -o "$tmp_body" \
-  -X POST "$BASE_URL/api/v1/transcribe" \
-  -H 'Content-Type: multipart/form-data' >/dev/null
+  -X POST "$BASE_URL/api/v1/transcribe" >/dev/null
 grep -i '^content-type: application/json' "$tmp_headers" >/dev/null
 grep -F '"text"' "$tmp_body" >/dev/null
 grep -F '"detail"' "$tmp_body" >/dev/null
