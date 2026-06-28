@@ -156,6 +156,19 @@ Translate → Send via Messages" is a single chain.
 - **413 Request Entity Too Large**: the recording is over 25 MB (~30 min of
   AAC). Split into multiple shorter recordings or lower the audio quality in
   step 2.
+- **"Get Dictionary Value failed … couldn't convert from Rich Text to
+  Dictionary"**: the *Get Contents of URL* action got a non-JSON body (HTML),
+  so Shortcuts typed it as Rich Text and *Get Dictionary Value* can't parse it.
+  This is the reverse proxy answering instead of the API — a **413** (oversize
+  upload), a **502/503/504** (backend busy/down or the request took over 120 s),
+  or, on the legacy `/vtt-transcriber/` URL, an HTTP **redirect** that Shortcuts
+  doesn't follow on a form-POST. All three are fixed server-side in
+  `platform/nginx/negativezero.one.conf`: `/vtt-transcriber/` is now proxied in
+  place (no redirect), and the proxy returns a **JSON** body for 413/5xx errors.
+  So instead of a conversion crash you now get a readable message in the
+  clipboard, e.g. *"⚠️ Recording too large…"* or *"⚠️ Transcription service is
+  busy or timed out…"* — act on it (shorter clip / retry), or check the
+  container with `docker logs` if it's down.
 - **Times out on cellular**: large uploads on weak networks may exceed the
   nginx/Caddy timeout. Wait for Wi-Fi for long recordings.
 - **The `.plist` file won't import / opens as text**: expected — iOS does not
