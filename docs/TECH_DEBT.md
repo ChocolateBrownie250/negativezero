@@ -74,19 +74,19 @@ PRs and may not exist yet in this branch.
 
 `.github/workflows/` has a per-service workflow for admin,
 bookmark-manager, landing, presentation-studio, redirector, and
-timezones — but **no `video-downloader.yml` and no `tts.yml`**. Both
-services ship a real test suite that consequently never runs on a push
-or PR:
+timezones — but **no `video-downloader.yml`**. Its test suite
+consequently never runs on a push or PR:
 
 - `apps/video-downloader/server/src/__tests__/download.test.ts` — 10
   test cases; `package.json` defines `"test": "vitest run"`.
-- `apps/tts/tests/` — `test_auth.py`, `test_chunker.py`,
-  `test_groq_errors.py`, `test_integration.py`, ~82 pytest cases total
-  (`pyproject.toml` configures `pytest` with `asyncio_mode = "auto"`).
 
-These are exactly the services where regressions are most expensive:
-video-downloader carries SSRF / byte-budget guards and tts carries
-Bearer-auth and Groq error-mapping logic, both hardened in the
+(Amethyst/tts no longer applies here: its source + pytest suite moved to
+the `amethyst-independent` repo on 2026-06-29 and run via that repo's
+`web-tests.yml`; the former in-repo `tts.yml` was removed. This platform
+only pulls the prebuilt image, so there is no `tts.yml` to add here.)
+
+This is exactly the kind of service where regressions are most expensive:
+video-downloader carries SSRF / byte-budget guards, hardened in the
 2026-06-18 security pass (see `TODO.md` Done section). Today nothing
 stops a future edit from breaking them silently.
 
@@ -94,9 +94,7 @@ stops a future edit from breaking them silently.
 
 **Remediation:** add `.github/workflows/video-downloader.yml` (mirror
 `presentation-studio.yml`: install → build → `npm run test` → docker
-smoke) and `.github/workflows/tts.yml` (Python lane: `uv sync` →
-`ruff check` → `pytest` → docker smoke). Track in
-`docs/TESTING_STRATEGY.md`.
+smoke). Track in `docs/TESTING_STRATEGY.md`.
 
 ### 2. Admin's lib tests never run in CI (High)
 
@@ -128,9 +126,11 @@ debt until done. Two are credential exposures:
   pasted in to verify the 502 fix (2026-06-18); it needs replacing with
   a fresh key and a tts recreate.
 - The **tts Bearer key** (`TTS_API_KEY` / `AMETHYST_API_KEY`) was once
-  committed as a hard-coded fallback in
-  `apps/tts/tests/test_integration.py` (removed 2026-06-18) and is
-  therefore **exposed in git history** — treat as leaked and rotate.
+  committed as a hard-coded fallback in the old in-repo tts integration
+  test (the former apps/tts/tests/test_integration.py, removed 2026-06-18;
+  the whole apps/tts/ tree has since moved to the `amethyst-independent`
+  repo) and is therefore **exposed in git history** — treat as leaked and
+  rotate.
 
 Also outstanding in `TODO.md`: rotate the VPS root password (previously
 committed plaintext) and revoke any GitHub PATs pasted into earlier

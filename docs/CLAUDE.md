@@ -11,9 +11,12 @@ live deployed state, ops procedures, and known issues, read
 
 **Stack:** Node 22 + Fastify 5 + TypeScript + better-sqlite3 12 +
 React 18 (Vite 8, Tailwind 4) for the bookmark manager and admin;
-Python 3.12 + FastAPI + aiosqlite + Groq (Whisper + Llama) for tts;
 static HTML for the landing page, and a vanilla-JS client served by a small
-Fastify backend (SSO gate + presets) for timezones; React/Vite PWA for Citrine;
+Fastify backend (SSO gate + presets) for timezones; React/Vite PWA for Citrine.
+The tts (Amethyst) service is Python 3.12 + FastAPI + aiosqlite + Groq
+(Whisper + Llama), but its source lives in the separate `amethyst-independent`
+repo and is deployed here as a prebuilt container image
+(`ghcr.io/chocolatebrownie250/amethyst-web`), not built from `apps/`.
 nginx on apex; Docker Compose +
 Let's Encrypt; deployed to a shared Ubuntu VPS. Auth is per-service
 WebAuthn (passkey) with a one-time setup code; tts uses a Bearer API
@@ -27,11 +30,13 @@ apps/
   landing/              static landing page (negativezero.one/)
   bookmark-manager/     bookmark service  (negativezero.one/services/bookmark-manager/)
   admin/                registration-code generator (negativezero.one/services/admin/)
-  tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/amethyst/)
   timezones/            cross-timezone planner — gated, per-account presets (negativezero.one/services/timezones/)
   video-downloader/     clear-HLS remux tool (negativezero.one/services/video-downloader/)
   redirector/           short-link redirects (negativezero.one/services/redirector/)
   presentation-studio/  Citrine presentation builder (negativezero.one/services/citrine/)
+  (tts/Amethyst — no apps/ dir; source in the amethyst-independent repo,
+   deployed as the prebuilt ghcr.io/chocolatebrownie250/amethyst-web image
+   → negativezero.one/services/amethyst/)
 platform/
   docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones + video-downloader + redirector + citrine
   deploy.sh             idempotent deployer for the VPS
@@ -51,9 +56,11 @@ TODO.md                 granular session-actionable task list
 Add new services as `apps/<name>/` + a service block in
 `platform/docker-compose.yml` + an `nginx/` location block. The
 deploy script is structured to absorb new services without changes.
-The TS + Fastify stack is the default for new services; tts is the
-documented Python + FastAPI exception (see AGENTS.md + DECISIONS.md
-2026-05-28).
+The TS + Fastify stack is the default for new services and is now the
+rule for everything in this repo — the Python + FastAPI exception left
+with Amethyst when its source moved to the `amethyst-independent` repo
+(consumed here only as an image; see AGENTS.md + DECISIONS.md 2026-06-29).
+To change Amethyst itself, work in `amethyst-independent`, not here.
 
 ## Working-memory files
 

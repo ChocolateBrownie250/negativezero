@@ -25,12 +25,13 @@ to chase a coverage number.
   tests to write and the ones that catch the subtlest bugs (e.g. the
   bookmark double-encryption regression).
 - **Route / integration tests in-process.** HTTP behaviour is tested by
-  building the real app and injecting requests: Fastify's `app.inject()`
-  for the TypeScript services, FastAPI's `TestClient` for tts. No
-  network, no container — the handler, the router, the auth gate, and a
-  temp SQLite database all run in the test process. This is the bulk of
-  the route coverage: auth gating, validation rejections, CRUD
-  round-trips, account scoping.
+  building the real app and injecting requests with Fastify's
+  `app.inject()` for the TypeScript services. No network, no container —
+  the handler, the router, the auth gate, and a temp SQLite database all
+  run in the test process. This is the bulk of the route coverage: auth
+  gating, validation rejections, CRUD round-trips, account scoping.
+  (Amethyst/tts uses FastAPI's `TestClient` for the same purpose, but its
+  suite now lives in the `amethyst-independent` repo, not here.)
 - **Docker smoke tests in CI.** Each service workflow builds its image
   and boots the container with stub secrets to confirm it starts and
   (where applicable) serves a health endpoint. This catches runtime
@@ -38,8 +39,9 @@ to chase a coverage number.
 - **No heavy e2e / browser suite today.** There is no Playwright,
   Cypress, or Selenium layer, and no plan to add one at this scale. The
   PWAs and SPAs are exercised by hand against the live deployment. The
-  end-to-end signal we rely on is the Docker smoke test plus the live
-  integration tests in tts (run on demand against the deployed box).
+  end-to-end signal we rely on is the Docker smoke test plus Amethyst's
+  live integration tests (now run from the `amethyst-independent` repo
+  against the deployed box).
 
 The guiding rule: test the logic that would silently corrupt data or
 quietly open the auth gate; smoke-test the rest.
@@ -48,8 +50,9 @@ quietly open the auth gate; smoke-test the rest.
 
 ## Per-service coverage matrix
 
-Eight services live under `apps/`. Test counts are individual
-`test(`/`it(`/`def test_` cases as of this writing.
+Seven services live under `apps/` (plus Amethyst/tts, whose source and
+tests live in the separate `amethyst-independent` repo). Test counts are
+individual `test(`/`it(`/`def test_` cases as of this writing.
 
 <!-- markdownlint-disable MD013 -->
 
@@ -61,7 +64,7 @@ Eight services live under `apps/`. Test counts are individual
 | redirector | vitest | `npm -w server test` | ~10 | ✅ runs | add management-CRUD tests |
 | timezones | vitest | `npm -w server test` | ~7 | ✅ runs | add PATCH / GET-by-id tests |
 | video-downloader | vitest | `npm -w server test` | ~10 | ❌ no workflow | add `video-downloader.yml` |
-| tts (Amethyst) | pytest + pytest-asyncio | `uv run pytest` | ~38 unit | ❌ no workflow | add `tts.yml` |
+| tts (Amethyst) | pytest + pytest-asyncio | _(external repo)_ | — | external | tests live + run in `amethyst-independent` |
 | landing | static — no tests | n/a | 0 | n/a (static) | none — one HTML file |
 
 <!-- markdownlint-enable MD013 -->
@@ -101,12 +104,12 @@ Notes on each row:
   block) with mocked fetch + ffmpeg, plus route auth. The suite is
   solid, but **there is no `video-downloader.yml` workflow**, so none
   of it runs in CI.
-- **tts (Amethyst)** — pytest with `pytest-asyncio`. ~38 unit tests
-  (`test_auth.py`, `test_chunker.py`, `test_groq_errors.py`) run with
-  no network using dummy keys from `conftest.py`. A larger integration
-  suite (`test_integration.py`) is `skipif`-gated and only runs when a
-  real `AMETHYST_API_KEY` is present, so it stays skipped by default.
-  **There is no `tts.yml` workflow** — nothing runs in CI.
+- **tts (Amethyst)** — pytest with `pytest-asyncio`. **The suite is no
+  longer in this repo:** Amethyst's source and tests moved to the
+  `amethyst-independent` repo (2026-06-29), where its own
+  `web-tests.yml` workflow runs them. The former in-repo apps/tts/
+  pytest suite and its `tts.yml` CI were removed here when the service
+  became a pulled GHCR image. See DECISIONS.md 2026-06-29.
 - **landing** — one static `index.html` plus fonts and a canvas
   animation. No build, no tests, nothing to assert.
 
@@ -132,19 +135,11 @@ npm ci
 npm run test
 ```
 
-**Python service** (tts):
-
-```bash
-cd apps/tts
-uv run pytest
-```
-
-The tts integration tests stay skipped unless you export a real key:
-
-```bash
-cd apps/tts
-AMETHYST_API_KEY=<real-key> uv run pytest tests/test_integration.py
-```
+**Python service** (tts / Amethyst): its source and tests are no longer in
+this repo — they live in the `amethyst-independent` repo (`web/`) and run
+via that repo's `web-tests.yml`. Run `uv run pytest` from there, not here.
+This platform consumes Amethyst only as the prebuilt
+`ghcr.io/chocolatebrownie250/amethyst-web` image.
 
 ---
 
@@ -173,12 +168,13 @@ test runner (`tsx --test`) rather than vitest — its tests are pure lib
 tests with no Fastify layer, so the lighter runner is enough. Same
 temp-SQLite-under-tmpdir pattern.
 
-**Python (pytest).** `asyncio_mode = "auto"` in `pyproject.toml`, so
-`async def test_*` functions run without per-test decorators. Shared
-setup lives in `apps/tts/tests/conftest.py`, which injects dummy
+**Python (pytest).** Amethyst's pytest suite now lives in the
+`amethyst-independent` repo (`web/`), not here. For reference, it uses
+`asyncio_mode = "auto"` so `async def test_*` functions need no per-test
+decorator; shared setup in its `tests/conftest.py` injects dummy
 `GROQ_API_KEY` / `AMETHYST_API_KEY` / `SSO_SESSION_SECRET` env vars at
-collection time; per-file fixtures build the `TestClient` and sample
-inputs. Live integration tests are `skipif`-gated on a real API key.
+collection time, per-file fixtures build the `TestClient` and sample
+inputs, and live integration tests are `skipif`-gated on a real API key.
 
 ---
 
@@ -201,9 +197,10 @@ batch; tracked in the `docs/TECH_DEBT.md` inventory):
 2. **Add `video-downloader.yml`.** The service has a ~10-test vitest
    suite and a Dockerfile but no workflow at all — create one mirroring
    `redirector.yml` (build + test + Docker smoke).
-3. **Add `tts.yml`.** Add a Python workflow that runs `uv run pytest`
-   for the ~38 unit tests (integration tests stay skipped without a
-   key) plus the Docker smoke test.
+3. **(tts CI moved out of this repo.)** Amethyst's pytest CI lives in
+   the `amethyst-independent` repo (`web-tests.yml`) now that its source
+   is there; this platform only pulls the prebuilt image, so there is no
+   `tts.yml` to add here.
 4. **Backfill the untested routes.** Add tests for the Citrine
    `presentations.ts` CRUD, the redirector management CRUD, and the
    timezones preset `PATCH` / GET-by-id paths, so the new route surface

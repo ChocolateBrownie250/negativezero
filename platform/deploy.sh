@@ -10,9 +10,11 @@
 #   2. Generates .env on first run with random per-service secrets
 #      (BOOKMARK_*, ADMIN_*, TTS_API_KEY); operator pastes GROQ_API_KEY
 #   3. Picks free loopback ports for all apex services
-#   4. Builds + starts all containers via docker compose. tts is skipped
-#      until GROQ_API_KEY is present so the apex deploys cleanly before
-#      the operator has wired up Groq.
+#   4. Builds + starts all containers via docker compose. tts (Amethyst) is
+#      a prebuilt image pulled from GHCR (source lives in the separate
+#      amethyst-independent repo), not built here; it is still skipped until
+#      GROQ_API_KEY is present so the apex deploys cleanly before the operator
+#      has wired up Groq. A private image needs `docker login ghcr.io` once.
 #   4b. Installs a systemd unit (negativezero-compose) so the stack
 #      comes back on boot even if it was torn down
 #   5. Installs nginx site file for negativezero.one + shared upgrade map
@@ -320,6 +322,13 @@ DEPLOY_ERROR=""
 
 log "Building + starting containers"
 if [ "$GROQ_PRESENT" = "1" ]; then
+    # Amethyst (tts) is a prebuilt image from the amethyst-independent repo
+    # (see docker-compose.yml), so pull it explicitly — `up` alone reuses a
+    # cached tag and would never pick up a new release. A pull failure is
+    # almost always a missing registry login: warn and continue so the rest
+    # of the stack still deploys and any image already on the box is reused.
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull tts \
+        || warn "Could not pull the Amethyst image. If it is private, run 'docker login ghcr.io' on this box (PAT with read:packages), then re-run. Falling back to the locally cached image if present."
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
 else
     warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin/timezones/video-downloader/redirector/citrine only."

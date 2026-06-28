@@ -161,19 +161,26 @@ services:
     networks:
       - internal
 
-  # ── tts (Whisper transcription + LLM cleanup) ─────────────────
-  # Audio dictation pipeline at negativezero.one/services/amethyst/.
+  # ── tts (Amethyst — Whisper transcription + LLM cleanup) ──────
+  # Audio dictation service at negativezero.one/services/amethyst/.
   # FastAPI + uvicorn (Python 3.12), aiosqlite with FTS5, Groq Whisper
   # + Llama. The PWA inside uses relative URLs, so nginx prefix-strip
   # gives the container clean root paths.
   #
-  # AMETHYST_API_KEY is mapped from TTS_API_KEY in .env — upstream code
-  # reads AMETHYST_API_KEY and renaming it would touch unrelated source.
-  # Data dir layout (DB + audio cache) matches the upstream config.py
-  # defaults to keep the import diff minimal.
+  # SOURCE IS NOT IN THIS REPO. Amethyst is developed in the separate
+  # `amethyst-independent` repo (its web/ directory) and published as a
+  # container image; this platform consumes that image instead of building
+  # from source. Override the ref with AMETHYST_IMAGE in platform/.env
+  # (default below). The container still runs inside this compose network,
+  # so it reaches `admin` for the shared SSO session + per-account authz
+  # (service "tts") exactly as before — the auth model is unchanged.
+  #
+  # AMETHYST_API_KEY is mapped from TTS_API_KEY in .env — the app reads
+  # AMETHYST_API_KEY. The /data dir layout (DB + audio cache) matches the
+  # app's config.py defaults; platform/data/tts/ persists across image
+  # updates.
   tts:
-    build:
-      context: ../apps/tts
+    image: ${AMETHYST_IMAGE:-ghcr.io/chocolatebrownie250/amethyst-web:latest}
     container_name: negativezero-tts
     restart: unless-stopped
     security_opt:

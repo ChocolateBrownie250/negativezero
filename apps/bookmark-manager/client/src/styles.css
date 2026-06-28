@@ -2,7 +2,8 @@
 
 /* ============================================================================
    Amethyst "liquid glass" deep-blue dark theme.
-   Ported from apps/tts/pwa/styles.css. Tailwind v4 @theme tokens below map the
+   Ported from the Amethyst PWA (now in the amethyst-independent repo, web/pwa/styles.css).
+   Tailwind v4 @theme tokens below map the
    utility colors (bg-*, text-*) to the new palette; the :root custom props
    drive the bespoke .glass-* primitives and the aurora background.
 ============================================================================ */

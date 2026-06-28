@@ -17,18 +17,20 @@ New to the platform? Read the working-memory docs first — start with
 
 ## Repo shape
 
-This is a monorepo of **eight isolated services** under `apps/`, plus the
-platform infrastructure under `platform/` and the docs under `docs/`. There is
+This is a monorepo of isolated services under `apps/`, plus the platform
+infrastructure under `platform/` and the docs under `docs/`. There is
 **no root workspace** — each service owns its own dependencies, build, tests,
 and `Dockerfile`, and runs as its own Docker container behind one nginx on a
-single VPS.
+single VPS. One service, Amethyst (`tts`, at `/services/amethyst/`), is the
+exception: its source lives in the separate `amethyst-independent` repo and this
+platform consumes it as a prebuilt container image rather than building it from
+`apps/`.
 
 ```
 apps/
   landing/              static landing page                       → /
   bookmark-manager/     bookmark manager (Basalt)                 → /services/basalt/
   admin/                registration-code generator + SSO/authz hub → /services/admin/
-  tts/                  Whisper + LLM cleanup pipeline (Amethyst)  → /services/amethyst/
   timezones/            gated cross-timezone planner               → /services/timezones/
   video-downloader/     clear-HLS remux tool                       → /services/video-downloader/
   redirector/           short-link redirects                       → /services/redirector/
@@ -77,21 +79,21 @@ build.
 > `npm -w server test`), and `admin` has no test suite yet — `npm run build`
 > is the gate there.
 
-### Python service (tts / Amethyst)
+### Amethyst (tts) — source lives in a separate repo
 
-`apps/tts/` is the documented Python exception (FastAPI + aiosqlite, Whisper +
-Llama via Groq, vanilla-JS PWA). Do not rewrite it to TypeScript without a
-recorded decision in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+Amethyst's source (Python + FastAPI + aiosqlite, Whisper + Llama via Groq,
+vanilla-JS PWA) is **no longer in this repo**. It lives in the
+`amethyst-independent` repo (under `web/`, alongside a sibling macOS desktop
+edition), which is the source of truth for the app. This platform consumes the
+web edition as a prebuilt container image
+(`ghcr.io/chocolatebrownie250/amethyst-web`), wired in as the `tts` service in
+`platform/docker-compose.yml`.
 
-```bash
-cd apps/tts
-uv run pytest                    # run the test suite with uv
-
-# or, without uv:
-pip install -e '.[dev]'
-pytest
-uvicorn app.main:app --reload --app-dir backend   # local dev server
-```
+To change the app (transcription, cleanup, PWA, its tests), work in
+`amethyst-independent` and publish a new image. In **this** repo you only touch
+the deploy wiring: `platform/docker-compose.yml`, `platform/deploy.sh`, and
+`platform/.env.template`. See DECISIONS.md 2026-06-29 for the extraction
+rationale.
 
 ### Static services (landing + timezones client)
 
@@ -156,11 +158,12 @@ the docs link-check. This keeps unrelated services from blocking your PR.
   internal docker network, revocable within ~30s). The `tts` machine clients
   use a Bearer API key. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
   [`HANDOVER.md`](HANDOVER.md) for the full model.
-- **TypeScript + Fastify is the default** for new server code; `tts`
-  (Python + FastAPI) is the one documented exception. Don't introduce a new
-  framework, ORM, or frontend stack without a [`docs/DECISIONS.md`](docs/DECISIONS.md)
-  entry. `docs/DECISIONS.md` is append-only — reverse a decision with a new
-  entry, never by editing history.
+- **TypeScript + Fastify is the default** for new server code, and now the rule
+  for everything in this repo — the Python + FastAPI exception left with Amethyst
+  when its source moved to the `amethyst-independent` repo (consumed here only as
+  an image). Don't introduce a new framework, ORM, or frontend stack without a
+  [`docs/DECISIONS.md`](docs/DECISIONS.md) entry. `docs/DECISIONS.md` is
+  append-only — reverse a decision with a new entry, never by editing history.
 - **Per-service READMEs are the entry point** for each service. Read
   `apps/<svc>/README.md` first.
 - **No backwards-compat shims and no comments restating obvious code.** This is

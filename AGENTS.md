@@ -71,12 +71,18 @@ lives in `server/src/lib/accounts.ts`. Future expansion includes a
 "tts prompts" page (see PLAN.md Phase 3) for editing the cleanup and
 proofread system prompts that the tts service uses.
 
-**"I need to change the tts service"** → `apps/tts/`. Python 3.12 +
-FastAPI + aiosqlite, Whisper + Llama via Groq, vanilla-JS PWA. Source
-layout: `backend/app/` for the FastAPI app, `pwa/` for the frontend,
-`tests/` for pytest. Note: this is the Python exception to the
-otherwise TS+Fastify convention (see *Conventions* + DECISIONS.md
-2026-05-28). Don't rewrite to TS without a recorded decision.
+**"I need to change the tts service"** → Amethyst's source no longer
+lives in this repo. It lives in the separate `amethyst-independent` repo
+(under `web/`), which holds two editions of Amethyst (a macOS desktop app
+and the web/PWA edition). This platform consumes the web edition as a
+prebuilt container image (`ghcr.io/chocolatebrownie250/amethyst-web`),
+wired in as the `tts` service in `platform/docker-compose.yml`. To change
+the app itself (transcription, cleanup, PWA), work in
+`amethyst-independent` and publish a new image. To change how it's
+deployed/wired into this platform, edit `platform/docker-compose.yml` /
+`platform/deploy.sh` / `platform/.env.template`. Routing
+(`/services/amethyst/`) and auth (SSO + admin authz + the iPhone
+Shortcut's Bearer key) are unchanged.
 
 **"I need to add a new service"** → see *Adding a service* below.
 
@@ -95,15 +101,17 @@ without side effects.
   untyped JS files in new code; existing ones may stay until touched.
   Don't introduce Express, Hono, Koa, etc. without a recorded
   DECISIONS.md entry.
-- **Python + FastAPI is a documented exception** carried by
-  `apps/tts/`. Don't extend it to new services without a recorded
-  decision; default new services to TS + Fastify. See DECISIONS.md
+- **TypeScript + Fastify everywhere in this repo.** The Python + FastAPI
+  exception left with Amethyst when its source was extracted to the
+  `amethyst-independent` repo (2026-06-29) and is consumed here only as a
+  prebuilt image — so no in-repo service deviates from TS + Fastify today.
+  New services default to TS + Fastify; a new non-TS service needs a
+  recorded decision. See DECISIONS.md 2026-06-29 and the earlier
   2026-05-28 "Python + FastAPI exception".
-- **better-sqlite3 for per-service TS storage; aiosqlite for tts.**
-  Don't introduce Prisma, Knex, Drizzle, SQLAlchemy, etc. unless a
-  service genuinely needs an ORM.
-- **React + Vite + Tailwind for TS frontends; vanilla JS PWA for
-  tts.** No alternate frameworks without a DECISIONS.md entry.
+- **better-sqlite3 for per-service TS storage.** Don't introduce Prisma,
+  Knex, Drizzle, etc. unless a service genuinely needs an ORM.
+- **React + Vite + Tailwind for TS frontends.** No alternate frameworks
+  without a DECISIONS.md entry.
 - **No new comments by default.** Only add a comment when the *why* is
   non-obvious. Don't restate what well-named code already says, and
   don't tag comments to the current task ("added for X"). See
@@ -210,7 +218,9 @@ order, with concrete commands.
 - url-vault's git history on GitHub — kept as the historical archive
   of the bookmark-manager's predecessor. Don't try to back-port
   changes; just work in this monorepo.
-- The upstream amethyst repo on GitHub — `apps/tts/` is a clean
-  import, not a fork with PRs flowing upstream. Changes here stay
-  here.
+- Amethyst's source — it lives in the `amethyst-independent` repo, which
+  is the source of truth for the app. This platform only consumes its
+  published image (`ghcr.io/chocolatebrownie250/amethyst-web`); do not
+  re-vendor Amethyst source back into this repo as apps/tts/. App
+  changes go in `amethyst-independent`.
 - `docs/DECISIONS.md` past entries — append-only.

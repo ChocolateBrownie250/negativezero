@@ -40,8 +40,10 @@ operator has to do them in a browser / VPS console.
       platform/docker-compose.yml up -d --force-recreate tts`. The deploy-time
       Groq check now confirms validity.
 - [ ] **Rotate the tts Bearer key (`TTS_API_KEY` / `AMETHYST_API_KEY`).** It was
-      committed as a hard-coded fallback in `apps/tts/tests/test_integration.py`
-      (removed 2026-06-18) so it is exposed in **git history** — treat as leaked.
+      committed as a hard-coded fallback in the old in-repo tts integration test
+      (the former apps/tts/tests/test_integration.py, removed 2026-06-18; the
+      whole apps/tts/ tree has since moved to the `amethyst-independent` repo) so
+      it is exposed in **git history** — treat as leaked.
       Regenerate (admin → API tokens, or HANDOVER "Rotate the tts API key"),
       update `platform/.env`, recreate tts, and update the iPhone Shortcut header.
 
@@ -76,8 +78,9 @@ Sequence in order. Each is roughly one session of focused work.
       `TTS_API_KEY` — those have different threat surfaces).
 - [ ] Add a "TTS prompts" page to `apps/admin/client/`: list current
       prompts, edit + save, show diff against defaults.
-- [ ] Seed values: ship the current hard-coded prompts from
-      `apps/tts/backend/app/groq_client.py` (and similar) as initial
+- [ ] Seed values: ship the current hard-coded prompts from Amethyst's
+      backend/app/groq_client.py (and similar) — now in the
+      `amethyst-independent` repo, no longer apps/tts/ here — as initial
       values when admin first writes the store.
 - [ ] Audit-log every prompt change in admin (who, when, before/after).
 - [ ] Smoke test: change a prompt from admin, transcribe a clip, verify

@@ -1,6 +1,6 @@
 // Design tokens — Amethyst "liquid glass" deep-blue dark theme.
 // Re-pointed from the old flat iOS-HIG greyscale to match the Amethyst PWA
-// (apps/tts/pwa/styles.css). The CSS custom properties live in styles.css
+// (now in the amethyst-independent repo, web/pwa/styles.css). The CSS custom properties live in styles.css
 // (:root); these JS constants mirror them so the many inline `style={{...}}`
 // usages across components pick up the new palette without a per-file rewrite.
 // Glass surfaces (blur + translucency) are applied via the .glass-* classes
