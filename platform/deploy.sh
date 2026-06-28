@@ -270,6 +270,28 @@ if ! grep -Eq '^SSO_SESSION_SECRET=[0-9a-fA-F]{64}$' "$ENV_FILE"; then
     fi
 fi
 
+GROQ_PRESENT=0
+grep -Eq '^GROQ_API_KEY=gsk_' "$ENV_FILE" && GROQ_PRESENT=1
+PRESERVED_TTS_PORT=0
+if [ "$GROQ_PRESENT" != "1" ]; then
+    existing_tts_port="$(docker port negativezero-tts 3000/tcp 2>/dev/null \
+        | sed -n 's|^127\.0\.0\.1:||p' | head -1 || true)"
+    if [ -n "$existing_tts_port" ] \
+        && curl -sf "http://127.0.0.1:$existing_tts_port/api/v1/health" >/dev/null 2>&1; then
+        warn "GROQ_API_KEY missing, but an existing healthy tts container is serving on 127.0.0.1:$existing_tts_port."
+        warn "Preserving that tts port so nginx does not route Amethyst to an empty upstream."
+        TTS_PORT="$existing_tts_port"
+        PRESERVED_TTS_PORT=1
+    else
+        previous_tts_port="$(grep -E '^TTS_HOST_PORT=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+        if [ -n "$previous_tts_port" ]; then
+            warn "GROQ_API_KEY missing and no healthy existing tts container was found."
+            warn "Preserving configured TTS_HOST_PORT=$previous_tts_port instead of assigning a new dead upstream."
+            TTS_PORT="$previous_tts_port"
+        fi
+    fi
+fi
+
 # Update derived values on every run (ports). New port vars added after a
 # service's first deploy won't exist in an older .env, so seed any missing
 # line before the sed replace runs.
@@ -289,14 +311,12 @@ sed -i "s|^CITRINE_HOST_PORT=.*|CITRINE_HOST_PORT=$CITRINE_PORT|" "$ENV_FILE"
 # ────────────────────────────────────────────────────────────────────────
 # 4. Docker compose
 # ────────────────────────────────────────────────────────────────────────
-GROQ_PRESENT=0
-grep -Eq '^GROQ_API_KEY=gsk_' "$ENV_FILE" && GROQ_PRESENT=1
-
 log "Building + starting containers"
 if [ "$GROQ_PRESENT" = "1" ]; then
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build --remove-orphans
 else
     warn "GROQ_API_KEY missing in .env — bringing up landing/bookmark-manager/admin/timezones/video-downloader/redirector/citrine only."
+    [ "$PRESERVED_TTS_PORT" = "1" ] && warn "Leaving the existing tts container in place on 127.0.0.1:$TTS_PORT."
     warn "Paste a Groq key into $ENV_FILE and re-run to start tts."
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build landing bookmark-manager admin timezones video-downloader redirector citrine
 fi
@@ -485,14 +505,41 @@ issue_tls "$APEX_DOMAIN"
 systemctl reload nginx || true
 
 # ────────────────────────────────────────────────────────────────────────
-# 7. Done
+# 7. Landing route smoke
+# ────────────────────────────────────────────────────────────────────────
+log "Final landing route smoke"
+LANDING_ROOT_HTML="$(mktemp)"
+LANDING_RIGA_HTML="$(mktemp)"
+trap 'rm -f "$LANDING_ROOT_HTML" "$LANDING_RIGA_HTML"' EXIT
+
+curl -fsS -H "Host: $APEX_DOMAIN" "http://127.0.0.1/" >"$LANDING_ROOT_HTML" \
+    || die "landing root smoke failed"
+grep -F 'href="/dashboards/riga-real-estate/"' "$LANDING_ROOT_HTML" >/dev/null \
+    || die "landing root no longer links riga-estate to /dashboards/riga-real-estate/"
+
+curl -fsS -H "Host: $APEX_DOMAIN" "http://127.0.0.1/riga-real-estate/" >"$LANDING_RIGA_HTML" \
+    || die "legacy /riga-real-estate/ smoke failed"
+grep -F '<title>Riga real estate observations · negativezero</title>' "$LANDING_RIGA_HTML" >/dev/null \
+    || die "legacy /riga-real-estate/ title no longer matches the tracked micro-site"
+grep -F 'href="./styles.css"' "$LANDING_RIGA_HTML" >/dev/null \
+    || die "legacy /riga-real-estate/ no longer references ./styles.css"
+grep -F 'src="./app.js"' "$LANDING_RIGA_HTML" >/dev/null \
+    || die "legacy /riga-real-estate/ no longer references ./app.js"
+if grep -F '/dashboards/riga-real-estate/assets/' "$LANDING_RIGA_HTML" >/dev/null; then
+    die "legacy /riga-real-estate/ unexpectedly serves dashboard assets"
+fi
+
+# ────────────────────────────────────────────────────────────────────────
+# 8. Done
 # ────────────────────────────────────────────────────────────────────────
 echo
 log "Deploy complete"
 echo "  Landing:          https://$APEX_DOMAIN/"
 echo "  Basalt:           https://$APEX_DOMAIN/services/basalt/"
 echo "  Admin:            https://$APEX_DOMAIN/services/admin/"
-[ "$GROQ_PRESENT" = "1" ] && echo "  Amethyst:         https://$APEX_DOMAIN/services/amethyst/"
+if [ "$GROQ_PRESENT" = "1" ] || [ "$PRESERVED_TTS_PORT" = "1" ]; then
+    echo "  Amethyst:         https://$APEX_DOMAIN/services/amethyst/"
+fi
 echo "  Timezones:        https://$APEX_DOMAIN/services/timezones/"
 echo "  Video downloader: https://$APEX_DOMAIN/services/video-downloader/"
 echo "  Redirector:       https://$APEX_DOMAIN/services/redirector/"

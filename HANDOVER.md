@@ -31,13 +31,18 @@ https://negativezero.one/services/video-downloader/  → video-downloader SPA + 
 https://negativezero.one/services/redirector/        → redirector SPA + API (short-link redirects)
 https://negativezero.one/services/redirector/<hash>  → public 302 redirect (16-char hash)
 https://negativezero.one/services/citrine/           → Citrine presentation builder PWA + API
+https://negativezero.one/dashboards/riga-real-estate/ → host-static Riga housing dashboard
+https://negativezero.one/riga-real-estate/           → legacy landing-container Riga micro-site
 https://negativezero.one/vtt-transcriber/            → 308 redirect → /services/amethyst/
                                                        (legacy URL, kept for old iPhone Shortcuts)
 ```
 
 All containers bind `127.0.0.1` only; nginx on the host fronts everything
 on 443/80 (Let's Encrypt). The TLS cert renews via certbot's systemd
-timer.
+timer. The Riga housing dashboard is the one public route here that is served
+directly from host static files under `/var/www/dashboards/riga-real-estate/`
+rather than from a Compose container, so its dedicated nginx `location` must
+remain above the landing catch-all.
 
 ### Container map
 
