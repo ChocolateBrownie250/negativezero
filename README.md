@@ -4,7 +4,12 @@ Self-hosted services platform for the **`negativezero.one`** apex — a single
 monorepo holding a landing page and a set of small private services, all run as
 Docker containers behind one nginx, on a single Vultr VPS shared with unrelated
 tenants. Each service mounts under `/services/<name>/`; the landing page is the
-apex root.
+apex root. A dedicated public dashboard route also exists at
+`/dashboards/riga-real-estate/`; it is served directly by nginx from a host
+static directory and must stay ahead of the landing catch-all. The landing
+container also still bundles a legacy public micro-site at
+`/riga-real-estate/`; it is distinct from the host-static dashboard and should
+keep serving its own `app.js` / `styles.css` shell.
 
 > **New here? Start with the working-memory docs**, in this order:
 > [`HANDOVER.md`](HANDOVER.md) (current deployed state + ops),
@@ -29,6 +34,10 @@ apex root.
 | **video-downloader** | `/services/video-downloader/` | Fastify + React + ffmpeg remux | passkey + SSO |
 | **redirector** | `/services/redirector/` | Fastify + React + SQLite | passkey + SSO (hash redirect public) |
 | **citrine** | `/services/citrine/` | Fastify + React PWA + local presentation documents | passkey + SSO |
+
+Separate from the service containers, the public Riga housing dashboard is
+published at `/dashboards/riga-real-estate/` from host static files under
+`/var/www/dashboards/riga-real-estate/`.
 
 **Stacks:** Node 22 + Fastify 5 + TypeScript + better-sqlite3 + React 18 (Vite +
 Tailwind) for the TS services; Python 3.12 + FastAPI + Groq for tts; static HTML

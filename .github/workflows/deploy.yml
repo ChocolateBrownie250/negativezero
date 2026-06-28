@@ -45,6 +45,9 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v7
 
+      - name: Validate Riga route sources
+        run: bash scripts/validate-riga-routes.sh
+
       - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
@@ -110,6 +113,9 @@ jobs:
             -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
             "$SSH_USER@$SSH_HOST" \
             "cd '$DEPLOY_PATH' && if [ \"\$(id -u)\" -eq 0 ]; then bash platform/deploy.sh; else sudo -n bash platform/deploy.sh; fi"
+
+      - name: Verify public Riga routes
+        run: bash scripts/verify-public-riga-routes.sh
 
       - name: Remove key
         if: always()

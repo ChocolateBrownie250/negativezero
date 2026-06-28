@@ -70,7 +70,9 @@ per-account authorization.
   local passkey fallback; the `<hash>` endpoint is public. Links in
   SQLite; no at-rest encryption, no outbound fetch.
 - **Reverse proxy:** nginx on the host (shared with unrelated tenants).
-  Containers bind to 127.0.0.1 only; nginx is the public entry point.
+  Containers bind to 127.0.0.1 only; nginx is the public entry point. It also
+  serves the host-static Riga housing dashboard route at
+  `/dashboards/riga-real-estate/` from `/var/www/dashboards/riga-real-estate/`.
 - **TLS:** Let's Encrypt via certbot, one cert on the apex
   (`negativezero.one`).
 - **Containerization:** Docker + Docker Compose v2.
@@ -166,11 +168,13 @@ to absorb new services without changes.
 
 ## Components
 
-**`apps/landing/`** — pure static site. One `index.html`, three Geist
-font files. Served by an `nginx:alpine` container; the host nginx
-reverse-proxies `/` to it. No build, no JS framework, no runtime
-dependencies. Canvas animation is vanilla JS with `prefers-reduced-motion`
-respected.
+**`apps/landing/`** — pure static site. One apex `index.html`, three Geist
+font files, plus a bundled legacy `riga-real-estate/` static micro-site.
+Served by an `nginx:alpine` container; the host nginx reverse-proxies `/` to
+it. No build, no JS framework, no runtime dependencies. Canvas animation is
+vanilla JS with `prefers-reduced-motion` respected. The legacy
+`/riga-real-estate/` route is intentionally distinct from the host-static
+dashboard published at `/dashboards/riga-real-estate/`.
 
 **`apps/bookmark-manager/`** — Basalt, the self-hosted bookmark service
 (formerly the `url-vault` repo; mounted at `/services/basalt/`, container
@@ -241,7 +245,9 @@ keyed on `'owner'` for the local passkey or on the SSO account id.
 redirector + citrine. `deploy.sh` is the idempotent VPS
 deployer (generates secrets, picks free ports, pulls/builds images,
 installs nginx site files, runs certbot). `nginx/` holds the apex
-site config + the shared `$connection_upgrade` map.
+site config + the shared `$connection_upgrade` map. The same apex config also
+preserves a dedicated host-static route for the Riga housing dashboard at
+`/dashboards/riga-real-estate/`, which must remain above the landing catch-all.
 
 ---
 
@@ -266,6 +272,8 @@ negativezero.one/services/video-downloader/    → video-downloader SPA + API
 negativezero.one/services/redirector/          → redirector SPA + API
 negativezero.one/services/redirector/<hash>    → public 302 redirect (16-char hash)
 negativezero.one/services/citrine/             → Citrine presentation editor SPA + API
+negativezero.one/dashboards/riga-real-estate/  → host-static Riga housing dashboard
+negativezero.one/riga-real-estate/             → legacy landing-container Riga micro-site
 negativezero.one/vtt-transcriber/              → 308 redirect → /services/amethyst/
                                                   (legacy URL kept for old clients)
 negativezero.one/services/<future>/            → future services (add a location block)

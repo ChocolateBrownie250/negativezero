@@ -17,6 +17,13 @@ Nothing here needs secrets in the repo; the only secret to supply is the Groq ke
   alias in `~/.ssh/config`. (Older notes name `~/.ssh/wellfit_prod_ed25519` — same box.)
 - You have the owner's **Groq API key** (`gsk_…`) from https://console.groq.com/keys.
 - Local repo is on the latest `main` (`git fetch origin && git checkout main && git pull`).
+- When using the manual rsync path, deploy from the real main checkout
+  `/Users/magic/Documents/Claude/01_Claude Code/negativezero-local`. Do not
+  rsync from the separate coordination/worktree checkout under
+  `agentic-workflows/negativezero/`; that tree is used for coordination and
+  in-progress local work and is not the authoritative production checkout.
+- Run the local route guard before any manual rsync:
+  `bash scripts/validate-riga-routes.sh`
 
 ## 1. Get the code onto the VPS
 Either `git pull` on the box, or rsync from the desktop (matches HANDOVER):
@@ -30,6 +37,7 @@ Either `git pull` on the box, or rsync from the desktop (matches HANDOVER):
 git push 'ssh://wellfit/srv/negativezero' main:main
 
 # Option B — rsync the working tree (excludes secrets/state)
+bash scripts/validate-riga-routes.sh
 rsync -av -e "ssh -i ~/.ssh/id_ed25519_wellfit_agent" \
   --exclude='.git/' --exclude='node_modules/' --exclude='dist/' --exclude='.venv/' \
   --exclude='platform/.env' --exclude='platform/.env.local' --exclude='platform/data/' \
@@ -55,7 +63,10 @@ cd /srv/negativezero && bash platform/deploy.sh
 ```
 `deploy.sh` rebuilds landing + bookmark-manager + admin + tts + timezones +
 video-downloader + redirector, re-derives ports, and re-installs the apex nginx
-file. tts only starts once `GROQ_API_KEY` is present.
+file. tts only starts once `GROQ_API_KEY` is present. It now also fails loudly
+if the apex landing no longer links `riga-estate` to the canonical dashboard
+route or if the legacy `/riga-real-estate/` micro-site shell is replaced by
+dashboard assets.
 
 ## 4. Verify
 ```bash
@@ -64,6 +75,24 @@ curl -fsS https://negativezero.one/services/admin/api/health     # {"ok":true}
 curl -fsS https://negativezero.one/services/tts/api/v1/health    # {"status":"ok",...}
 # internal authz must NOT be reachable publicly (expect 404):
 curl -s -o /dev/null -w '%{http_code}\n' https://negativezero.one/services/admin/api/internal/authz
+bash scripts/verify-public-riga-routes.sh
+```
+
+If the public Riga housing dashboard is expected to be live, also verify the
+host-static route explicitly:
+
+```bash
+curl -I https://negativezero.one/dashboards/riga-real-estate/
+curl -I https://negativezero.one/dashboards/riga-real-estate/data/dashboard.json
+curl -I https://negativezero.one/dashboards/riga-real-estate/data/dashboard.json.gz
+```
+
+The landing container also still exposes a separate legacy Riga micro-site at
+`/riga-real-estate/`. Verify that it is still distinct from the dashboard:
+
+```bash
+curl -fsS https://negativezero.one/riga-real-estate/ | grep -F '<title>Riga real estate observations · negativezero</title>'
+curl -fsS https://negativezero.one/riga-real-estate/ | grep -E 'href="\./styles\.css"|src="\./app\.js"'
 ```
 
 ## 5. First sign-in + accounts
@@ -88,6 +117,78 @@ bash platform/e2e/authz-e2e.sh   # expect "4 passed, 0 failed"
 ```
 
 ## Troubleshooting
+
+**`/dashboards/riga-real-estate/` returns 404** while the static files still
+exist under `/var/www/dashboards/riga-real-estate/`. This has regressed more
+than once when the dashboard `location` block disappeared from the nginx source
+template and the active site file.
+
+Expected source of truth:
+
+- local deploy repo: `platform/nginx/negativezero.one.conf`
+- active VPS site file: `/etc/nginx/sites-available/negativezero.one`
+- required route order: the dashboard `location /dashboards/riga-real-estate/`
+  must remain above the landing `location /` catch-all
+
+Expected route shape:
+
+```nginx
+location = /dashboards/riga-real-estate {
+    return 308 https://$host/dashboards/riga-real-estate/;
+}
+location /dashboards/riga-real-estate/ {
+    root /var/www;
+    try_files $uri $uri/ /dashboards/riga-real-estate/index.html;
+}
+```
+
+Recovery:
+
+```bash
+ssh wellfit
+cd /srv/negativezero
+grep -n '/dashboards/riga-real-estate' platform/nginx/negativezero.one.conf /etc/nginx/sites-available/negativezero.one
+sudo nginx -t
+sudo systemctl reload nginx
+curl -I https://negativezero.one/dashboards/riga-real-estate/
+curl -I https://negativezero.one/dashboards/riga-real-estate/data/dashboard.json
+curl -I https://negativezero.one/dashboards/riga-real-estate/data/dashboard.json.gz
+```
+
+If the local source template is missing the route, fix the repo first and then
+re-apply it on the VPS. Do not treat a one-off live hotfix as complete if the
+source template is still stale.
+
+**`/riga-real-estate/` serves the dashboard shell** instead of the separate
+legacy micro-site. The source of truth for this route lives in the landing
+repo tree, not in the host-static dashboard publish directory.
+
+Expected source of truth:
+
+- local deploy repo: `apps/landing/riga-real-estate/`
+- active VPS checkout: `/srv/negativezero/apps/landing/riga-real-estate/`
+- expected live title: `Riga real estate observations · negativezero`
+- expected live asset refs: relative `./styles.css` and `./app.js`
+- unexpected dashboard-shell symptom:
+  `/dashboards/riga-real-estate/assets/...` appears in the HTML
+
+Recovery:
+
+```bash
+ssh wellfit
+cd /srv/negativezero
+sed -n '1,12p' apps/landing/riga-real-estate/index.html
+grep -F 'Riga real estate observations · negativezero' apps/landing/riga-real-estate/index.html
+grep -E 'href="\./styles\.css"|src="\./app\.js"' apps/landing/riga-real-estate/index.html
+bash platform/deploy.sh
+curl -fsS https://negativezero.one/riga-real-estate/ | grep -F '<title>Riga real estate observations · negativezero</title>'
+curl -fsS https://negativezero.one/riga-real-estate/ | grep -E 'href="\./styles\.css"|src="\./app\.js"'
+```
+
+If the checked-out repo subtree under `apps/landing/riga-real-estate/` does not
+match the tracked source anymore, fix the repo state first and only then
+redeploy the landing container. Do not accept the route as healthy just because
+it returns `200`.
 
 **HTTPS serves the wrong cert after a deploy** (browser TLS warning;
 `https://negativezero.one/` presents e.g. `CN=isgroup.one`). The nginx site file

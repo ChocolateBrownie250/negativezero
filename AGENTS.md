@@ -26,6 +26,11 @@ Self-hosted on a single Vultr VPS. Everything lives under the apex
 - `/services/video-downloader/` — clear-HLS remux tool
 - `/services/redirector/` — short-link redirects
 - `/services/citrine/` — Citrine web-native presentation builder PWA
+- `/dashboards/riga-real-estate/` — host-static Riga housing dashboard
+  published outside the container stack; its nginx route must stay ahead
+  of the landing catch-all
+- `/riga-real-estate/` — legacy landing-container Riga micro-site; keep it
+  distinct from the host-static dashboard shell
 - `/vtt-transcriber/` — 308 redirect to `/services/amethyst/` (legacy URL)
 
 The repo grew out of merging three predecessor repos under

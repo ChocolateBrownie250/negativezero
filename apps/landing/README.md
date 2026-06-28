@@ -20,9 +20,11 @@ filesystem permissions to manage; the apex nginx reverse-proxies `/` to it.
 ```
 index.html          the apex landing (animated hero + Geist webfonts)
 fonts/              self-hosted Geist font files (no external CDN)
-riga-real-estate/   a self-contained static micro-site bundled with the
+riga-real-estate/   a legacy self-contained static micro-site bundled with the
                     landing container (its own index.html / app.js / styles.css
-                    / data); reachable as a static sub-path
+                    / data); still reachable as a static sub-path, but the
+                    canonical public dashboard now lives at
+                    /dashboards/riga-real-estate/
 ```
 
 ## Develop
