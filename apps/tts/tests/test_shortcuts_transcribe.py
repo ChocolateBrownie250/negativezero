@@ -114,11 +114,13 @@ def test_shortcut_raw_route_missing_auth_returns_text_error(client: TestClient):
     assert "authorization" in r.json()["text"].lower() or "unauthorized" in r.json()["text"].lower()
 
 
-def test_non_shortcut_route_keeps_existing_error_shape(client: TestClient):
+def test_legacy_transcribe_route_errors_keep_detail_and_add_text(client: TestClient):
     r = client.post("/api/v1/transcribe")
 
     assert r.status_code in {401, 422}
-    assert "detail" in r.json()
+    body = r.json()
+    assert "detail" in body
+    assert "text" in body
 
 
 def test_shortcut_file_alias_missing_auth_returns_text_error(client: TestClient):

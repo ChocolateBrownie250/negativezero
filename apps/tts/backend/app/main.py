@@ -106,7 +106,11 @@ app.add_middleware(
 )
 
 
-SHORTCUT_API_PATHS = {"/api/v1/shortcuts/transcribe", "/api/v1/transcribe/file"}
+SHORTCUT_API_PATHS = {
+    "/api/v1/transcribe",
+    "/api/v1/shortcuts/transcribe",
+    "/api/v1/transcribe/file",
+}
 
 
 def _shortcut_error_text(status_code: int, detail: object) -> tuple[str, str]:

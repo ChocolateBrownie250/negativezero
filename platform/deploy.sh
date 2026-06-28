@@ -520,6 +520,19 @@ if [ "$GROQ_PRESENT" = "1" ]; then
         cat "$shortcut_body" 2>/dev/null || true
         [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst Shortcut JSON contract failed"
     fi
+    legacy_body="$(mktemp)"
+    legacy_code="$(curl -s -o "$legacy_body" -w '%{http_code}' \
+        -X POST -H 'Content-Type: multipart/form-data' \
+        "http://127.0.0.1:$TTS_PORT/api/v1/transcribe" || echo 000)"
+    if [ "$legacy_code" != "401" ] && [ "$legacy_code" != "422" ]; then
+        warn "Expected legacy transcribe route error JSON, got HTTP $legacy_code"
+        cat "$legacy_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst legacy transcribe smoke failed"
+    elif ! grep -F '"text"' "$legacy_body" >/dev/null || ! grep -F '"detail"' "$legacy_body" >/dev/null; then
+        warn "Legacy transcribe route error did not include both text and detail"
+        cat "$legacy_body" 2>/dev/null || true
+        [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst legacy transcribe JSON contract failed"
+    fi
     file_alias_body="$(mktemp)"
     file_alias_code="$(curl -s -o "$file_alias_body" -w '%{http_code}' \
         -X POST -H 'Content-Type: audio/mp4' \
@@ -534,7 +547,7 @@ if [ "$GROQ_PRESENT" = "1" ]; then
         cat "$file_alias_body" 2>/dev/null || true
         [ -z "$DEPLOY_ERROR" ] && DEPLOY_ERROR="Amethyst raw file alias JSON contract failed"
     fi
-    rm -f "$shortcut_body" "$file_alias_body"
+    rm -f "$shortcut_body" "$legacy_body" "$file_alias_body"
 fi
 
 # ────────────────────────────────────────────────────────────────────────
