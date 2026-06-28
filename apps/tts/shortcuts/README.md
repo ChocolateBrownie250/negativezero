@@ -174,12 +174,16 @@ Translate → Send via Messages" is a single chain.
   it as text, tap the field and switch to the variable.
 - **413 Request Entity Too Large**: the recording is over 25 MB (~30 min of
   AAC). Split into multiple shorter recordings or lower the audio quality in
-  step 2.
+  step 2. This 25 MB cap is the **API** rejecting the upload (Groq Whisper's
+  limit) and it returns its own parseable JSON — distinct from the **30 MB**
+  limit nginx enforces below.
 - **"Get Dictionary Value failed … couldn't convert from Rich Text to
   Dictionary"**: the *Get Contents of URL* action got a non-JSON body (HTML),
   so Shortcuts typed it as Rich Text and *Get Dictionary Value* can't parse it.
-  This is the reverse proxy answering instead of the API — a **413** (oversize
-  upload), a **502/503/504** (backend busy/down or the request took over 120 s),
+  This is the reverse proxy answering instead of the API — a **413** from nginx
+  (upload over its 30 MB limit, rejected before the API is reached — the >25 MB
+  API rejection above never caused this crash), a **502/503/504** (backend
+  busy/down or the request took over 120 s),
   or, on the legacy `/vtt-transcriber/` URL, an HTTP **redirect** that Shortcuts
   doesn't follow on a form-POST. All three are fixed server-side in
   `platform/nginx/negativezero.one.conf`: `/vtt-transcriber/` is now proxied in
@@ -189,7 +193,8 @@ Translate → Send via Messages" is a single chain.
   busy or timed out…"* — act on it (shorter clip / retry), or check the
   container with `docker logs` if it's down.
 - **Times out on cellular**: large uploads on weak networks may exceed the
-  nginx/Caddy timeout. Wait for Wi-Fi for long recordings.
+  nginx `proxy_read_timeout` (120 s on this deployment). Wait for Wi-Fi for long
+  recordings.
 - **The `.plist` file won't import / opens as text**: expected — iOS does not
   import unsigned shortcut files, and no toggle changes that (see
   [Read this first: installing needs signing](#read-this-first-installing-needs-signing)).
