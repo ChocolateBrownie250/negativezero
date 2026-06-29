@@ -1,0 +1,79 @@
+name: admin-setcode
+
+# TEMPORARY, ONE-OFF. Installs a fresh admin setup-code hash and recreates the
+# admin container so the operator can re-enroll a passkey on the existing owner
+# account (credentials table was emptied; the account + service grants survive).
+# The plaintext code is staged to a root-only temp file over the encrypted SSH
+# channel (never in argv/logs), hashed on the box with bcryptjs, then deleted.
+# Delete this branch + the ADMIN_SETUP_CODE_PLAINTEXT secret when done.
+
+on:
+  push:
+    branches: [setup/admin-code]
+  workflow_dispatch:
+
+concurrency:
+  group: admin-setcode
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  setcode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          PORT="${SSH_PORT:-22}"
+          if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$PORT" "$SSH_HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stage setup code on the box (encrypted channel, root-only temp file)
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          ADMIN_SETUP_CODE_PLAINTEXT: ${{ secrets.ADMIN_SETUP_CODE_PLAINTEXT }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          # Pipe the code over stdin (never argv); write it 0600 on the box.
+          printf '%s' "$ADMIN_SETUP_CODE_PLAINTEXT" | ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
+            "$SSH_USER@$SSH_HOST" 'umask 077; cat > /tmp/.nz_setupcode'
+
+      - name: Install setup-code hash + recreate admin
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
+            "$SSH_USER@$SSH_HOST" \
+            "if [ \"\$(id -u)\" -eq 0 ]; then bash -s -- '$DEPLOY_PATH' '/tmp/.nz_setupcode'; else sudo -n bash -s -- '$DEPLOY_PATH' '/tmp/.nz_setupcode'; fi" \
+            < scripts/admin-setcode-remote.sh
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy
