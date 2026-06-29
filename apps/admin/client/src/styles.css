@@ -35,3 +35,14 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Keep form controls at >=16px so iOS Safari does NOT auto-zoom the viewport
+   when a field gains focus (the cause of the "screen jumps into zoom while
+   typing" bug on phones). This rule is intentionally UNLAYERED so it wins over
+   Tailwind's text-[..] utilities (layered styles lose to unlayered ones in the
+   cascade) without needing !important. 16px is the Safari zoom threshold. */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
