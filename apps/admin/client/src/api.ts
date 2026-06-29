@@ -74,6 +74,7 @@ export type TokenInfo = {
   createdAt: number;
   lastUsed: number | null;
   revoked: boolean;
+  revokedAt: number | null;
 };
 
 export const api = {

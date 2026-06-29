@@ -45,6 +45,7 @@ export type ApiTokenInfo = {
   createdAt: number;
   lastUsed: number | null;
   revoked: boolean;
+  revokedAt: number | null;
 };
 
 export function listApiTokens(accountId: string): ApiTokenInfo[] {
@@ -58,6 +59,7 @@ export function listApiTokens(accountId: string): ApiTokenInfo[] {
     createdAt: r.created_at,
     lastUsed: r.last_used,
     revoked: r.revoked_at != null,
+    revokedAt: r.revoked_at,
   }));
 }
 
