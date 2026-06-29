@@ -587,15 +587,16 @@ LANDING_ROOT_HTML="$(mktemp)"
 LANDING_RIGA_HTML="$(mktemp)"
 trap 'rm -f "$LANDING_ROOT_HTML" "$LANDING_RIGA_HTML"' EXIT
 
-# The landing container is recreated during `docker compose up` and — unlike the
-# app services above — is NOT health-gated in section 4. So for a few seconds
-# after the nginx reload, `/` can still serve the pre-recreate page. Asserting
-# once raced that window and red-failed deploys whose live site was actually
-# correct (#158, #159). Retry each page until the freshly-built content is
-# served; only `die` if it never appears (a real regression still fails).
+# Smoke the landing CONTAINER directly on its loopback port, not via the apex
+# nginx. certbot --redirect makes :80 return a 301 to https, and these curls
+# don't follow redirects — so going through nginx greps the "301 Moved" body
+# (no riga link) and red-failed deploys whose live site was correct (#158,
+# #159). Hitting the container serves the real apps/landing/ files and also
+# sidesteps a recreate race (landing isn't health-gated in section 4). Retry
+# until the freshly-built content is served; only `die` if it never appears.
 landing_root_ok=0
 for _ in $(seq 1 30); do
-    if curl -fsS -H "Host: $APEX_DOMAIN" "http://127.0.0.1/" >"$LANDING_ROOT_HTML" 2>/dev/null \
+    if curl -fsS "http://127.0.0.1:$LANDING_PORT/" >"$LANDING_ROOT_HTML" 2>/dev/null \
         && grep -F 'href="/dashboards/riga-real-estate/"' "$LANDING_ROOT_HTML" >/dev/null; then
         landing_root_ok=1; break
     fi
@@ -606,7 +607,7 @@ done
 
 riga_legacy_ok=0
 for _ in $(seq 1 30); do
-    if curl -fsS -H "Host: $APEX_DOMAIN" "http://127.0.0.1/riga-real-estate/" >"$LANDING_RIGA_HTML" 2>/dev/null \
+    if curl -fsS "http://127.0.0.1:$LANDING_PORT/riga-real-estate/" >"$LANDING_RIGA_HTML" 2>/dev/null \
         && grep -F '<title>Riga real estate observations · negativezero</title>' "$LANDING_RIGA_HTML" >/dev/null \
         && grep -F 'href="./styles.css"' "$LANDING_RIGA_HTML" >/dev/null \
         && grep -F 'src="./app.js"' "$LANDING_RIGA_HTML" >/dev/null \
