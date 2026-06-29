@@ -113,8 +113,8 @@ sequenceDiagram
 
 For the `tts` service the same shape applies but the client is usually
 a machine (iPhone Shortcut) presenting a Bearer token rather than a
-cookie; see the auth-modes table below and
-`apps/tts/backend/app/auth.py`.
+cookie; see the auth-modes table below and Amethyst's `backend/app/auth.py`
+(now in the `amethyst-independent` repo, `web/`, not in this repo).
 
 ---
 
@@ -230,7 +230,8 @@ blip; past that window they **fail closed** with `deny`. If `admin`'s
 own DB read throws, the endpoint returns `503` with an explicit
 `deny`, so a database hiccup is never misread as an allow. See
 `apps/bookmark-manager/server/src/lib/authz.ts` and the mirrored Python
-logic in `apps/tts/backend/app/auth.py`.
+logic in Amethyst's `backend/app/auth.py` (now in the `amethyst-independent`
+repo, not in this repo).
 
 ---
 

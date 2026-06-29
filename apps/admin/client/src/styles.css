@@ -22,7 +22,7 @@ html, body, #root { height: 100%; min-height: 100dvh; }
 html, body {
   /* Blue-tinted floating base (not flat black) so iOS safe-area regions — the
      status bar and home-indicator zones — show the gradient instead of black
-     bars. Mirrors apps/tts/pwa.
+     bars. Mirrors the Amethyst PWA (now in the amethyst-independent repo, web/pwa/).
      The solid background-color is the key fix for the WHITE bars: with
      background-attachment: fixed iOS doesn't paint the gradient *image* into the
      safe-area strips, so without an explicit color those strips fell back to

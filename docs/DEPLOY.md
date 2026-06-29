@@ -16,6 +16,12 @@ Nothing here needs secrets in the repo; the only secret to supply is the Groq ke
   the desktop is `~/.ssh/id_ed25519_wellfit_agent`, wired via a `Host wellfit`
   alias in `~/.ssh/config`. (Older notes name `~/.ssh/wellfit_prod_ed25519` — same box.)
 - You have the owner's **Groq API key** (`gsk_…`) from https://console.groq.com/keys.
+- The box is logged into GHCR for the **private** Amethyst image (one-time):
+  `ssh wellfit 'docker login ghcr.io -u <gh-user>'` with a PAT that has
+  `read:packages`. Without this, `docker compose pull tts` fails on first deploy.
+  Amethyst's source lives in the separate `amethyst-independent` repo; this
+  platform only pulls its published `ghcr.io/chocolatebrownie250/amethyst-web`
+  image (override with `AMETHYST_IMAGE` in `platform/.env`).
 - Local repo is on the latest `main` (`git fetch origin && git checkout main && git pull`).
 - When using the manual rsync path, deploy from the real main checkout
   `/Users/magic/Documents/Claude/01_Claude Code/negativezero-local`. Do not
@@ -61,12 +67,17 @@ No other new env is required: `ADMIN_AUTHZ_URL` is baked into docker-compose
 ```bash
 cd /srv/negativezero && bash platform/deploy.sh
 ```
-`deploy.sh` rebuilds landing + bookmark-manager + admin + tts + timezones +
-video-downloader + redirector, re-derives ports, and re-installs the apex nginx
-file. tts only starts once `GROQ_API_KEY` is present. It now also fails loudly
-if the apex landing no longer links `riga-estate` to the canonical dashboard
-route or if the legacy `/riga-real-estate/` micro-site shell is replaced by
-dashboard assets.
+`deploy.sh` rebuilds the in-repo images (landing + bookmark-manager + admin +
+timezones + video-downloader + redirector + citrine), **pulls** the prebuilt
+Amethyst image (`docker compose pull tts`, default
+`ghcr.io/chocolatebrownie250/amethyst-web:latest`, overridable via
+`AMETHYST_IMAGE` in `platform/.env`), re-derives ports, and re-installs the apex
+nginx file. tts only starts once `GROQ_API_KEY` is present. The Amethyst image
+is **private**, so a one-time `docker login ghcr.io` on the box (PAT with
+`read:packages`) is required before the first pull. `deploy.sh` now also fails
+loudly if the apex landing no longer links `riga-estate` to the canonical
+dashboard route or if the legacy `/riga-real-estate/` micro-site shell is
+replaced by dashboard assets.
 
 ## 4. Verify
 ```bash

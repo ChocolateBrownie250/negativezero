@@ -30,7 +30,7 @@ keep serving its own `app.js` / `styles.css` shell.
 | **timezones** | `/services/timezones/` | Fastify + static HTML/JS (Intl API) + SQLite presets | SSO |
 | **basalt** (bookmark-manager) | `/services/basalt/` | Fastify + React + SQLite (AES-256-GCM at rest) | passkey + SSO |
 | **admin** | `/services/admin/` | Fastify + React + SQLite | passkey; **SSO + authz hub** |
-| **tts** (Amethyst) | `/services/amethyst/` | FastAPI + Groq (Whisper + Llama) | SSO + Bearer key |
+| **tts** (Amethyst) | `/services/amethyst/` | FastAPI + Groq (Whisper + Llama); source in the `amethyst-independent` repo, deployed here as a prebuilt image | SSO + Bearer key |
 | **video-downloader** | `/services/video-downloader/` | Fastify + React + ffmpeg remux | passkey + SSO |
 | **redirector** | `/services/redirector/` | Fastify + React + SQLite | passkey + SSO (hash redirect public) |
 | **citrine** | `/services/citrine/` | Fastify + React PWA + local presentation documents | passkey + SSO |
@@ -40,8 +40,11 @@ published at `/dashboards/riga-real-estate/` from host static files under
 `/var/www/dashboards/riga-real-estate/`.
 
 **Stacks:** Node 22 + Fastify 5 + TypeScript + better-sqlite3 + React 18 (Vite +
-Tailwind) for the TS services; Python 3.12 + FastAPI + Groq for tts; static HTML
-for landing + timezones. nginx on the apex; Docker Compose; Let's Encrypt TLS.
+Tailwind) for the in-repo TS services; static HTML for landing + timezones. The
+tts (Amethyst) service is FastAPI + Groq, but its source lives in the
+`amethyst-independent` repo and is deployed here as a prebuilt container image
+(`ghcr.io/chocolatebrownie250/amethyst-web`). nginx on the apex; Docker Compose;
+Let's Encrypt TLS.
 
 **Auth:** per-service WebAuthn passkeys plus an apex SSO hub — `admin` mints a
 shared `nz_session` JWT and is the single authority for per-account, per-service
@@ -65,12 +68,13 @@ AGENTS.md              contract for coding agents
 
 `main` is the production branch. Pushing/merging to `main` runs the GitHub
 deploy workflow, which rsyncs the repo to the VPS and runs
-[`platform/deploy.sh`](platform/deploy.sh) there. The deploy script builds every
-service, picks free loopback ports, installs the nginx site, and issues TLS; see
+[`platform/deploy.sh`](platform/deploy.sh) there. The deploy script builds the
+in-repo services, **pulls** the prebuilt Amethyst (tts) image from GHCR, picks
+free loopback ports, installs the nginx site, and issues TLS; see
 [`docs/DEPLOY.md`](docs/DEPLOY.md) for the exact runbook. For local development
-of a single service, see that service's `apps/<name>/README.md`.
+of a single in-repo service, see that service's `apps/<name>/README.md`; for
+Amethyst itself, work in the `amethyst-independent` repo.
 
 Add a service as `apps/<name>/` + a block in `platform/docker-compose.yml` + an
 nginx `location` — the deploy script absorbs new services without changes. The
-TS + Fastify stack is the default; tts is the documented Python exception
-(`AGENTS.md`).
+TS + Fastify stack is the default for everything in this repo (`AGENTS.md`).

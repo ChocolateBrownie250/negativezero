@@ -8,8 +8,9 @@ added, or a service's adherence shifts.
 For the technical architecture see [ARCHITECTURE.md](ARCHITECTURE.md); for
 the reasoning behind choices see [DECISIONS.md](DECISIONS.md).
 
-The reference implementation is the Amethyst PWA
-(`apps/tts/pwa/styles.css`). The canonical token source for the React apps
+The reference implementation is the Amethyst PWA (its `web/pwa/styles.css`,
+now in the `amethyst-independent` repo, not in this repo). The canonical token
+source for the React apps
 is `apps/bookmark-manager/client/src/lib/colors.ts` together with the
 `:root` and `@theme` blocks in
 `apps/bookmark-manager/client/src/styles.css`.
@@ -129,7 +130,8 @@ Notes:
 - `.glass-surface` and `.glass-pill` use a slightly more opaque base
   (`rgba(16, 26, 52, 0.72)`) and a tighter shadow for floating menus and
   the toast.
-- The Amethyst reference (`apps/tts/pwa/styles.css`) adds an `::after`
+- The Amethyst reference (its `web/pwa/styles.css`, in the
+  `amethyst-independent` repo) adds an `::after`
   gradient-border ring and an `::before` top sheen on its `.glass`
   primitive for extra depth on the marquee surfaces.
 
@@ -259,8 +261,9 @@ Smaller one-off radii (buttons at `13px`, inputs at `12px`, pills at
 
 - **React apps** (Basalt, Admin, Redirector, Video-downloader, Citrine)
   use `lucide-react` (`^1.16.0`) for inline SVG icons.
-- **Amethyst PWA** uses an inline `<symbol>` SVG sprite defined in
-  `apps/tts/pwa/index.html` and referenced via `<use>` (for example
+- **Amethyst PWA** uses an inline `<symbol>` SVG sprite defined in its
+  `web/pwa/index.html` (in the `amethyst-independent` repo) and referenced
+  via `<use>` (for example
   `i-mic`, `i-stop`, `i-clock`, `i-book`), all `currentColor`-driven so
   they inherit the accent.
 - Both styles share a `1.7` stroke width, round caps, and round joins.
@@ -279,7 +282,7 @@ scopes follow `/services/<name>/`.
 
 | Service          | Path                         | Theme stance                                   |
 | ---------------- | ---------------------------- | ---------------------------------------------- |
-| Amethyst (TTS)   | `apps/tts/pwa/`              | Reference implementation                       |
+| Amethyst (TTS)   | `web/pwa/` (amethyst-independent repo) | Reference implementation             |
 | Basalt           | `apps/bookmark-manager/`     | Full adherence                                 |
 | Admin            | `apps/admin/`                | Full adherence                                 |
 | Redirector       | `apps/redirector/`           | Full adherence                                 |

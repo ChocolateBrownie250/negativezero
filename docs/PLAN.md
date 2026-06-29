@@ -26,6 +26,15 @@ editing the cleanup and proofread system prompts that the tts service uses.
 Needs a small protocol between admin and tts (either a shared SQLite table or a
 tiny HTTP API on tts that admin calls).
 
+> **Note (2026-06-29):** Amethyst's app source was extracted out of this repo
+> to the separate `amethyst-independent` repo (it now holds both a macOS desktop
+> edition and the web/PWA edition under `web/`). This platform no longer builds
+> apps/tts/; it consumes the prebuilt GHCR image
+> `ghcr.io/chocolatebrownie250/amethyst-web` as the `tts` service. Routing and
+> auth at `/services/amethyst/` are unchanged. Phase 3 ("admin edits tts
+> prompts") would now talk to that external service over HTTP, not edit in-repo
+> source. See DECISIONS.md 2026-06-29.
+
 ---
 
 ## Plan
@@ -103,9 +112,11 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 
 ### Phase 2 — tts absorbed (IN PROGRESS 2026-05-28)
 
-- [x] Pull `/opt/amethyst/` source into `apps/tts/` (backend, pwa,
+- [x] Pull `/opt/amethyst/` source into apps/tts/ (backend, pwa,
       tests, shortcuts, pyproject.toml, uv.lock, README, SECURITY_AUDIT.md)
-- [x] Adapt `apps/tts/Dockerfile`: PORT env, UID 999, /data ownership
+      — note: apps/tts/ was later extracted to the `amethyst-independent`
+      repo (2026-06-29; see the Current focus note + DECISIONS.md)
+- [x] Adapt apps/tts/Dockerfile: PORT env, UID 999, /data ownership
 - [x] Wire into `platform/docker-compose.yml`: new `tts:` service block
 - [x] Wire into `platform/nginx/negativezero.one.conf`: new
       `/services/amethyst/` location; old `/services/tts/` and
@@ -139,8 +150,9 @@ the admin UI without touching the tts source.
       ownership, shared SQLite is less code.
 - [ ] On the chosen path, expose read/write endpoints from tts
       and a "Prompts" page in admin.
-- [ ] Defaults: ship the current hard-coded prompts from
-      `apps/tts/backend/app/groq_client.py` (and similar) as the
+- [ ] Defaults: ship the current hard-coded prompts from Amethyst's
+      backend/app/groq_client.py (and similar) — now in the
+      `amethyst-independent` repo, no longer apps/tts/ here — as the
       seed values when admin first touches the prompt store.
 - [ ] Audit-log every prompt change in admin (who, when, before/after).
 - [ ] Smoke test: change a prompt from admin, transcribe a clip,

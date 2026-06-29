@@ -47,14 +47,14 @@ remain above the landing catch-all.
 ### Container map
 
 ```
-negativezero-landing            nginx:alpine                       127.0.0.1:3020→80
-negativezero-bookmark-manager   platform-bookmark-manager:latest   127.0.0.1:3021→3000
-negativezero-admin              platform-admin:latest              127.0.0.1:3022→3000
-negativezero-tts                platform-tts:latest                127.0.0.1:3023→3000
-negativezero-timezones          platform-timezones:latest          127.0.0.1:3024→3000
-negativezero-video-downloader   platform-video-downloader:latest   127.0.0.1:3025→3000
-negativezero-redirector         platform-redirector:latest         127.0.0.1:3026→3000
-negativezero-citrine            platform-citrine:latest            127.0.0.1:3027→3000
+negativezero-landing            nginx:alpine                              127.0.0.1:3020→80
+negativezero-bookmark-manager   platform-bookmark-manager:latest          127.0.0.1:3021→3000
+negativezero-admin              platform-admin:latest                     127.0.0.1:3022→3000
+negativezero-tts                ghcr.io/chocolatebrownie250/amethyst-web  127.0.0.1:3023→3000
+negativezero-timezones          platform-timezones:latest                 127.0.0.1:3024→3000
+negativezero-video-downloader   platform-video-downloader:latest          127.0.0.1:3025→3000
+negativezero-redirector         platform-redirector:latest                127.0.0.1:3026→3000
+negativezero-citrine            platform-citrine:latest                   127.0.0.1:3027→3000
 ```
 
 Loopback ports are re-derived by `platform/deploy.sh` on every run from
@@ -151,8 +151,10 @@ use it. If `ADMIN_AUTHZ_URL` is unset for a service, the check is skipped
 
 Full details in `docs/ARCHITECTURE.md`; pointer list here:
 
-- **Monorepo layout** — `apps/{landing,bookmark-manager,admin,tts,timezones,video-downloader,redirector,presentation-studio}/` +
-  `platform/{docker-compose.yml,deploy.sh,nginx/}` + `docs/`.
+- **Monorepo layout** — `apps/{landing,bookmark-manager,admin,timezones,video-downloader,redirector,presentation-studio}/` +
+  `platform/{docker-compose.yml,deploy.sh,nginx/}` + `docs/`. Amethyst (tts) has
+  no `apps/` dir — its source is in the `amethyst-independent` repo and it's
+  deployed as the prebuilt `ghcr.io/chocolatebrownie250/amethyst-web` image.
 - **No central identity provider.** Per-service WebAuthn for the TS
   services; Bearer API key for tts. Earlier plans for Logto were
   reversed 2026-05-28 — see DECISIONS.md.
@@ -187,11 +189,12 @@ ssh -i ~/.ssh/wellfit_prod_ed25519 root@45.76.88.245 \
   'cd /srv/negativezero && bash platform/deploy.sh'
 ```
 
-`deploy.sh` rebuilds landing + bookmark-manager + admin + tts + timezones +
-video-downloader + redirector + citrine
-and re-installs the apex nginx file. If `GROQ_API_KEY` is empty in
-`platform/.env`, tts is skipped (the apex still deploys cleanly);
-paste the Groq key and re-run to bring tts up.
+`deploy.sh` rebuilds the in-repo images (landing + bookmark-manager + admin +
+timezones + video-downloader + redirector + citrine), **pulls** the prebuilt
+Amethyst image (`docker compose pull tts`), and re-installs the apex nginx file.
+The private image needs a one-time `docker login ghcr.io` on the box first. If
+`GROQ_API_KEY` is empty in `platform/.env`, tts is skipped (the apex still
+deploys cleanly); paste the Groq key and re-run to bring tts up.
 
 ### Inspect state
 
@@ -372,9 +375,17 @@ over a unix socket. Defer until there's a concrete need.
   Tailwind 4 preflight defaults and the vite-8 admin dev server look
   right.
 
-- **tts source is a clean import from the upstream amethyst repo.**
-  No PR flow upstream; changes stay in this monorepo. If the upstream
-  ever ships a worthwhile change, port it manually.
+- **Amethyst (tts) source + build moved to the `amethyst-independent` repo
+  (2026-06-29).** That repo (owner `ChocolateBrownie250`, private) is the source
+  of truth for the app and holds two editions under one roof — a macOS desktop
+  app and the web/PWA edition under `web/`. This platform no longer builds
+  Amethyst from `apps/tts/`; it pulls the prebuilt image
+  `ghcr.io/chocolatebrownie250/amethyst-web` (overridable via `AMETHYST_IMAGE` in
+  `platform/.env`). Because the image is **private**, the operator must run a
+  one-time `docker login ghcr.io` on the VPS (PAT with `read:packages`) before
+  the first pull; `deploy.sh` then `docker compose pull tts`s it. App changes
+  happen in `amethyst-independent` and ship a new image — see DECISIONS.md
+  2026-06-29.
 
 - **GROQ_API_KEY is operator-supplied.** First-run `deploy.sh` leaves
   `GROQ_API_KEY=` empty in `.env`; the tts container is deferred

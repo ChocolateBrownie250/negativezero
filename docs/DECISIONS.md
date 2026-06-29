@@ -12,6 +12,58 @@ but not when to revisit it.
 
 ---
 
+## 2026-06-29 — Extract Amethyst to the `amethyst-independent` repo; consume it as a GHCR image
+
+This **partially supersedes** the 2026-05-28 entry "Amethyst absorbed as
+apps/tts/ (was a separate tenant)". That decision pulled Amethyst's source into
+this monorepo to collapse two deploy models into one; this decision pulls the
+*source* back out into its own repo while keeping the service deployed here — so
+the platform still serves Amethyst at `/services/amethyst/` with the unified
+invite→passkey→SSO auth, but no longer holds the app's source.
+
+**Why:** Amethyst now has two editions that belong together in their own
+project — a macOS desktop app and this web/PWA edition — and keeping them in one
+dedicated repo (`amethyst-independent`, owner `ChocolateBrownie250`, private; web
+edition under `web/`) is cleaner than splitting them across this platform and a
+desktop repo. The goal was to fully remove Amethyst's app source from this
+platform repo while leaving the running service untouched: same public URL, same
+container-in-network position, same SSO + admin-authz model.
+
+**What changed (in this repo):**
+- Removed `apps/tts/`, the `scripts/production/amethyst_shortcut_smoke.sh`
+  shortcut smoke script, and the `.github/workflows/tts.yml` CI workflow.
+- The `tts` service in `platform/docker-compose.yml` changed from
+  `build: context: ../apps/tts` to
+  `image: ${AMETHYST_IMAGE:-ghcr.io/chocolatebrownie250/amethyst-web:latest}`.
+- `platform/deploy.sh` now `docker compose pull tts` instead of building it.
+- Amethyst's pytest suite + CI moved with the source to `amethyst-independent`
+  (its `web-tests.yml`).
+
+**What did NOT change:** the public URL `/services/amethyst/` (+ the legacy
+`/services/tts/` 308 redirect and `/vtt-transcriber/` proxy), nginx routing, the
+auth model (invite/setup-code → passkey via admin → shared `nz_session` JWT →
+unified account), the container still running in the compose `internal` network
+and calling admin's `GET /api/internal/authz` for service `"tts"` with the shared
+`SSO_SESSION_SECRET`, the `"tts"` id in admin's `GATED_SERVICES`, the runtime
+data at `platform/data/tts/` (still backed up by `platform/backup.sh`), and the
+`GROQ_API_KEY` / `TTS_API_KEY` (→ container `AMETHYST_API_KEY`) secrets in
+`platform/.env`.
+
+**Operator steps:** (1) publish the image from `amethyst-independent` CI first;
+(2) one-time `docker login ghcr.io` on the VPS with a PAT that has
+`read:packages` (the image is private); (3) optionally pin a specific image via
+`AMETHYST_IMAGE` in `platform/.env`, otherwise `:latest` is pulled.
+
+**Alternatives considered:** keep Amethyst's source in `apps/tts/` and only split
+out the desktop edition — rejected, it leaves the web and desktop editions in
+separate repos when they share most of their logic. Vendor the built artifact
+into this repo instead of pulling an image — rejected, that re-introduces the
+build coupling the move is meant to remove.
+
+**What would invalidate this:** Amethyst needing build-time coupling to this
+platform again (then re-vendor or add a submodule), or the desktop/web split
+being abandoned so a single web-only repo no longer earns its own home.
+
 ## 2026-06-23 — Citrine persistence: server is the source of truth, localStorage is an offline cache
 
 Server-side per-presentation storage landed for Citrine: owner-scoped

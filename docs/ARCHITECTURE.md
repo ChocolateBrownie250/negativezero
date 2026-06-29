@@ -43,12 +43,16 @@ per-account authorization.
   generator. Future: per-service settings UI (e.g., cleanup/proofread
   prompts for tts).
 - **Admin frontend:** React 18 + Vite 8 + Tailwind 4.
-- **TTS service:** Python 3.12 + FastAPI + uvicorn + aiosqlite (with
-  FTS5). Whisper transcription via Groq, LLM cleanup / proofreading
+- **TTS service (Amethyst):** Python 3.12 + FastAPI + uvicorn + aiosqlite
+  (with FTS5). Whisper transcription via Groq, LLM cleanup / proofreading
   via Groq Llama. PWA frontend is vanilla HTML/JS (no framework).
-  Imported as-is from the upstream amethyst project; see
-  DECISIONS.md 2026-05-28 entries on the absorption and the
-  Python+FastAPI exception to the TS+Fastify convention.
+  **Source is external:** it lives in the `amethyst-independent` repo
+  (`web/`, alongside a macOS desktop edition), and this platform deploys
+  it as a pulled prebuilt image
+  (`ghcr.io/chocolatebrownie250/amethyst-web`) rather than building from
+  `apps/`. Its place in routing/auth/data-flow is otherwise unchanged.
+  See DECISIONS.md 2026-06-29 (extraction) and the 2026-05-28 entries on
+  the original absorption + the Python+FastAPI exception.
 - **Citrine service:** Node 22 + Fastify 5 + TypeScript + better-sqlite3
   12 backend and a React 18 + Vite 8 + Tailwind 4 PWA frontend.
   Web-native presentation editor mounted at `/services/citrine/`.
@@ -138,11 +142,12 @@ apps/
   landing/              static landing page (negativezero.one/)
   bookmark-manager/     Basalt bookmark service (negativezero.one/services/basalt/)
   admin/                SSO hub + registration-code generator (negativezero.one/services/admin/)
-  tts/                  whisper + LLM cleanup pipeline (negativezero.one/services/amethyst/)
   timezones/            gated cross-timezone planner (negativezero.one/services/timezones/)
   video-downloader/     clear-HLS remux tool (negativezero.one/services/video-downloader/)
   redirector/           short-link redirects (negativezero.one/services/redirector/)
   presentation-studio/  Citrine web-native presentation editor (negativezero.one/services/citrine/)
+  (tts/Amethyst has no apps/ dir — source is in the amethyst-independent repo;
+   deployed as the prebuilt ghcr.io/chocolatebrownie250/amethyst-web image)
 platform/
   docker-compose.yml    orchestrates landing + bookmark-manager + admin + tts + timezones + video-downloader + redirector + citrine
   deploy.sh             idempotent deployer for the VPS
@@ -199,13 +204,19 @@ per-service access. The gated service list lives in
 settings UI (e.g., editing the LLM cleanup and proofread system prompts
 that tts uses).
 
-**`apps/tts/`** — Whisper transcription + LLM cleanup/proofreading
+**Amethyst (tts)** — Whisper transcription + LLM cleanup/proofreading
 pipeline. FastAPI backend, vanilla-JS PWA frontend, one container.
-Owns: audio upload + retention purge, Groq Whisper transcription,
-glossary-aware LLM cleanup, "polish" mode for stronger proofreading,
-per-recording metadata + FTS5 search. Auth is a single Bearer API key
-(operator-provisioned, used by the iPhone Shortcut + PWA). State is
-one SQLite file plus an audio cache directory on a bind-mount volume.
+**Source is external** — it lives in the `amethyst-independent` repo
+(`web/`); this platform runs it as the pulled prebuilt
+`ghcr.io/chocolatebrownie250/amethyst-web` image (the `tts` service in
+`platform/docker-compose.yml`), not from `apps/`. Owns: audio upload +
+retention purge, Groq Whisper transcription, glossary-aware LLM cleanup,
+"polish" mode for stronger proofreading, per-recording metadata + FTS5
+search. The browser PWA rides the shared SSO cookie + a `tts` grant; the
+iPhone Shortcut + scripts use a Bearer API key. The container still runs
+in the internal docker network and calls admin's `/api/internal/authz`
+for service `tts`. State is one SQLite file (`amethyst.sqlite`) plus an
+audio cache directory on a bind-mount volume (`platform/data/tts/`).
 
 **`apps/timezones/`** — gated cross-timezone meeting planner. A small
 Fastify backend verifies the apex SSO cookie + admin authz and stores
@@ -390,10 +401,12 @@ DECISIONS.md.
   ~30s) whether the account may use that service. Amethyst's PWA dropped
   its API-key field in favour of this (the iPhone Shortcut Bearer key
   stays). See DECISIONS.md 2026-06-18.
-- **Python + FastAPI exception for tts.** Net-new services still
-  default to TS + Fastify; tts is the documented exception because
-  rewriting a working imported service would burn weeks for no
-  functional gain. See DECISIONS.md 2026-05-28.
+- **Amethyst (tts) lives in its own repo, consumed as an image.** Its
+  Python + FastAPI source was extracted to the `amethyst-independent`
+  repo (2026-06-29) and is deployed here as a pulled GHCR image, so no
+  in-repo service deviates from the TS + Fastify default. Net-new
+  services still default to TS + Fastify. See DECISIONS.md 2026-06-29
+  (extraction) and 2026-05-28 (the original Python exception).
 - **Landing is one HTML file.** No build, no framework. Three fonts +
   ~80 lines of canvas JS. Anything more would be lifestyle, not need.
 - **Per-service SQLite, bind-mounted.** Every persistent service (Basalt,
@@ -453,7 +466,7 @@ Vultr VPS (Ubuntu)
 │   ├── apps/landing/             (bind-mounted into nginx-alpine container)
 │   ├── apps/bookmark-manager/    (built into image at deploy time)
 │   ├── apps/admin/               (built into image at deploy time)
-│   ├── apps/tts/                 (built into image at deploy time)
+│   ├── (tts/Amethyst — no apps/ dir; pulled prebuilt image from GHCR)
 │   ├── apps/timezones/           (built into image at deploy time)
 │   ├── apps/video-downloader/    (built into image at deploy time)
 │   ├── apps/redirector/          (built into image at deploy time)
@@ -463,7 +476,7 @@ Vultr VPS (Ubuntu)
     ├── negativezero-landing            (nginx:alpine serving apps/landing/)
     ├── negativezero-bookmark-manager   (Basalt; Fastify + built React, SQLite on volume)
     ├── negativezero-admin              (SSO hub; Fastify + built React, SQLite on volume)
-    ├── negativezero-tts                (Amethyst; FastAPI + PWA, SQLite + audio on volume)
+    ├── negativezero-tts                (Amethyst; pulled ghcr.io/.../amethyst-web image; SQLite + audio on volume)
     ├── negativezero-timezones          (Fastify + vanilla JS, SQLite on volume)
     ├── negativezero-video-downloader   (Fastify + built React, SQLite on volume)
     ├── negativezero-redirector         (Fastify + built React, SQLite on volume)
