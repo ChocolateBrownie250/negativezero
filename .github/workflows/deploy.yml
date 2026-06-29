@@ -78,6 +78,10 @@ jobs:
           # GitHub masks this secret in logs; leave it unset to manage the key
           # by hand on the box instead.
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # GHCR pull token (read:packages) so the box can `docker login` and
+          # pull the private Amethyst image. No-op if the secret is unset.
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
@@ -106,6 +110,17 @@ jobs:
               -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
               "$SSH_USER@$SSH_HOST" \
               "cd '$DEPLOY_PATH' && if [ \"\$(id -u)\" -eq 0 ]; then bash platform/seed-env-key.sh GROQ_API_KEY; else sudo -n bash platform/seed-env-key.sh GROQ_API_KEY; fi"
+          fi
+          # Log the box into GHCR so deploy.sh's `docker compose pull tts` can
+          # fetch the private Amethyst image (ghcr.io/chocolatebrownie250/
+          # amethyst-web). Token piped over stdin (never argv); run with the
+          # same privilege as deploy.sh so root's docker config gets the creds.
+          # No-op if GHCR_TOKEN is unset.
+          if [ -n "${GHCR_TOKEN:-}" ]; then
+            printf '%s' "$GHCR_TOKEN" | ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+              -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
+              "$SSH_USER@$SSH_HOST" \
+              "if [ \"\$(id -u)\" -eq 0 ]; then docker login ghcr.io -u '$GHCR_USER' --password-stdin; else sudo -n docker login ghcr.io -u '$GHCR_USER' --password-stdin; fi"
           fi
           # Run the idempotent deployer on the box (root runs it directly; a
           # non-root SSH_USER needs passwordless sudo).
