@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, KeyRound, Plus, Trash2 } from '../icons';
 import { api, UnauthorizedError, type TokenInfo } from '../api';
 import { COLORS, LABEL_SECONDARY, LABEL_TERTIARY, RING_STRONG } from '../lib/colors';
@@ -15,6 +15,8 @@ type Created = {
   token: string;
 };
 
+type Tab = 'active' | 'revoked';
+
 function fmtDate(ts: number): string {
   return new Date(ts).toISOString().replace('T', ' ').slice(0, 16);
 }
@@ -26,11 +28,15 @@ export default function AccountTokens({ accountId, onUnauthorized }: Props) {
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('active');
 
   const [label, setLabel] = useState('');
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const active = useMemo(() => tokens.filter((t) => !t.revoked), [tokens]);
+  const revoked = useMemo(() => tokens.filter((t) => t.revoked), [tokens]);
 
   function handleErr(err: unknown) {
     if (err instanceof UnauthorizedError) onUnauthorized();
@@ -66,6 +72,7 @@ export default function AccountTokens({ accountId, onUnauthorized }: Props) {
       const r = await api.accounts.createToken(accountId, label.trim() || undefined);
       setCreated(r);
       setLabel('');
+      setTab('active');
       await load();
     } catch (err) {
       handleErr(err);
@@ -105,6 +112,10 @@ export default function AccountTokens({ accountId, onUnauthorized }: Props) {
     );
   }
 
+  // Disclosure header — show a live active count once loaded so the operator can
+  // see at a glance whether an account has working tokens without expanding.
+  const headerCount = loaded ? ` · ${active.length} active` : '';
+
   return (
     <div className="mt-3">
       <button
@@ -115,7 +126,7 @@ export default function AccountTokens({ accountId, onUnauthorized }: Props) {
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <KeyRound size={12} />
-        API tokens (tts)
+        API tokens (tts){headerCount}
       </button>
 
       {expanded && (
@@ -124,16 +135,12 @@ export default function AccountTokens({ accountId, onUnauthorized }: Props) {
           style={{ background: COLORS.surface, boxShadow: `0 0 0 1px ${RING_STRONG}` }}
         >
           {error && (
-            <div
-              className="text-[12px] mb-2"
-              style={{ color: COLORS.red }}
-              role="alert"
-            >
+            <div className="text-[12px] mb-2" style={{ color: COLORS.red }} role="alert">
               {error}
             </div>
           )}
 
-          {/* Step 1 — create. Kept at the top so the flow reads top to bottom:
+          {/* Step 1 — create. Top of the panel so the flow reads top to bottom:
               name it (optional) -> Create -> copy the token that appears below. */}
           <div className="text-[12px] mb-2 leading-snug" style={{ color: LABEL_TERTIARY }}>
             Create a token, then paste it into the iPhone Shortcut API token field.
@@ -197,49 +204,60 @@ export default function AccountTokens({ accountId, onUnauthorized }: Props) {
             </div>
           )}
 
-          {/* Previously issued tokens */}
+          {/* Tabs — active tokens are the working set; revoked ones move to a
+              separate log so they don't clutter the list you act on. */}
           <div
-            className="text-[11px] uppercase tracking-wider mt-4 mb-1"
-            style={{ color: LABEL_TERTIARY }}
+            className="flex gap-1 p-1 rounded-lg mt-4"
+            style={{ background: COLORS.card }}
+            role="tablist"
           >
-            Issued tokens
+            {(['active', 'revoked'] as Tab[]).map((t) => {
+              const on = tab === t;
+              const count = t === 'active' ? active.length : revoked.length;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setTab(t)}
+                  className="flex-1 rounded-md py-1.5 text-[13px] capitalize transition-colors"
+                  style={{
+                    background: on ? COLORS.blue : 'transparent',
+                    color: on ? '#fff' : LABEL_SECONDARY,
+                  }}
+                >
+                  {t} ({count})
+                </button>
+              );
+            })}
           </div>
+
           {loading ? (
-            <div className="text-[13px] py-2" style={{ color: LABEL_TERTIARY }}>
+            <div className="text-[13px] py-2 mt-1" style={{ color: LABEL_TERTIARY }}>
               Loading…
             </div>
-          ) : tokens.length === 0 ? (
-            <div className="text-[13px] py-1" style={{ color: LABEL_TERTIARY }}>
-              No tokens yet.
-            </div>
-          ) : (
-            <ul>
-              {tokens.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between py-2 border-t border-white/5 first:border-t-0"
-                  style={{ opacity: t.revoked ? 0.55 : 1 }}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] truncate" style={{ color: COLORS.ink }}>
+          ) : tab === 'active' ? (
+            active.length === 0 ? (
+              <div className="text-[13px] py-2 mt-1" style={{ color: LABEL_TERTIARY }}>
+                No active tokens. Create one above.
+              </div>
+            ) : (
+              <ul className="mt-1">
+                {active.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between py-2 border-t border-white/5 first:border-t-0"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[14px] truncate" style={{ color: COLORS.ink }}>
                         {t.label || '(no label)'}
-                      </span>
-                      {t.revoked && (
-                        <span
-                          className="rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wider"
-                          style={{ background: COLORS.card, color: COLORS.red }}
-                        >
-                          revoked
-                        </span>
-                      )}
+                      </div>
+                      <div className="text-[11px]" style={{ color: LABEL_TERTIARY }}>
+                        created {fmtDate(t.createdAt)} · last used{' '}
+                        {t.lastUsed ? fmtDate(t.lastUsed) : 'never'}
+                      </div>
                     </div>
-                    <div className="text-[11px]" style={{ color: LABEL_TERTIARY }}>
-                      created {fmtDate(t.createdAt)} · last used{' '}
-                      {t.lastUsed ? fmtDate(t.lastUsed) : 'never'}
-                    </div>
-                  </div>
-                  {!t.revoked && (
                     <button
                       type="button"
                       onClick={() => onRevoke(t)}
@@ -251,7 +269,38 @@ export default function AccountTokens({ accountId, onUnauthorized }: Props) {
                       <Trash2 size={13} />
                       Revoke
                     </button>
-                  )}
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : revoked.length === 0 ? (
+            <div className="text-[13px] py-2 mt-1" style={{ color: LABEL_TERTIARY }}>
+              No revoked tokens.
+            </div>
+          ) : (
+            <ul className="mt-1">
+              {revoked.map((t) => (
+                <li
+                  key={t.id}
+                  className="py-2 border-t border-white/5 first:border-t-0"
+                  style={{ opacity: 0.7 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[14px] truncate" style={{ color: COLORS.ink }}>
+                      {t.label || '(no label)'}
+                    </span>
+                    <span
+                      className="rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wider shrink-0"
+                      style={{ background: COLORS.card, color: COLORS.red }}
+                    >
+                      revoked
+                    </span>
+                  </div>
+                  <div className="font-mono text-[11px] mt-0.5" style={{ color: LABEL_TERTIARY }}>
+                    created {fmtDate(t.createdAt)}
+                    {t.revokedAt ? ` · revoked ${fmtDate(t.revokedAt)}` : ''} · last used{' '}
+                    {t.lastUsed ? fmtDate(t.lastUsed) : 'never'}
+                  </div>
                 </li>
               ))}
             </ul>
